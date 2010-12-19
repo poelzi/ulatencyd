@@ -1,0 +1,32 @@
+WARNING: this program is under development and not working yet
+
+== What is ulatency ==
+
+Ulatency is a daemon that controls how the Linux kernel will spend it's
+resources on the running processes. It uses dynamic cgroups to give the kernel
+hints and limitations on processes.
+
+== What tries it to fix ==
+
+The Linux scheduler does a pretty good job to give the available resources to
+all processes, but this may not be the best user experience in the desktop case.
+ulatencyd monitors the system and categorizes the running processes into cgroups.
+Processes that run wild to slow down the system by causing massive swaping will
+be isolated.
+
+== Architecture ==
+
+The core of the daemon is written in c, embedding a lua interpreter.
+Most of the rules are written in lua scripts, as heuristics for system behavior
+can best be written in a script language.
+The daemon exports system informations into lua script.
+
+There are two ways implementing a heuristic behavior:
+- using a timeout callback
+- using a filter class
+
+The timeout callback is called until it returns True
+The filter class is the preferred way. The filter gets executed on processes and
+can categorize the process. Depending on the return value of the call, the filter
+gets called on the next iteration of over all processes, not again on the specific
+process or on the iteration after a timeout value.
