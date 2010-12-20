@@ -157,17 +157,20 @@ static int l_get_pid (lua_State *L) {
 
   pid = luaL_checkint (L, 1);
   //proctab = openproc(PROC_PID, pid);
+  memset(&buf, 0, sizeof(proc_t));
   proctab = openproc(OPENPROC_FLAGS);
   if(!proctab)
     return luaL_error (L, "Error: can not access /proc.");
   while(readproc(proctab,&buf)){
     if(buf.tgid == pid) {
        out = push_proc_t(L);
-       memcpy(out, &buf, sizeof(proc_t));
+       //memcpy(out, &buf, sizeof(proc_t));
+       cp_proc_t(&buf, out);
+       closeproc(proctab);
        return 1;
     }
   }
-  
+  closeproc(proctab);
   return 0;
 }
 
@@ -189,7 +192,7 @@ static int l_list_pids (lua_State *L) {
     lua_setfield(L, -2, &key[0]);
     i++;
   }
-  
+  closeproc(proctab);
   return 1;
 }
 
@@ -218,12 +221,15 @@ gboolean l_call_function(gpointer data) {
   //stackdump_g(cd->lua_state);
   lua_call (cd->lua_state, 1, 1);
   rv = lua_toboolean (cd->lua_state, -1);
+  lua_pop(cd->lua_state, 1);
 
-  if(rv)
+  if(rv) {
     return TRUE;
+  }
 
   luaL_unref (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
   free(data);
+  
   return FALSE;
 }
 
@@ -235,12 +241,12 @@ static int l_add_interval (lua_State *L) {
   memset(cd, 0, sizeof(struct lua_callback));
 
   cd->lua_state = L;
-  lua_pushvalue(L, 1);
-  cd->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
-  lua_pushvalue(L, 1);
   cd->lua_data = luaL_ref(L, LUA_REGISTRYINDEX);
+  cd->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
 
   g_timeout_add(interval,l_call_function, cd);
+
+  return 0;
 }
 
 
@@ -267,7 +273,10 @@ static proc_t *push_proc_t (lua_State *L)
 static int proc_t_gc (lua_State *L)
 {
   proc_t *proc = check_proc_t(L, 1);
-  if (proc) free(proc);
+  if (proc) {
+    freesupgrp(proc);
+    freeproc(proc);
+  }
   printf("goodbye proc_t (%p)\n", lua_touserdata(L, 1));
   return 0;
 }
@@ -434,6 +443,122 @@ static int proc_t_index (lua_State *L)
   return 0;
 }
 
+int l_filter_callback(struct proc_t *proc, filter *flt) {
+  gint rv;
+  lua_State *L;
+  struct proc_t *nproc;
+  struct lua_filter *lf = (struct lua_filter *)flt->data;
+
+  g_assert(flt->type == FILTER_LUA);
+
+  L = lf->lua_state;
+
+  lua_rawgeti (L, LUA_REGISTRYINDEX, lf->lua_func);
+  //lua_pushstring(lf->lua_state, "check")
+  lua_getfield (L, -1, "check");
+  if(!lua_isfunction(L, -1)) {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "filter does not have a check method, disable %s", flt->name);
+    lua_pop(L, 2);
+    return FILTER_STOP;
+  }
+  lua_pushvalue(L, -2);
+  nproc = push_proc_t(L);
+  cp_proc_t(proc, nproc);
+
+  lua_call(L, 2, 1);
+  rv = lua_tointeger(L, -1);
+  lua_pop(L, 2);
+  stackdump_g(L);
+  return rv;
+}
+
+int l_filter_check(struct proc_t *proc, filter *flt) {
+  gboolean rv;
+  struct lua_filter *lft = (struct lua_filter *)flt->data;
+
+  if(lft->regexp_basename && proc->cmd[0]) {
+    if(g_regex_match(lft->regexp_basename, &proc->cmd[0], 0, NULL))
+      return TRUE;
+  }
+  if(lft->regexp_cmdline && proc->cmdline) {
+    if(g_regex_match(lft->regexp_cmdline, *proc->cmdline, 0, NULL))
+      return TRUE;
+  }
+/*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
+  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);
+  //stackdump_g(cd->lua_state);
+  lua_call (cd->lua_state, 1, 1);
+  rv = lua_toboolean (cd->lua_state, -1);
+
+  if(rv)
+    return TRUE;
+
+  luaL_unref (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
+  free(data);
+  return FALSE;
+*/
+  return FALSE;
+}
+
+static GRegex *map_reg(lua_State *L, char *key) {
+  GError *error = NULL;
+  const char *tmp;
+  GRegex *rv = NULL;
+  lua_getfield (L, 1, key);
+  if(lua_isstring(L, -1)) {
+    rv = g_regex_new(lua_tostring(L, -1), G_REGEX_OPTIMIZE, 0, &error);
+    if(error && error->code) {
+      rv = NULL;
+      luaL_where (L, 1);
+      tmp = lua_tostring(L, -1);
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "Error compiling filter in %s: %s", tmp, error->message );
+      g_error_free(error);
+      lua_pop(L, 1);
+    }
+  }
+  lua_pop(L, 1);
+  return rv;
+}
+
+static int l_register_filter (lua_State *L) {
+  lua_Debug ar;
+  luaL_checktype(L, 1, LUA_TTABLE);
+  //guint interval = luaL_checkint(L, 2);
+  struct lua_filter *lf = malloc(sizeof(struct lua_filter));
+  filter *flt = filter_new();
+  memset(lf, 0, sizeof(struct lua_filter));
+
+  lf->lua_state = L;
+  lua_pushvalue(L, 1);
+  lf->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
+
+  lf->regexp_cmdline = map_reg(L, "re_cmdline");
+  lf->regexp_basename = map_reg(L, "re_basename");
+  if(lf->regexp_cmdline || lf->regexp_basename)
+    flt->check = l_filter_check;
+
+  lua_getfield (L, 1, "name");
+  lua_getstack(L, 1, &ar);
+  lua_getinfo(L, "Sl", &ar);
+  if (lua_isstring(L, -1)) {
+    lua_pushfstring(L, "%s: %s", ar.short_src, lua_tostring(L, -1));
+  } else {
+    if (ar.currentline > 0)  /* is there info? */
+      lua_pushfstring(L, "%s:%d (unknown)", ar.short_src, ar.currentline);
+    else
+      lua_pushstring(L, "(unknown)");
+  }
+  flt->name = g_strdup(lua_tostring(L, -1));
+  lua_pop(L, 2);
+
+
+  flt->data = lf;
+  flt->callback = l_filter_callback;
+  filter_register(flt);
+
+  return 0;
+}
+
 
 
 static const luaL_reg proc_t_meta[] = {
@@ -463,9 +588,11 @@ static const luaL_reg R[] = {
   {"list_pids",  l_list_pids},
   {"log",  l_log},
   {"add_timeout", l_add_interval},
+  {"register_filter", l_register_filter},
   {"quit_daemon", l_quit},
 	{NULL,        NULL}
 };
+
 
 #undef PUSH_INT
 

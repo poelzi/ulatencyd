@@ -69,7 +69,7 @@ print_table(ul.list_pids())
 si_run = 0
 function someinterval(data)
   print("interval", data, si_run)
-  if si_run == 1 then
+  if si_run == 10 then
     ul.quit_daemon()
     return false
   end
@@ -77,6 +77,19 @@ function someinterval(data)
   return true
 end
 
-ulatency.add_timeout(someinterval, 1000)
+ulatency.add_timeout(someinterval, 10000)
+
+TestFilter = {
+  name = "TestFilter",
+  re_basename = "init",
+}
+
+
+function TestFilter:check(proc)
+  print("check process")
+  print(proc) 
+end
+
+ulatency.register_filter(TestFilter)
 
 --ulatency.quit_daemon()

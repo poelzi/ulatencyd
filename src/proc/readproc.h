@@ -123,7 +123,7 @@ typedef struct proc_t {
     	sgroup[P_G_SZ],	// status          saved group name
     	fgroup[P_G_SZ],	// status          filesystem group name
     	**supgrp, // status        supplementary groups
-    	cmd[16];	// stat,status     basename of executable file in call to exec(2)
+    	cmd[32];	// stat,status     basename of executable file in call to exec(2)
     struct proc_t
 	*ring,		// n/a             thread group ring
 	*next;		// n/a             various library uses

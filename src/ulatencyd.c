@@ -13,6 +13,8 @@
 #include "proc/sysinfo.h"
 #include "proc/readproc.h"
 #include <libcgroup.h>
+#include <sys/mman.h>
+
 
 
 int full_check;
@@ -26,11 +28,12 @@ GList *filter_list;
 filter* filter_new() {
   filter *rv = malloc(sizeof(filter));
   memset(rv, 0, sizeof(filter));
-  rv->skip_filter = g_hash_table_new(g_int_hash, g_int_equal);
+  rv->skip_filter = g_hash_table_new(g_direct_hash, g_direct_equal);
   return rv;
 }
 
 void filter_register(filter *filter) {
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "register new filter: %s", filter->name ? filter->name : "unknown");
   filter_list = g_list_append(filter_list, filter);
 }
 
@@ -47,19 +50,36 @@ int filter_cleanup(gpointer data) {
 
 }
 
-int l_filter_run_for_proc(gpointer data, gpointer user_data) {
+int timeout_long(gpointer data) {
 
+  // try the make current memory non swapalbe
+  if(mlockall(MCL_CURRENT))
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
+}
 
+void inline cp_proc_t(const struct proc_t *src, struct proc_t *dst) {
+  memcpy(dst, src, sizeof(struct proc_t));
+  allocsupgrp(dst);
+  int i;
+  for (i=0; i < src->nsupgid; i++)
+      memcpy(dst->supgrp[i], src->supgrp[i], P_G_SZ);
+  if (src->cmdline)
+    dst->cmdline = g_strdupv(src->cmdline);
+  if (src->environ)
+    dst->environ = g_strdupv(src->environ);
+  if (src->cgroup)
+    dst->cgroup = g_strdupv(src->cgroup);
 }
 
 void filter_run_for_proc(gpointer data, gpointer user_data) {
   proc_t *proc = user_data;
   filter *flt = data;
   struct filter_block *flt_block =NULL;
-  int rv;
+  int rv = 0;
   time_t ttime = 0;
-  
 
+  if(data == NULL)
+    return;
 
   flt_block = (struct filter_block *)g_hash_table_lookup(flt->skip_filter, GUINT_TO_POINTER(proc->tgid));
   if(flt_block) {
@@ -70,14 +90,21 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
       return;
   }
 
-  if(flt->type == FILTER_LUA) {
-    rv = l_filter_run_for_proc(flt, proc);
+  if(flt->check) {
+    // if return 0 the real callback will be skipped
+    if(!flt->check(proc, flt))
+      return;
   }
+
+  rv = flt->callback(proc, flt);
+
   if(rv == 0)
     return;
 
   if(!flt_block)
     flt_block = malloc(sizeof(struct filter_block));
+
+  flt_block->pid = proc->tgid;
 
   if(rv > 0) {
     if(!ttime)
@@ -88,22 +115,31 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
     flt_block->skip = TRUE;  
   }
 
-  g_hash_table_insert(flt->skip_filter, GUINT_TO_POINTER(proc->tgid), flt_block);
+  g_hash_table_insert(flt->skip_filter, GUINT_TO_POINTER(flt_block->pid), flt_block);
 
 }
 
 int filter_run(gpointer data) {
   int pid;
-  proc_t buf;
+  proc_t *buf = NULL;
   PROCTAB *proctab;
 
   proctab = openproc(OPENPROC_FLAGS);
   if(!proctab)
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
 
-  while(readproc(proctab,&buf)){
-    g_list_foreach(filter_list, filter_run_for_proc, &buf);
+  while(TRUE){
+    buf = g_new0(struct proc_t, 1);
+    buf = readproc(proctab, buf);
+    if(!buf) {
+      free(buf);
+      break;
+    }
+    g_list_foreach(filter_list, filter_run_for_proc, buf);
+    freesupgrp(buf);
+    freeproc(buf);
   }
+  closeproc(proctab);
   return TRUE;
 }
 
@@ -127,7 +163,8 @@ int init() {
 void cleanup() {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "cleanup daemon");
   cgroup_unload_cgroups();
-  
+  // for valgrind
+  lua_gc (lua_main_state, LUA_GCCOLLECT, 0);
 }
 
 static void
@@ -182,7 +219,8 @@ int load_rules() {
     snprintf(rpath, PATH_MAX, "%s/%s",path, dit->d_name);
     load_rule_file(rpath);
   }
-
+  free(dip);
+  
 }
 
 int main (int argc, char *argv[])
@@ -210,6 +248,10 @@ int main (int argc, char *argv[])
   init();
   load_rules();
   // small hack
+  timeout_long(NULL);
+  g_timeout_add_seconds(60*5,timeout_long, NULL);
+
+  g_timeout_add_seconds(1,filter_run, NULL);
 
   if(g_main_loop_is_running(main_loop));
     g_main_loop_run(main_loop);

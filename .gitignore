@@ -1,2 +1,14 @@
 *.[oa]
-*.*~
+src/ulatencyd
+*~
+Makefile
+# globals
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+# cmake 
+cmake_install.cmake
+CMakeFiles
+CMakeCache.txt

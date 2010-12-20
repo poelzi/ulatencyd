@@ -6,6 +6,7 @@
 // See file COPYING for information on distribution conditions.
 
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include "alloc.h"
 
@@ -26,6 +27,7 @@ void *xmalloc(unsigned int size) {
     if (size == 0)
         ++size;
     p = malloc(size);
+    memset(p, 0, size);
     if (!p) {
 	fprintf(stderr, "xmalloc: malloc(%d) failed", size);
 	perror(NULL);
