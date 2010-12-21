@@ -174,6 +174,47 @@ static int l_get_pid (lua_State *L) {
   return 0;
 }
 
+static int l_get_config (lua_State *L) {
+  const char *group, *key;
+  char *tmp;
+
+  group = luaL_checkstring (L, 1);
+  key = luaL_checkstring (L, 2);
+  //proctab = openproc(PROC_PID, pid);
+  tmp = g_key_file_get_string(config_data, group, key, NULL);
+  if(tmp) {
+    lua_pushstring(L, tmp);
+    free(tmp);
+    return 1;
+  }
+
+  return 0;
+}
+
+static int l_list_keys (lua_State *L) {
+  const char *group;
+  gchar **tmp;
+  gsize len;
+  int i;
+
+  group = luaL_checkstring (L, 1);
+  //proctab = openproc(PROC_PID, pid);
+  tmp = g_key_file_get_keys(config_data, group, &len, NULL);
+  if(len) {
+    lua_newtable(L);
+    for(i = 0; i < len; i++) {
+      lua_pushinteger(L, i);
+      lua_pushstring(L, tmp[i]);
+      lua_settable (L, -3);
+    }
+    return 1;
+  }
+
+  return 0;
+}
+
+
+
 static int l_list_pids (lua_State *L) {
   int i = 0;
   char key[20];
@@ -196,6 +237,71 @@ static int l_list_pids (lua_State *L) {
   return 1;
 }
 
+static int l_set_active_pid(lua_State *L) {
+  lua_Integer uid = luaL_checkinteger (L, 1);
+  lua_Integer pid = luaL_checkinteger (L, 2);
+
+  set_active_pid((guint)uid, (guint)pid);
+
+  return 0;
+}
+
+static int l_get_active_uids(lua_State *L) {
+  GList *cur = g_list_first(active_users);
+  struct user_active *ua = NULL;
+  int i = 1;
+  
+  lua_newtable(L);
+  while(cur) {
+    ua = cur->data;
+    lua_pushinteger(L, i);
+    lua_newtable(L);
+    lua_pushstring(L, "uid");
+    lua_pushinteger(L, ua->uid);
+    lua_settable (L, -3);
+    lua_pushstring(L, "max_processes");
+    lua_pushinteger(L, ua->max_processes);
+    lua_settable (L, -3);
+    lua_pushstring(L, "last_change");
+    lua_pushinteger(L, ua->last_change);
+    lua_settable (L, -3);
+    lua_settable (L, -3);
+    i++;
+    cur = g_list_next (cur);
+  }
+
+  return 1;
+}
+
+static int l_get_active_pids(lua_State *L) {
+  lua_Integer uid = luaL_checkinteger (L, 1);
+  struct user_active *ua = get_userlist((guint)uid, FALSE);
+  struct user_process *up;
+  GList *cur;
+  int i = 1;
+
+  if(!ua)
+    return 0;
+
+  cur = g_list_first(ua->actives);
+  lua_newtable(L);
+  while(cur) {
+    up = cur->data;
+    lua_pushinteger(L, i);
+    lua_newtable(L);
+    lua_pushstring(L, "pid");
+    lua_pushinteger(L, up->pid);
+    lua_settable (L, -3);
+    lua_pushstring(L, "last_change");
+    lua_pushinteger(L, up->last_change);
+    lua_settable (L, -3);
+    lua_settable (L, -3);
+    i++;
+    cur = g_list_next (cur);
+  }
+
+  return 1;
+}
 
 static int l_log (lua_State *L) {
   int level = luaL_checkint (L, 1);
@@ -226,8 +332,9 @@ gboolean l_call_function(gpointer data) {
   if(rv) {
     return TRUE;
   }
-
+  luaL_unref (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);
   luaL_unref (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
+  luaL_unref (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_state_id);
   free(data);
   
   return FALSE;
@@ -240,7 +347,8 @@ static int l_add_interval (lua_State *L) {
   struct lua_callback *cd = malloc(sizeof(struct lua_callback));
   memset(cd, 0, sizeof(struct lua_callback));
 
-  cd->lua_state = L;
+  cd->lua_state = lua_newthread (L);
+  cd->lua_state_id = luaL_ref(L, LUA_REGISTRYINDEX);
   cd->lua_data = luaL_ref(L, LUA_REGISTRYINDEX);
   cd->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
 
@@ -265,6 +373,7 @@ static proc_t *check_proc_t (lua_State *L, int index)
 static proc_t *push_proc_t (lua_State *L)
 {
   proc_t *p = (proc_t*)lua_newuserdata(L, sizeof(proc_t));
+  memset(p, 0, sizeof(proc_t));
   luaL_getmetatable(L, PROC_T);
   lua_setmetatable(L, -2);
   return p;
@@ -273,18 +382,19 @@ static proc_t *push_proc_t (lua_State *L)
 static int proc_t_gc (lua_State *L)
 {
   proc_t *proc = check_proc_t(L, 1);
+  //printf("goodbye proc_t (%p)\n", proc);
   if (proc) {
     freesupgrp(proc);
-    freeproc(proc);
+    freeproc_light(proc);
   }
-  printf("goodbye proc_t (%p)\n", lua_touserdata(L, 1));
   return 0;
 }
 
 
 static int proc_t_tostring (lua_State *L)
 {
-  lua_pushfstring(L, "proc_t: %p", lua_touserdata(L, 1));
+  proc_t *proc = lua_touserdata(L, 1);
+  lua_pushfstring(L, "proc_t: <%p> pid:%d", proc, proc->tid);
   return 1;
 }
 
@@ -468,7 +578,7 @@ int l_filter_callback(struct proc_t *proc, filter *flt) {
   lua_call(L, 2, 1);
   rv = lua_tointeger(L, -1);
   lua_pop(L, 2);
-  stackdump_g(L);
+  //stackdump_g(L);
   return rv;
 }
 
@@ -528,7 +638,10 @@ static int l_register_filter (lua_State *L) {
   filter *flt = filter_new();
   memset(lf, 0, sizeof(struct lua_filter));
 
-  lf->lua_state = L;
+  //lf->lua_state = L;
+  lf->lua_state = lua_newthread (L);
+  lf->lua_state_id = luaL_ref(L, LUA_REGISTRYINDEX);
+
   lua_pushvalue(L, 1);
   lf->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
 
@@ -550,7 +663,6 @@ static int l_register_filter (lua_State *L) {
   }
   flt->name = g_strdup(lua_tostring(L, -1));
   lua_pop(L, 2);
-
 
   flt->data = lf;
   flt->callback = l_filter_callback;
@@ -577,18 +689,28 @@ static const luaL_reg proc_t_methods[] = {
 
 /* object table */
 static const luaL_reg R[] = {
+  // system load
   {"get_load",  get_load},
   {"get_uptime",  get_uptime},
   {"get_meminfo",  get_meminfo},
   {"get_vminfo",  get_vminfo},
   {"get_pid_digits",  l_get_pid_digits},
+  // converts
   {"group_from_gid",  l_group_from_guid},
   {"user_from_uid",  l_user_from_uid},
+  // pid receive
   {"get_pid",  l_get_pid},
   {"list_pids",  l_list_pids},
-  {"log",  l_log},
   {"add_timeout", l_add_interval},
   {"register_filter", l_register_filter},
+  //
+  {"set_active_pid", l_set_active_pid},
+  {"get_active_uids", l_get_active_uids},
+  {"get_active_pids", l_get_active_pids},
+  // misc
+  {"get_config",  l_get_config},
+  {"list_keys",  l_list_keys},
+  {"log",  l_log},
   {"quit_daemon", l_quit},
 	{NULL,        NULL}
 };
@@ -632,6 +754,8 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_MESSAGE, G_LOG_LEVEL_MESSAGE)
   PUSH_INT(LOG_LEVEL_INFO, G_LOG_LEVEL_INFO)
   PUSH_INT(LOG_LEVEL_DEBUG, G_LOG_LEVEL_DEBUG)
+  
+  PUSH_INT(FILTER_STOP, FILTER_STOP)
 
   /* remove meta table */
 	lua_remove(L, -2);

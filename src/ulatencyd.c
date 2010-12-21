@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <glib.h>
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -14,10 +15,49 @@
 #include "proc/readproc.h"
 #include <libcgroup.h>
 #include <sys/mman.h>
+#include <dlfcn.h>
+#include <error.h>
+
+#ifdef DEVELOP_MODE
+static gchar *config_file = "ulatencyd.conf";
+static gchar *rules_directory = "rules";
+static gchar *modules_directory = "modules";
+#else
+// FIXME need usage of PREFIX
+static gchar *config_file = CONFIG_PREFI "/ulatency/ulatencyd.conf";
+static gchar *rules_directory = CONFIG_PREFIX "/ulatency/rules";
+static gchar *modules_directory = INSTALL_PREFIX "/lib/ulatency/modules";
+#endif
+static gchar *load_pattern = NULL;
+static gint verbose = 1<<4;
+GKeyFile *config_data;
+
+/*
+static gint max_size = 8;
+
+static gboolean beep = FALSE;
+*/
+//static gboolean rand = FALSE;
+
+static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpointer data, GError **error) {
+  verbose = verbose << 1;
+}
+
+static GOptionEntry entries[] =
+{
+  { "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_file, "Use config file", NULL},
+  { "rules-directory", 'r', 0, G_OPTION_ARG_FILENAME, &rules_directory, "Path with ", NULL},
+  { "rule-pattern", 0, 0, G_OPTION_ARG_STRING, &load_pattern, "Load only rules matching the pattern", NULL},
+  { "verbose", 'v', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
+
+//  { "max-size", 'm', 0, G_OPTION_ARG_INT, &max_size, "Test up to 2^M items", "M" },
+//  { "beep", 'b', 0, G_OPTION_ARG_NONE, &beep, "Beep when done", NULL },
+//  { "rand", 0, 0, G_OPTION_ARG_NONE, &rand, "Randomize the data", NULL },
+  { NULL }
+};
 
 
-
-int full_check;
+int filter_interval;
 
 lua_State *lua_main_state;
 GMainContext *main_context;
@@ -121,23 +161,16 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
 
 int filter_run(gpointer data) {
   int pid;
-  proc_t *buf = NULL;
+  proc_t buf;
   PROCTAB *proctab;
 
   proctab = openproc(OPENPROC_FLAGS);
   if(!proctab)
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
 
-  while(TRUE){
-    buf = g_new0(struct proc_t, 1);
-    buf = readproc(proctab, buf);
-    if(!buf) {
-      free(buf);
-      break;
-    }
-    g_list_foreach(filter_list, filter_run_for_proc, buf);
-    freesupgrp(buf);
-    freeproc(buf);
+  while(readproc(proctab, &buf)){
+    g_list_foreach(filter_list, filter_run_for_proc, &buf);
+    freesupgrp(&buf);
   }
   closeproc(proctab);
   return TRUE;
@@ -146,8 +179,6 @@ int filter_run(gpointer data) {
 
 int init() {
   // load config
-  full_check = 10000; // FIXME: config
-
   filter_list = g_list_alloc();
 
   // configure lua
@@ -204,27 +235,135 @@ int load_rule_file(char *name) {
 int load_rules() {
   DIR             *dip;
   struct dirent   *dit;
-  char *path = "rules";
   char rpath[PATH_MAX+1];
 
-  if ((dip = opendir(path)) == NULL)
+  if ((dip = opendir(rules_directory)) == NULL)
   {
     perror("opendir");
     return 0;
   }
+
   while ((dit = readdir(dip)) != NULL)
   {
-    if(fnmatch ("*.lua", dit->d_name, 0))
+    if(fnmatch("*.lua", dit->d_name, 0))
       continue;
-    snprintf(rpath, PATH_MAX, "%s/%s",path, dit->d_name);
+    if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0))
+      continue;
+
+    snprintf(rpath, PATH_MAX, "%s/%s", rules_directory, dit->d_name);
     load_rule_file(rpath);
   }
   free(dip);
-  
+}
+
+
+int load_modules() {
+  DIR             *dip;
+  struct dirent   *dit;
+  char rpath[PATH_MAX+1];
+  char *minit_name, *module_name, *error;
+  char **disabled;
+  gsize  disabled_len, i;
+  gboolean skip;
+  void *handle;
+  int (*minit)(void);
+
+  if ((dip = opendir(modules_directory)) == NULL)
+  {
+    perror("opendir");
+    return 0;
+  }
+
+  disabled = g_key_file_get_string_list(config_data, CONFIG_CORE,
+                                        "disabled_modules", &disabled_len, NULL);
+
+  while ((dit = readdir(dip)) != NULL)
+  {
+    skip = FALSE;
+    if(fnmatch("*.so", dit->d_name, 0))
+      continue;
+
+    module_name = g_strndup(dit->d_name,strlen(dit->d_name)-3);
+
+    for(i = 0; i < disabled_len; i++) {
+      if(!g_strcasecmp(disabled[i], module_name)) {
+        skip = TRUE;
+        break;
+      }
+    }
+    if(!skip) {
+      snprintf(rpath, PATH_MAX, "%s/%s", modules_directory, dit->d_name);
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "load module %s", dit->d_name);
+
+      handle = dlopen(rpath, RTLD_LAZY);
+      if (!handle) {
+        //fprintf(stderr, "%s\n", dlerror());
+        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load module %s", rpath);
+      }
+      dlerror();
+
+      minit_name = g_strconcat(module_name, "_init", NULL);
+      *(void **) (&minit) = dlsym(handle, minit_name);
+
+      if ((error = dlerror()) != NULL)  {
+        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load module %s: %s", module_name, error);
+      }
+
+      if(minit())
+        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "module %s returned error", module_name);
+
+      free(minit_name);
+    } else
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "skip module %s", module_name);
+
+    free(module_name);
+  }
+  g_free(disabled);
+  free(dip);
+}
+
+
+static void filter_log_handler(const gchar *log_domain, GLogLevelFlags log_level,
+                        const gchar *message, gpointer unused_data) {
+
+  printf("%d\n", verbose);
+  if(log_level <= verbose) {
+      g_log_default_handler(log_domain, log_level, message, unused_data);
+  }
+}
+
+void load_config() {
+  GError *error = NULL;
+
+  if(!g_key_file_load_from_file(config_data, config_file, 
+                                G_KEY_FILE_KEEP_COMMENTS|G_KEY_FILE_KEEP_TRANSLATIONS,
+                                &error)) {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not load config file: %s: %s", config_file, error->message);
+  }
+
+  filter_interval = g_key_file_get_integer(config_data, CONFIG_CORE, "interval", NULL);
+  if(!filter_interval)
+    filter_interval = 60;
+
 }
 
 int main (int argc, char *argv[])
 {
+  GError *error = NULL;
+  GOptionContext *context;
+  config_data = g_key_file_new();
+
+  context = g_option_context_new ("- latency optimizing daemon");
+  g_option_context_add_main_entries (context, entries, /*GETTEXT_PACKAGE*/NULL);
+  if (!g_option_context_parse (context, &argc, &argv, &error))
+    {
+      g_print ("option parsing failed: %s\n", error->message);
+      exit (1);
+    }
+
+  load_config();
+
+  g_log_set_default_handler(filter_log_handler, NULL);
 
   main_context = g_main_context_default();
   main_loop = g_main_loop_new(main_context, FALSE);
@@ -246,12 +385,13 @@ int main (int argc, char *argv[])
   
   //signal (SIGABRT, cleanup_on_abort);
   init();
+  load_modules();
   load_rules();
   // small hack
   timeout_long(NULL);
-  g_timeout_add_seconds(60*5,timeout_long, NULL);
+  g_timeout_add_seconds(60*5, timeout_long, NULL);
 
-  g_timeout_add_seconds(1,filter_run, NULL);
+  g_timeout_add_seconds(filter_interval, filter_run, NULL);
 
   if(g_main_loop_is_running(main_loop));
     g_main_loop_run(main_loop);

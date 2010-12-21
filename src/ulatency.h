@@ -14,8 +14,11 @@
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
   PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP
 
+#define CONFIG_CORE "core"
+
 extern GMainLoop *main_loop;
 extern GList *filter_list;
+extern GKeyFile *config_data;
 
 enum FILTER_TYPES {
   FILTER_LUA,
@@ -29,12 +32,14 @@ enum FILTER_SKIP {
 
 struct lua_callback {
   lua_State *lua_state;
+  int lua_state_id;
   int lua_func;
   int lua_data;
 };
 
 struct lua_filter {
   lua_State *lua_state;
+  int lua_state_id;
   int lua_func;
   int lua_data;
   GRegex *regexp_cmdline;
@@ -69,5 +74,26 @@ void filter_unregister(filter *filter);
 void filter_run_for_proc(gpointer data, gpointer user_data);
 int l_filter_run_for_proc(struct proc_t *proc, filter *flt);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
+
+struct user_active {
+  guint uid;
+  guint max_processes;
+  // FIXME: last change time
+  time_t last_change;
+  GList *actives;
+};
+
+struct user_process {
+  guint pid;
+  time_t last_change;
+};
+
+extern GList* active_users;
+
+void set_active_pid(unsigned int uid, unsigned int pid);
+struct user_active* get_userlist(guint uid, gboolean create);
+
+// module 
+int (*MODULE_INIT)(void);
 
 #endif

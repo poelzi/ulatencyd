@@ -14,7 +14,64 @@ function print_table(tab)
   end
 end
 
+function to_string(data, indent)
+    local str = ""
 
+    if(indent == nil) then
+        indent = 0
+    end
+
+    -- Check the type
+    if(type(data) == "string") then
+        str = str .. (" "):rep(indent) .. data .. "\n"
+    elseif(type(data) == "number") then
+        str = str .. (" "):rep(indent) .. data .. "\n"
+    elseif(type(data) == "boolean") then
+        if(data == true) then
+            str = str .. "true"
+        else
+            str = str .. "false"
+        end
+    elseif(type(data) == "table") then
+        local i, v
+        for i, v in pairs(data) do
+            -- Check for a table in a table
+            if(type(v) == "table") then
+                str = str .. (" "):rep(indent) .. i .. ":\n"
+                str = str .. to_string(v, indent + 2)
+            else
+                str = str .. (" "):rep(indent) .. i .. ": " ..
+to_string(v, 0)
+            end
+        end
+    else
+        print_debug(1, "Error: unknown data type: %s", type(data))
+    end
+
+    return str
+end
+
+TEST_PIDS = {23, 43, 53, 1231, 23, 123123, 235, 23}
+TEST_I = 1
+
+function test_active()
+  print(TEST_I, #TEST_PIDS)
+  if TEST_I > #TEST_PIDS then
+    ulatency.quit_daemon()
+  end
+  ul.set_active_pid(1, TEST_PIDS[TEST_I])
+  TEST_I = TEST_I + 1
+  print("##")
+  print(to_string(ul.get_active_pids(1)))
+  print("--")
+  return true
+end
+
+ulatency.add_timeout(test_active, 1000)
+
+--ulatency.quit_daemon()
+
+--[[
 ld1,ld5,ld15 = ulatency.get_load()
 print (ld1, ld5, ld15)
 
@@ -69,7 +126,7 @@ print_table(ul.list_pids())
 si_run = 0
 function someinterval(data)
   print("interval", data, si_run)
-  if si_run == 10 then
+  if si_run == 2 then
     ul.quit_daemon()
     return false
   end
@@ -84,12 +141,18 @@ TestFilter = {
   re_basename = "init",
 }
 
+print(ul.get_config("TestFilter", "something"))
+print_table(ul.list_keys("TestFilter"))
 
 function TestFilter:check(proc)
-  print("check process")
-  print(proc) 
+  print("check process", proc)
+  print(proc.cmdline)
+  if(proc.cmdline == "/sbin/init") then
+    return ul.FILTER_STOP
+  end
 end
 
 ulatency.register_filter(TestFilter)
 
 --ulatency.quit_daemon()
+]]--

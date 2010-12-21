@@ -3,9 +3,14 @@ project(ulatency)
 
 INCLUDE(FindPkgConfig)
 
+option(CONFIG_PREFIX "config prefix" "/etc")
+
+option(DEVELOP_MODE "build for development" FALSE)
+
 pkg_check_modules(LIBCGROUP libcgroup REQUIRED)
 
 pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
+#pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)
 
 pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
 
@@ -26,11 +31,16 @@ pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
 #ENDIF (NOT LIBPROC_FOUND)
 
 # use own libproc copy
+SET(CONFIG_PREFIX "/etc/" CACHE STRING
+      "Config prefix"
+      FORCE)
 
 set(LIBPROC_INCLUDE_DIRS src)
 #set(LIBPROC_LIBRARY src/proc/libproc.a)
 
-
+IF(DEVELOP_MODE)
+  add_definitions(-DDEVELOP_MODE)
+ENDIF(DEVELOP_MODE)
 
 #find_package(lua51)
 INCLUDE(FindLua51)
@@ -48,3 +58,6 @@ set(CMAKE_CXX_FLAGS "-g -Wall")
 add_subdirectory(src/bc)
 add_subdirectory(src/proc)
 add_subdirectory(src)
+add_subdirectory(modules)
+
+
