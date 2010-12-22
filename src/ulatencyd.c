@@ -6,6 +6,8 @@
 #include <glib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+
 
 #include <glib.h>
 #include <lua.h>
@@ -207,6 +209,19 @@ cleanup_on_signal (int signal)
   exit(1);
 }
 
+static void avoid_oom_killer(void)
+{
+  int oomfd;
+
+  oomfd = open("/proc/self/oom_adj", O_NOFOLLOW | O_WRONLY);
+  if (oomfd >= 0) {
+    (void)write(oomfd, "-17", 3);
+    close(oomfd);
+    return;
+  }
+  // Old style kernel...perform another action here
+}
+
 
 static int report (lua_State *L, int status) {
   if (status && !lua_isnil(L, -1)) {
@@ -385,6 +400,7 @@ int main (int argc, char *argv[])
   
   //signal (SIGABRT, cleanup_on_abort);
   init();
+  avoid_oom_killer();
   load_modules();
   load_rules();
   // small hack
