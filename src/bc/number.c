@@ -35,8 +35,8 @@
 *************************************************************************/
 
 #include <stdio.h>
-#include <bconfig.h>
-#include <config.h>
+#include "config.h"
+#include "bconfig.h"
 #include <number.h>
 #include <assert.h>
 #include <stdlib.h>

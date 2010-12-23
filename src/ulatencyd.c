@@ -68,14 +68,14 @@ GMainLoop *main_loop;
 
 GList *filter_list;
 
-filter* filter_new() {
-  filter *rv = malloc(sizeof(filter));
-  memset(rv, 0, sizeof(filter));
+u_filter* filter_new() {
+  u_filter *rv = malloc(sizeof(u_filter));
+  memset(rv, 0, sizeof(u_filter));
   rv->skip_filter = g_hash_table_new(g_direct_hash, g_direct_equal);
   return rv;
 }
 
-void filter_register(filter *filter) {
+void filter_register(u_filter *filter) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "register new filter: %s", filter->name ? filter->name : "unknown");
   filter_list = g_list_append(filter_list, filter);
 }
@@ -115,8 +115,8 @@ void inline cp_proc_t(const struct proc_t *src, struct proc_t *dst) {
 }
 
 void filter_run_for_proc(gpointer data, gpointer user_data) {
-  proc_t *proc = user_data;
-  filter *flt = data;
+  u_proc *proc = user_data;
+  u_filter *flt = data;
   struct filter_block *flt_block =NULL;
   int rv = 0;
   time_t ttime = 0;
@@ -124,7 +124,7 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
   if(data == NULL)
     return;
 
-  flt_block = (struct filter_block *)g_hash_table_lookup(flt->skip_filter, GUINT_TO_POINTER(proc->tgid));
+  flt_block = (struct filter_block *)g_hash_table_lookup(flt->skip_filter, GUINT_TO_POINTER(proc->proc.tgid));
   if(flt_block) {
     time (&ttime);
     if(flt_block->skip)
@@ -147,7 +147,7 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
   if(!flt_block)
     flt_block = malloc(sizeof(struct filter_block));
 
-  flt_block->pid = proc->tgid;
+  flt_block->pid = proc->proc.tgid;
 
   if(rv > 0) {
     if(!ttime)

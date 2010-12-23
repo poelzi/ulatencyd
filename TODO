@@ -1,4 +1,6 @@
 TODO:
+- add process affinity api
+- add chrt interface for realtime attributes etc
 
 - using audit linux system to watch process creation/deletion auditctl
 - upstart plugin

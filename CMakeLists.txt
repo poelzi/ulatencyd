@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(ulatency)
 
 INCLUDE(FindPkgConfig)
+INCLUDE(FindGettext)
 
 option(CONFIG_PREFIX "config prefix" "/etc")
 
@@ -49,7 +50,56 @@ IF(NOT LUA51_FOUND)
   message(FATAL_ERROR "lua 5.1 not found")
 ENDIF(NOT LUA51_FOUND)
 
-include_directories (${LUA_INCLUDE_DIR} ${LIBCGROUP_INCLUDE_DIRS} ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS})
+# config.h checks
+#include(ConfigureChecks.cmake)
+#MACRO(INSERT_INTO_MAP _TYPE _KEY _VALUE)
+#  SET("SYS_${_TYPE}_${_KEY}" "${_VALUE}")
+#ENDMACRO(INSERT_INTO_MAP)
+
+#FIXME check this
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "alpha")
+  SET("SYS_ioprio_set" "442")
+  SET("SYS_ioprio_get" "443")
+endif(CMAKE_SYSTEM_PROCESSOR STREQUAL "alpha")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "i.*86")
+  SET("SYS_ioprio_set" "289")
+  SET("SYS_ioprio_get" "290")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "i.*86")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "ia64.*")
+  SET("SYS_ioprio_set" "1274")
+  SET("SYS_ioprio_get" "1275")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ia64.*")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "powerpc.*")
+  SET("SYS_ioprio_set" "273")
+  SET("SYS_ioprio_get" "274")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "powerpc.*")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "s390.*")
+  SET("SYS_ioprio_set" "282")
+  SET("SYS_ioprio_get" "283")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "s390.*")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "sparc.*")
+  SET("SYS_ioprio_set" "196")
+  SET("SYS_ioprio_get" "218")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "sparc.*")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "sh.*")
+  SET("SYS_ioprio_set" "288")
+  SET("SYS_ioprio_get" "289")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "sh.*")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  SET("SYS_ioprio_set" "252")
+  SET("SYS_ioprio_get" "251")
+endif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+
+
+if(GETTEXT_FOUND)
+  set(ENABLE_NLS 1)
+endif(GETTEXT_FOUND)
+
+configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+
+
+include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LUA_INCLUDE_DIR} ${LIBCGROUP_INCLUDE_DIRS} ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS})
 
 
 

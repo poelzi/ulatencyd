@@ -21,6 +21,11 @@ extern GMainLoop *main_loop;
 extern GList *filter_list;
 extern GKeyFile *config_data;
 
+#define U_HEAD \
+  guint ref; \
+  guint in_lua;
+
+
 enum FILTER_TYPES {
   FILTER_LUA,
   FILTER_C
@@ -29,6 +34,18 @@ enum FILTER_TYPES {
 enum FILTER_SKIP {
   FILTER_STOP=-1,
 };
+
+enum FILTER_PRIORITIES {
+  PRIO_IDLE=-1,
+};
+
+enum IO_PRIO_CLASS {
+  IOPRIO_CLASS_NONE,
+  IOPRIO_CLASS_RT,
+  IOPRIO_CLASS_BE,
+  IOPRIO_CLASS_IDLE,
+};
+
 
 
 struct lua_callback {
@@ -53,27 +70,43 @@ struct filter_block {
   gboolean skip;
 };
 
+typedef struct _u_proc {
+  U_HEAD;
+  struct proc_t proc;
+  guint last_update;
+} u_proc;
 
 typedef struct _filter {
+  U_HEAD;
   enum FILTER_TYPES type;
   char *name;
-  int (*check)(struct proc_t *proc, struct _filter *filter);
-  int (*callback)(struct proc_t *proc, struct _filter *filter);
+  int (*check)(u_proc *pr, struct _filter *filter);
+  int (*callback)(u_proc *pr, struct _filter *filter);
   void *data;
   GHashTable *skip_filter;
-} filter;
+} u_filter;
+
+#define INC_REF(P) P ->ref++;
+#define DEC_REF(P) \
+  do { P ->ref--; g_assert( P ->ref >= 0);} while(0);
+
+#define LUA_FREE(P) (g_assert(P->in_lua > 0); P->in_lua = 0;)
+#define LUA_PUT(P) (P->in_lua = 1;)
+
+#define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 && P ->in_lua == 0) { FNK ( P ); }
+
+// alloc
+u_proc* u_proc_new(void);
 
 
+u_filter *filter_new();
+void filter_free(u_filter *filter);
 
-
-filter *filter_new();
-void filter_free(filter *filter);
-
-void filter_register(filter *filter);
-void filter_unregister(filter *filter);
+void filter_register(u_filter *filter);
+void filter_unregister(u_filter *filter);
 
 void filter_run_for_proc(gpointer data, gpointer user_data);
-int l_filter_run_for_proc(struct proc_t *proc, filter *flt);
+int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
 struct u_cgroup {
@@ -101,6 +134,12 @@ struct user_process {
   guint pid;
   time_t last_change;
 };
+
+int ioprio_getpid(pid_t pid, int *ioprio, int *ioclass);
+int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
+
+int adj_oom_killer(pid_t pid, int adj);
+
 
 extern GList* active_users;
 

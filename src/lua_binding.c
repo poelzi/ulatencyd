@@ -21,7 +21,9 @@
   PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP
 
 
-static proc_t *push_proc_t (lua_State *L);
+//static proc_t *push_proc_t (lua_State *L);
+static u_proc *push_u_proc_new (lua_State *L);
+static u_proc *push_u_proc (lua_State *L, u_proc *proc);
 
 void stackdump_g(lua_State* l)
 {
@@ -154,7 +156,8 @@ static int l_get_pid (lua_State *L) {
   proc_t buf;
   proc_t *out;
   PROCTAB *proctab;
-
+  //FIXME
+/*
   pid = luaL_checkint (L, 1);
   //proctab = openproc(PROC_PID, pid);
   memset(&buf, 0, sizeof(proc_t));
@@ -163,14 +166,16 @@ static int l_get_pid (lua_State *L) {
     return luaL_error (L, "Error: can not access /proc.");
   while(readproc(proctab,&buf)){
     if(buf.tgid == pid) {
-       out = push_proc_t(L);
+       //out = push_proc_t(L);
+       out = push_u_proc_new(L);
        //memcpy(out, &buf, sizeof(proc_t));
-       cp_proc_t(&buf, out);
+       //cp_proc_t(&buf, out);
        closeproc(proctab);
        return 1;
     }
   }
   closeproc(proctab);
+*/
   return 0;
 }
 
@@ -359,25 +364,54 @@ static int l_add_interval (lua_State *L) {
 
 
 // bindings to proc_t
-#define PROC_T "proc_t"
+#define U_PROC "u_proc"
 
 static proc_t *check_proc_t (lua_State *L, int index)
 {
   proc_t *p;
   luaL_checktype(L, index, LUA_TUSERDATA);
-  p = (proc_t *)luaL_checkudata(L, index, PROC_T);
-  if (p == NULL) luaL_typerror(L, index, PROC_T);
+  p = (proc_t *)luaL_checkudata(L, index, U_PROC);
+  if (p == NULL) luaL_typerror(L, index, U_PROC);
   return p;
 }
 
-static proc_t *push_proc_t (lua_State *L)
+static u_proc *push_u_proc (lua_State *L, u_proc *proc)
 {
-  proc_t *p = (proc_t*)lua_newuserdata(L, sizeof(proc_t));
-  memset(p, 0, sizeof(proc_t));
-  luaL_getmetatable(L, PROC_T);
+  //u_proc *p = (u_proc*)lua_newuserdata(L, sizeof(u_proc));
+  u_proc **p = (u_proc **)lua_newuserdata(L, sizeof(u_proc *));
+  *p = proc;
+  proc->in_lua = 1;
+  luaL_getmetatable(L, U_PROC);
   lua_setmetatable(L, -2);
+
+  //up = u_proc_new();
+/*
+  memset(p, 0, sizeof(proc_t));
   return p;
+*/
+  return proc;
 }
+
+static u_proc *push_u_proc_new (lua_State *L)
+{
+  u_proc *proc;
+  //u_proc *p = (u_proc*)lua_newuserdata(L, sizeof(u_proc));
+  u_proc **p = (u_proc **)lua_newuserdata(L, sizeof(u_proc *));
+  proc = u_proc_new();
+  *p = proc;
+  proc->in_lua = 1;
+  DEC_REF(proc);
+  luaL_getmetatable(L, U_PROC);
+  lua_setmetatable(L, -2);
+
+  //up = 
+/*
+  memset(p, 0, sizeof(proc_t));
+  return p;
+*/
+  return proc;
+}
+
 
 static int proc_t_gc (lua_State *L)
 {
@@ -553,10 +587,10 @@ static int proc_t_index (lua_State *L)
   return 0;
 }
 
-int l_filter_callback(struct proc_t *proc, filter *flt) {
+int l_filter_callback(u_proc *proc, u_filter *flt) {
   gint rv;
   lua_State *L;
-  struct proc_t *nproc;
+  u_proc *nproc;
   struct lua_filter *lf = (struct lua_filter *)flt->data;
 
   g_assert(flt->type == FILTER_LUA);
@@ -572,8 +606,8 @@ int l_filter_callback(struct proc_t *proc, filter *flt) {
     return FILTER_STOP;
   }
   lua_pushvalue(L, -2);
-  nproc = push_proc_t(L);
-  cp_proc_t(proc, nproc);
+  nproc = push_u_proc(L, proc);
+  //cp_proc_t(proc, nproc);
 
   lua_call(L, 2, 1);
   rv = lua_tointeger(L, -1);
@@ -582,16 +616,16 @@ int l_filter_callback(struct proc_t *proc, filter *flt) {
   return rv;
 }
 
-int l_filter_check(struct proc_t *proc, filter *flt) {
+int l_filter_check(u_proc *proc, u_filter *flt) {
   gboolean rv;
   struct lua_filter *lft = (struct lua_filter *)flt->data;
 
-  if(lft->regexp_basename && proc->cmd[0]) {
-    if(g_regex_match(lft->regexp_basename, &proc->cmd[0], 0, NULL))
+  if(lft->regexp_basename && proc->proc.cmd[0]) {
+    if(g_regex_match(lft->regexp_basename, &proc->proc.cmd[0], 0, NULL))
       return TRUE;
   }
-  if(lft->regexp_cmdline && proc->cmdline) {
-    if(g_regex_match(lft->regexp_cmdline, *proc->cmdline, 0, NULL))
+  if(lft->regexp_cmdline && proc->proc.cmdline) {
+    if(g_regex_match(lft->regexp_cmdline, *proc->proc.cmdline, 0, NULL))
       return TRUE;
   }
 /*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
@@ -635,7 +669,7 @@ static int l_register_filter (lua_State *L) {
   luaL_checktype(L, 1, LUA_TTABLE);
   //guint interval = luaL_checkint(L, 2);
   struct lua_filter *lf = malloc(sizeof(struct lua_filter));
-  filter *flt = filter_new();
+  u_filter *flt = filter_new();
   memset(lf, 0, sizeof(struct lua_filter));
 
   //lf->lua_state = L;
@@ -757,12 +791,18 @@ int luaopen_ulatency(lua_State *L) {
   
   PUSH_INT(FILTER_STOP, FILTER_STOP)
 
+  PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
+  PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
+  PUSH_INT(IOPRIO_CLASS_BE, IOPRIO_CLASS_BE)
+  PUSH_INT(IOPRIO_CLASS_IDLE, IOPRIO_CLASS_IDLE)
+
+
   /* remove meta table */
 	lua_remove(L, -2);
     
     // map proc_t
-    luaL_register(L, PROC_T, proc_t_methods); 
-    luaL_newmetatable(L, PROC_T);
+    luaL_register(L, U_PROC, proc_t_methods); 
+    luaL_newmetatable(L, U_PROC);
     luaL_register(L, NULL, proc_t_meta);
     //lua_pushliteral(L, "__index");
     //lua_pushvalue(L, -3);
