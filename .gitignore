@@ -1,3 +1,5 @@
+config.h
+*.patch
 *.[oa]
 *.so
 src/ulatencyd
