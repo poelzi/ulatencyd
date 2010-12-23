@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "bconfig.h"
 #include "number.h"
 
 #include "lua.h"
