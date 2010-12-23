@@ -6,6 +6,7 @@
 #include <lauxlib.h>
 #include "proc/procps.h"
 #include "proc/readproc.h"
+#include <libcgroup.h>
 
 
 #define VERSION 0.1
@@ -74,6 +75,19 @@ void filter_unregister(filter *filter);
 void filter_run_for_proc(gpointer data, gpointer user_data);
 int l_filter_run_for_proc(struct proc_t *proc, filter *flt);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
+
+struct u_cgroup {
+  struct cgroup *group;
+  char *name;
+  int ref;
+};
+
+struct u_cgroup_controller {
+  struct cgroup_controller *controller;
+  char *name;
+  int ref; // struct 
+};
+
 
 struct user_active {
   guint uid;

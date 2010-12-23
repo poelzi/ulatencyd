@@ -1,3 +1,10 @@
 TODO:
 
+- using audit linux system to watch process creation/deletion auditctl
+- upstart plugin
+- dbus interface
+- rules rules rules ;-)
+
+
+UNLIKLY:
 - having a copy of libproc is very ugly, but currently it does not export enough symbols

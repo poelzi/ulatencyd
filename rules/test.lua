@@ -51,11 +51,31 @@ to_string(v, 0)
     return str
 end
 
+print(cgroups)
+cg = cgroups.new_cgroup("bla")
+print(cg)
+cc = cg:add_controller("blubb")
+print(cc)
+cc:add_value("test", 3)
+cc:add_value("test2", "eai")
+cc:add_value("test3", true)
+print("test", cc:get_value_int("test"))
+print("test2", cc:get_value_string("test"))
+print("test2", cc:get_value_string("test2"))
+print("test3", cc:get_value_string("test3"))
+print(to_string(cc:get_names()))
+cg:create_cgroup()
+print("done")
+
+
+
+ulatency.quit_daemon()
+--[[
+
 TEST_PIDS = {23, 43, 53, 1231, 23, 123123, 235, 23}
 TEST_I = 1
 
 function test_active()
-  print(TEST_I, #TEST_PIDS)
   if TEST_I > #TEST_PIDS then
     ulatency.quit_daemon()
   end
@@ -71,6 +91,7 @@ ulatency.add_timeout(test_active, 1000)
 
 --ulatency.quit_daemon()
 
+]]--
 --[[
 ld1,ld5,ld15 = ulatency.get_load()
 print (ld1, ld5, ld15)

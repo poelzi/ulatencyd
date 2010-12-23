@@ -1,4 +1,5 @@
 *.[oa]
+*.so
 src/ulatencyd
 *~
 Makefile

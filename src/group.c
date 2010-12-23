@@ -2,7 +2,7 @@
 #include <glib.h>
 #include <time.h>
 
-//GList*              g_list_alloc                        (void);
+// active user pid storage
 
 GList* active_users;
 
@@ -73,3 +73,8 @@ void set_active_pid(guint uid, guint pid)
   }
 
 }
+
+// cgroups 
+//void set_active_pid(guint uid, guint pid);
+
+

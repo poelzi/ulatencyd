@@ -30,6 +30,7 @@ static gchar *modules_directory = INSTALL_PREFIX "/lib/ulatency/modules";
 #endif
 static gchar *load_pattern = NULL;
 static gint verbose = 1<<4;
+static char *mount_point;
 GKeyFile *config_data;
 
 /*
@@ -186,6 +187,7 @@ int init() {
   luaL_openlibs(lua_main_state);
   luaopen_bc(lua_main_state);
   luaopen_ulatency(lua_main_state);
+  luaopen_cgroup(lua_main_state);
   // FIXME
   if(load_rule_file("src/core.lua"))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
@@ -345,7 +347,50 @@ void load_config() {
   if(!filter_interval)
     filter_interval = 60;
 
+  mount_point = g_key_file_get_string(config_data, CONFIG_CORE, "mount_point", NULL);
+  if(!mount_point)
+    mount_point = "/dev/cgroups";
+
 }
+
+int mount_cgroups() {
+  gchar   *argv[6];
+  gint    i, rv;
+  gint    result;
+  GError  *error = NULL;
+  
+  argv[i=0] = "/bin/mount";
+  argv[++i] = "-t";
+  argv[++i] = "cgroup";
+  argv[++i] = "none";
+  argv[++i] = mount_point;
+  argv[++i] = NULL;
+  rv = g_spawn_sync(NULL, argv, NULL, 0, NULL, NULL, NULL, NULL, &result, &error);
+  printf("mnt %d %d\n", result, rv);
+  if(rv && !result) {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "mounted cgroups on %s", mount_point);
+  } else {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "error mounting cgroups on %s: %s", mount_point, error->message ? error->message : "");
+    return FALSE;
+  }
+  return TRUE;
+}
+/*
+ 
+gboolean            g_spawn_sync                        ("/",
+                                                         gchar **argv,
+                                                         gchar **envp,
+                                                         GSpawnFlags flags,
+                                                         GSpawnChildSetupFunc child_setup,
+                                                         gpointer user_data,
+                                                         gchar **standard_output,
+                                                         gchar **standard_error,
+                                                         gint *exit_status,
+                                                         GError **error);
+
+}
+
+*/
 
 int main (int argc, char *argv[])
 {
@@ -369,7 +414,11 @@ int main (int argc, char *argv[])
   main_loop = g_main_loop_new(main_context, FALSE);
 
   if(cgroup_init()) {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "could not init libcgroup");
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not init libcgroup. try mounting cgroups...");
+    g_mkdir_with_parents(mount_point, 0755);
+    if(!mount_cgroups() || cgroup_init()) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
+    }
   }
 
   g_atexit(cleanup);
