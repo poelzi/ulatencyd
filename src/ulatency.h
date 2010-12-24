@@ -17,10 +17,6 @@
 
 #define CONFIG_CORE "core"
 
-extern GMainLoop *main_loop;
-extern GList *filter_list;
-extern GKeyFile *config_data;
-
 #define U_HEAD \
   guint ref; \
   guint in_lua;
@@ -95,19 +91,10 @@ typedef struct _filter {
 
 #define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 && P ->in_lua == 0) { FNK ( P ); }
 
-// alloc
-u_proc* u_proc_new(void);
 
+#define U_MALLOC(SIZE) g_malloc0(gsize n_bytes);
+#define U_FREE(PTR) g_free( PTR );
 
-u_filter *filter_new();
-void filter_free(u_filter *filter);
-
-void filter_register(u_filter *filter);
-void filter_unregister(u_filter *filter);
-
-void filter_run_for_proc(gpointer data, gpointer user_data);
-int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
-void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
 struct u_cgroup {
   struct cgroup *group;
@@ -135,18 +122,51 @@ struct user_process {
   time_t last_change;
 };
 
+// module prototype
+int (*MODULE_INIT)(void);
+
+
+// core.c
+int load_modules(char *path);
+int load_rule_directory(char *path, char *load_pattern);
+int load_rule_file(char *name);
+int load_lua_rule_file(lua_State *L, char *name);
+
+u_proc* u_proc_new(void);
+void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
+
+u_filter *filter_new();
+void filter_register(u_filter *filter);
+void filter_free(u_filter *filter);
+void filter_unregister(u_filter *filter);
+int filter_run(gpointer data);
+void filter_run_for_proc(gpointer data, gpointer user_data);
+void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
+
+int core_init();
+void core_unload();
+// lua_binding
+int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
+
+
+// sysctrl.c
 int ioprio_getpid(pid_t pid, int *ioprio, int *ioclass);
 int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
-
 int adj_oom_killer(pid_t pid, int adj);
 
-
-extern GList* active_users;
-
+// group.c
 void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
 
-// module 
-int (*MODULE_INIT)(void);
+
+// global variables
+extern GMainLoop *main_loop;
+extern GList *filter_list;
+extern GKeyFile *config_data;
+extern GList* active_users;
+extern GNode* processes;
+//extern gchar *load_pattern;
+
+
 
 #endif

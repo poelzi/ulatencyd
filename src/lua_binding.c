@@ -814,3 +814,29 @@ int luaopen_ulatency(lua_State *L) {
 
 	return 1;
 }
+
+// misc functions
+
+static int report (lua_State *L, int status) {
+  if (status && !lua_isnil(L, -1)) {
+    const char *msg = lua_tostring(L, -1);
+    if (msg == NULL) msg = "(error object is not a string)";
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "%s", msg);
+    lua_pop(L, 1);
+  }
+  return status;
+}
+
+
+int load_lua_rule_file(lua_State *L, char *name) {
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "load %s", name);
+  if(luaL_loadfile(L, name)) {
+    report(L, 1);
+    return 1;
+  }
+  if(lua_pcall(L, 0, LUA_MULTRET, 0)) {
+    report(L, 1);
+  }
+  return 0;
+
+}
