@@ -10,20 +10,138 @@
 #include <dlfcn.h>
 
 
+lua_State *lua_main_state;
 GList *filter_list;
+GNode *processes_tree;
+GHashTable *processes;
+
 
 /*************************************************************
  * u_proc code
  ************************************************************/
+
+void filter_block_free(gpointer fb) {
+  free(fb);
+}
+
+
 
 
 u_proc* u_proc_new(void) {
   u_proc *rv;
   
   rv = g_new0(u_proc, 1);
+  
   rv->ref = 1;
+  rv->skip_filter = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+                                         NULL, filter_block_free);
+  
+  U_PROC_SET_STATE(rv,UPROC_NEW);
+
   return rv;
 }
+
+int u_proc_free(u_proc *proc) {
+  DEC_REF(proc);
+  if(proc->ref)
+    return;
+  
+  g_hash_table_remove_all (proc->skip_filter);
+  g_node_destroy(proc->node);
+  free(proc);
+}
+
+void processes_free_value(gpointer data) {
+  u_proc *proc = data;
+  U_PROC_SET_STATE(proc, UPROC_INVALID);
+  g_node_unlink(proc->node);
+  u_proc_free(proc);
+}
+
+inline u_proc *proc_by_pid(int pid) {
+  return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
+}
+
+// rebuild the node tree from content of the hash table
+void rebuild_tree() {
+//  processes_tree
+  GHashTableIter iter;
+  gpointer key, value;
+  u_proc *proc, *parent;
+
+  // clear root node
+  g_node_destroy(processes_tree);
+  processes_tree = g_node_new(NULL);
+
+  // create nodes first
+  g_hash_table_iter_init (&iter, processes);
+  while (g_hash_table_iter_next (&iter, &key, &value)) 
+  {
+    proc = (u_proc *)value;
+    proc->node = g_node_new(proc);
+    g_node_append(processes_tree, proc->node);
+  }
+
+  // now we can lookup the parents and attach the node to the parent
+  g_hash_table_iter_init (&iter, processes);
+  while (g_hash_table_iter_next (&iter, &key, &value)) 
+  {
+    proc = (u_proc *)value;
+    parent = proc_by_pid(proc->proc.ppid);
+    g_assert(parent && parent->node);
+    g_node_unlink(proc->node);
+    g_node_append(parent->node, proc->node);
+  }
+
+
+}
+
+
+int update_processes() {
+  PROCTAB *proctab;
+  proc_t buf;
+  u_proc *proc;
+  u_proc *parent;
+  gboolean full_update = FALSE;
+
+  proctab = openproc(OPENPROC_FLAGS);
+  if(!proctab)
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
+
+  while(readproc(proctab, &buf)){
+    proc = proc_by_pid(buf.tgid);
+    if(proc) {
+      // free all changable allocated buffers
+      freesupgrp(&buf);
+    } else {
+      proc = u_proc_new();
+      g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
+    }
+    // we can simply steal the pointer of the current allocated buffer
+    memcpy(&(proc->proc), &buf, sizeof(proc_t));
+
+    if(!proc->node) {
+      proc->node = g_node_new(proc);
+      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
+      // the parent should exist. in case it is missing we have to run a full
+      // tree rebuild then
+      if(parent) {
+        g_node_append(parent->node, proc->node);
+      } else {
+        full_update = TRUE;
+      }
+    }
+  
+    g_list_foreach(filter_list, filter_run_for_proc, &buf);
+    freesupgrp(&buf);
+  }
+  closeproc(proctab);
+  if(full_update) {
+    rebuild_tree();
+  }
+
+}
+
 
 
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst) {
@@ -50,7 +168,6 @@ void cp_proc_t(const struct proc_t *src, struct proc_t *dst) {
 u_filter* filter_new() {
   u_filter *rv = malloc(sizeof(u_filter));
   memset(rv, 0, sizeof(u_filter));
-  rv->skip_filter = g_hash_table_new(g_direct_hash, g_direct_equal);
   return rv;
 }
 
@@ -70,7 +187,8 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
   if(data == NULL)
     return;
 
-  flt_block = (struct filter_block *)g_hash_table_lookup(flt->skip_filter, GUINT_TO_POINTER(proc->proc.tgid));
+  flt_block = (struct filter_block *)g_hash_table_lookup(proc->skip_filter, GUINT_TO_POINTER(proc->pid));
+  //g_hash_table_lookup
   if(flt_block) {
     time (&ttime);
     if(flt_block->skip)
@@ -104,9 +222,10 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
     flt_block->skip = TRUE;  
   }
 
-  g_hash_table_insert(flt->skip_filter, GUINT_TO_POINTER(flt_block->pid), flt_block);
+  g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt_block->pid), flt_block);
 
 }
+
 
 int filter_run(gpointer data) {
   int pid;
@@ -126,12 +245,11 @@ int filter_run(gpointer data) {
 }
 
 
+
+
 /***************************************************************************
  * rules and modules handling
  **************************************************************************/
-
-lua_State *lua_main_state;
-
 
 int load_rule_directory(char *path, char *load_pattern) {
   DIR             *dip;
@@ -226,6 +344,9 @@ int load_modules(char *modules_directory) {
 int core_init() {
   // load config
   filter_list = g_list_alloc();
+  processes_tree = g_node_new(NULL);
+  processes = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, 
+                                    processes_free_value);
 
   // configure lua
   lua_main_state = luaL_newstate();

@@ -21,6 +21,19 @@
   guint ref; \
   guint in_lua;
 
+enum U_PROC_STATE {
+  UPROC_NEW     = (1<<0),
+  UPROC_INVALID = (1<<1),
+  UPROC_ALIVE   = (1<<2),
+};
+
+#define U_PROC_OK_MASK ~UPROC_INVALID
+
+#define U_PROC_IS_INVALID(P) ( P ->ustate & UPROC_INVALID )
+#define U_PROC_IS_OK(P) ( P ->ustate & U_PROC_OK_MASK && UPROC_INVALID )
+
+#define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
+#define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
 
 enum FILTER_TYPES {
   FILTER_LUA,
@@ -68,8 +81,12 @@ struct filter_block {
 
 typedef struct _u_proc {
   U_HEAD;
+  int pid; // duplicate of proc.tgid
+  int ustate; // status bits of the proc referece
   struct proc_t proc;
-  guint last_update;
+  guint last_update; // for detecting dead processes
+  GNode *node; // for parent/child lookups
+  GHashTable *skip_filter;
 } u_proc;
 
 typedef struct _filter {
@@ -79,7 +96,6 @@ typedef struct _filter {
   int (*check)(u_proc *pr, struct _filter *filter);
   int (*callback)(u_proc *pr, struct _filter *filter);
   void *data;
-  GHashTable *skip_filter;
 } u_filter;
 
 #define INC_REF(P) P ->ref++;
@@ -164,7 +180,8 @@ extern GMainLoop *main_loop;
 extern GList *filter_list;
 extern GKeyFile *config_data;
 extern GList* active_users;
-extern GNode* processes;
+extern GHashTable* processes;
+extern GNode* processes_tree;
 //extern gchar *load_pattern;
 
 

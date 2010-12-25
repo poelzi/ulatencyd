@@ -157,7 +157,7 @@ int mount_cgroups() {
   if(rv && !result) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "mounted cgroups on %s", mount_point);
   } else {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "error mounting cgroups on %s: %s", mount_point, error->message ? error->message : "");
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "error mounting cgroups on %s: %s", mount_point, (error && error->message) ? error->message : "");
     return FALSE;
   }
   return TRUE;
@@ -204,7 +204,11 @@ int main (int argc, char *argv[])
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not init libcgroup. try mounting cgroups...");
     g_mkdir_with_parents(mount_point, 0755);
     if(!mount_cgroups() || cgroup_init()) {
+#ifdef DEVELOP_MODE
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "give up init libcgroup");
+#else
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
+#endif
     }
   }
 
@@ -223,6 +227,7 @@ int main (int argc, char *argv[])
   core_init();
   avoid_oom_killer();
   load_modules(modules_directory);
+  update_processes();
   load_rule_directory(rules_directory, load_pattern);
   // small hack
   timeout_long(NULL);
