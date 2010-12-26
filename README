@@ -25,8 +25,16 @@ There are two ways implementing a heuristic behavior:
 - using a timeout callback
 - using a filter class
 
-The timeout callback is called until it returns True
+The timeout callback is called until it returns True.
 The filter class is the preferred way. The filter gets executed on processes and
-can categorize the process. Depending on the return value of the call, the filter
-gets called on the next iteration of over all processes, not again on the specific
-process or on the iteration after a timeout value.
+can categorize the process. 
+Depending on the return value of the call the future behaviour may vary.
+The return value consists of a flag section and i timeout section. The filter
+is only executed after the timeout seconds.
+It may also cause the filter to not be called on any child progress of the filter.
+
+The processes are traveld in tree order. This means that the progress tree is 
+mapped into the data structure and traveled from top (id = 1, which is the init)
+and then trough all the children.
+
+

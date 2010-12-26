@@ -111,3 +111,10 @@ add_subdirectory(src)
 add_subdirectory(modules)
 
 
+#add_custom_command(OUTPUT "runtest"
+#                     echo "cool"
+#                     MAIN_DEPENDENCY src/ulatencyd
+#                     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+enable_testing()
+add_test(lua_tests src/ulatencyd -r tests --rule-pattern test.lua -v -v -v)

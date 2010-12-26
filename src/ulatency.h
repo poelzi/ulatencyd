@@ -30,7 +30,7 @@ enum U_PROC_STATE {
 #define U_PROC_OK_MASK ~UPROC_INVALID
 
 #define U_PROC_IS_INVALID(P) ( P ->ustate & UPROC_INVALID )
-#define U_PROC_IS_OK(P) ( P ->ustate & U_PROC_OK_MASK && UPROC_INVALID )
+#define U_PROC_IS_VALID(P) ( P ->ustate & U_PROC_OK_MASK && UPROC_INVALID )
 
 #define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
 #define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
@@ -41,8 +41,14 @@ enum FILTER_TYPES {
 };
 
 enum FILTER_SKIP {
-  FILTER_STOP=-1,
+  FILTER_STOP          = (1<<0),
+  FILTER_SKIP_CHILD   = (1<<1),
 };
+
+#define FILTER_TIMEOUT(v) ( v & 0xFFFF)
+#define FILTER_FLAGS(v) ( v >> 16)
+#define FILTER_MIX(flages,timeout) (( flags << 16 ) & timeout )
+
 
 enum FILTER_PRIORITIES {
   PRIO_IDLE=-1,
@@ -141,6 +147,14 @@ struct user_process {
 // module prototype
 int (*MODULE_INIT)(void);
 
+// global variables
+extern GMainLoop *main_loop;
+extern GList *filter_list;
+extern GKeyFile *config_data;
+extern GList* active_users;
+extern GHashTable* processes;
+extern GNode* processes_tree;
+//extern gchar *load_pattern;
 
 // core.c
 int load_modules(char *path);
@@ -148,8 +162,20 @@ int load_rule_directory(char *path, char *load_pattern);
 int load_rule_file(char *name);
 int load_lua_rule_file(lua_State *L, char *name);
 
-u_proc* u_proc_new(void);
+/* u_proc* u_proc_new(proc_t proc)
+ *
+ * Allocates a new u_proc structure.
+ *
+ * @param proc: optional proc_t to copy data from. Will cause state U_PROC_ALIVE.
+ * Returns: new allocated u_proc with refcount 1
+ */
+u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
+
+static inline u_proc *proc_by_pid(int pid) {
+  return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
+}
+
 
 u_filter *filter_new();
 void filter_register(u_filter *filter);
@@ -173,17 +199,6 @@ int adj_oom_killer(pid_t pid, int adj);
 // group.c
 void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
-
-
-// global variables
-extern GMainLoop *main_loop;
-extern GList *filter_list;
-extern GKeyFile *config_data;
-extern GList* active_users;
-extern GHashTable* processes;
-extern GNode* processes_tree;
-//extern gchar *load_pattern;
-
 
 
 #endif

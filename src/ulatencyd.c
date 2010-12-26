@@ -115,7 +115,6 @@ static void avoid_oom_killer(void)
 static void filter_log_handler(const gchar *log_domain, GLogLevelFlags log_level,
                         const gchar *message, gpointer unused_data) {
 
-  printf("%d\n", verbose);
   if(log_level <= verbose) {
       g_log_default_handler(log_domain, log_level, message, unused_data);
   }
@@ -137,7 +136,6 @@ void load_config() {
   mount_point = g_key_file_get_string(config_data, CONFIG_CORE, "mount_point", NULL);
   if(!mount_point)
     mount_point = "/dev/cgroups";
-
 }
 
 int mount_cgroups() {
@@ -153,7 +151,6 @@ int mount_cgroups() {
   argv[++i] = mount_point;
   argv[++i] = NULL;
   rv = g_spawn_sync(NULL, argv, NULL, 0, NULL, NULL, NULL, NULL, &result, &error);
-  printf("mnt %d %d\n", result, rv);
   if(rv && !result) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "mounted cgroups on %s", mount_point);
   } else {
@@ -228,6 +225,7 @@ int main (int argc, char *argv[])
   avoid_oom_killer();
   load_modules(modules_directory);
   update_processes();
+  printf("rd: %s\n", rules_directory);
   load_rule_directory(rules_directory, load_pattern);
   // small hack
   timeout_long(NULL);

@@ -22,7 +22,6 @@
 
 
 //static proc_t *push_proc_t (lua_State *L);
-static u_proc *push_u_proc_new (lua_State *L);
 static u_proc *push_u_proc (lua_State *L, u_proc *proc);
 
 void stackdump_g(lua_State* l)
@@ -151,32 +150,26 @@ static int l_group_from_guid (lua_State *L) {
   return 1;
 }
 
+static int l_filter_rv (lua_State *L) {
+  int flags = lua_tointeger(L, 1);
+  int timeout = lua_tointeger(L, 2);
+  lua_pushnumber(L, FILTER_MIX(flags, timeout));
+  return 3;
+}
+
+
 static int l_get_pid (lua_State *L) {
   int pid;
-  proc_t buf;
-  proc_t *out;
-  PROCTAB *proctab;
-  //FIXME
-/*
+  u_proc *proc;
+
   pid = luaL_checkint (L, 1);
-  //proctab = openproc(PROC_PID, pid);
-  memset(&buf, 0, sizeof(proc_t));
-  proctab = openproc(OPENPROC_FLAGS);
-  if(!proctab)
-    return luaL_error (L, "Error: can not access /proc.");
-  while(readproc(proctab,&buf)){
-    if(buf.tgid == pid) {
-       //out = push_proc_t(L);
-       out = push_u_proc_new(L);
-       //memcpy(out, &buf, sizeof(proc_t));
-       //cp_proc_t(&buf, out);
-       closeproc(proctab);
-       return 1;
-    }
-  }
-  closeproc(proctab);
-*/
-  return 0;
+  proc = proc_by_pid(pid);
+
+  if(!proc)
+    return 0;
+
+  push_u_proc(L, proc);
+  return 1;
 }
 
 static int l_get_config (lua_State *L) {
@@ -221,24 +214,22 @@ static int l_list_keys (lua_State *L) {
 
 
 static int l_list_pids (lua_State *L) {
-  int i = 0;
-  char key[20];
-  proc_t buf;
-  proc_t *out;
-  PROCTAB *proctab;
+  int i = 1;
+  GHashTableIter iter;
+  gpointer ikey, value;
+  u_proc *proc;
+
 
   lua_newtable (L);
-  //proctab = openproc(PROC_PID, pid);
-  proctab = openproc(0);
-  if(!proctab)
-    return luaL_error (L, "Error: can not access /proc.");
-  while(readproc(proctab,&buf)){
-    sprintf(key, "%d", i);
-    lua_pushinteger(L, buf.tgid);
-    lua_setfield(L, -2, &key[0]);
+  g_hash_table_iter_init (&iter, processes);
+  while (g_hash_table_iter_next (&iter, &ikey, &value)) 
+  {
+    proc = (u_proc *)value;
+    lua_pushinteger(L, i);
+    lua_pushinteger(L, proc->pid);
+    lua_settable(L, -3);
     i++;
   }
-  closeproc(proctab);
   return 1;
 }
 
@@ -366,41 +357,29 @@ static int l_add_interval (lua_State *L) {
 // bindings to proc_t
 #define U_PROC "u_proc"
 
-static proc_t *check_proc_t (lua_State *L, int index)
+static u_proc *check_u_proc (lua_State *L, int index)
 {
-  proc_t *p;
+  u_proc **p;
   luaL_checktype(L, index, LUA_TUSERDATA);
-  p = (proc_t *)luaL_checkudata(L, index, U_PROC);
+  p = (u_proc **)luaL_checkudata(L, index, U_PROC);
   if (p == NULL) luaL_typerror(L, index, U_PROC);
-  return p;
+  return *p;
 }
 
-static u_proc *push_u_proc (lua_State *L, u_proc *proc)
-{
-  //u_proc *p = (u_proc*)lua_newuserdata(L, sizeof(u_proc));
-  u_proc **p = (u_proc **)lua_newuserdata(L, sizeof(u_proc *));
-  *p = proc;
-  proc->in_lua = 1;
-  luaL_getmetatable(L, U_PROC);
-  lua_setmetatable(L, -2);
-
-  //up = u_proc_new();
-/*
-  memset(p, 0, sizeof(proc_t));
-  return p;
-*/
-  return proc;
-}
-
-static u_proc *push_u_proc_new (lua_State *L)
+static u_proc *push_u_proc (lua_State *L, u_proc *upr)
 {
   u_proc *proc;
   //u_proc *p = (u_proc*)lua_newuserdata(L, sizeof(u_proc));
   u_proc **p = (u_proc **)lua_newuserdata(L, sizeof(u_proc *));
-  proc = u_proc_new();
+  if(!upr) {
+    proc = u_proc_new(NULL);
+  } else {
+    proc = upr;
+    INC_REF(proc);
+  }
   *p = proc;
-  proc->in_lua = 1;
-  DEC_REF(proc);
+  //proc->in_lua = 1;
+  //DEC_REF(proc);
   luaL_getmetatable(L, U_PROC);
   lua_setmetatable(L, -2);
 
@@ -413,43 +392,59 @@ static u_proc *push_u_proc_new (lua_State *L)
 }
 
 
-static int proc_t_gc (lua_State *L)
+static int u_proc_gc (lua_State *L)
 {
-  proc_t *proc = check_proc_t(L, 1);
+  u_proc *proc = check_u_proc(L, 1);
   //printf("goodbye proc_t (%p)\n", proc);
-  if (proc) {
-    freesupgrp(proc);
-    freeproc_light(proc);
-  }
+  DEC_REF(proc);
+  FREE_IF_UNREF(proc, u_proc_free);
   return 0;
 }
 
 
-static int proc_t_tostring (lua_State *L)
+static int u_proc_tostring (lua_State *L)
 {
-  proc_t *proc = lua_touserdata(L, 1);
-  lua_pushfstring(L, "proc_t: <%p> pid:%d", proc, proc->tid);
+  u_proc **proc = lua_touserdata(L, 1);
+  lua_pushfstring(L, "proc_t: <%p> pid:%d", (*proc), (*proc)->pid);
   return 1;
 }
 
 
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
-    lua_pushinteger(L, (lua_Integer)proc->name); \
+    lua_pushinteger(L, (lua_Integer)proc->proc.name); \
     return 1; \
   }
 #define PUSH_STR(name) \
   if(!strcmp(key, #name )) { \
-    lua_pushlstring(L, proc->name, sizeof(proc->name)); \
+    lua_pushlstring(L, proc->proc.name, sizeof(proc->proc.name)); \
     return 1; \
   }
 
-static int proc_t_index (lua_State *L)
+static int u_proc_index (lua_State *L)
 {
   //char        path[PROCPATHLEN];
   char path[PROCPATHLEN];
-  proc_t *proc = check_proc_t(L, 1);
+  u_proc *proc = check_u_proc(L, 1);
   const char *key = luaL_checkstring(L, 2);
+
+  if(!strcmp(key, "is_valid" )) { \
+    lua_pushboolean(L, U_PROC_IS_VALID(proc));
+    return 1;
+  } else if(!strcmp(key, "is_invalid" )) {
+    lua_pushboolean(L, U_PROC_IS_INVALID(proc));
+    return 1;
+  } else if(!strcmp(key, "pid" )) {
+    lua_pushinteger(L, proc->pid);
+    return 1;
+  }
+
+
+  // data of proc.proc must be invalidated as the process is already dead
+  if(U_PROC_IS_INVALID(proc)) {
+    lua_pushliteral(L, "u_proc state is invalid");
+    lua_error(L);
+  }
   
   PUSH_INT(tid) //         tid,		// (special)       task id, the POSIX thread ID (see also: tgid)
   PUSH_INT(ppid) //     	ppid;		// stat,status     pid of parent process
@@ -513,22 +508,22 @@ static int proc_t_index (lua_State *L)
 // 	**cmdline;	// (special)       command line string vector (/proc/#/cmdline)
   if(!strcmp(key, "environ" )) {
     // lazy read
-    if(!proc->environ) {
-        sprintf(path, "/proc/%d", proc->tgid);
-      	proc->environ = file2strvec(path, "environ"); /* often permission denied */
+    if(!proc->proc.environ) {
+        sprintf(path, "/proc/%d", proc->proc.tgid);
+      	proc->proc.environ = file2strvec(path, "environ"); /* often permission denied */
     }
-    if(!proc->environ)
+    if(!proc->proc.environ)
       return 0;
-    lua_pushstring(L, *proc->environ);
+    lua_pushstring(L, *proc->proc.environ);
     return 1;
   }
   if(!strcmp(key, "cmdline" )) {
-    if(!proc->cmdline) {
-        sprintf(path, "/proc/%d", proc->tgid);
-        proc->cmdline = file2strvec(path, "cmdline");
+    if(!proc->proc.cmdline) {
+        sprintf(path, "/proc/%d", proc->proc.tgid);
+        proc->proc.cmdline = file2strvec(path, "cmdline");
     }
-    if(proc->cmdline) {
-      lua_pushstring(L, *proc->cmdline);
+    if(proc->proc.cmdline) {
+      lua_pushstring(L, *proc->proc.cmdline);
       return 1;
     }
     return 0;
@@ -571,13 +566,13 @@ static int proc_t_index (lua_State *L)
   PUSH_INT(processor)
 
   if(!strcmp(key, "cgroup_name" )) {
-    sprintf(path, "/proc/%d", proc->tgid);
-    proc->cgroup = file2strvec(path, "cgroup"); 	/* read /proc/#/cgroup */
-    if(proc->cgroup && *proc->cgroup) {
-      int i = strlen(*proc->cgroup);
-      if( (*proc->cgroup)[i-1]=='\n' )
-        (*proc->cgroup)[i-1] = ' '; //little hack to remove trailing \n
-      lua_pushstring(L, *proc->cgroup);
+    sprintf(path, "/proc/%d", proc->proc.tgid);
+    proc->proc.cgroup = file2strvec(path, "cgroup"); 	/* read /proc/#/cgroup */
+    if(proc->proc.cgroup && *proc->proc.cgroup) {
+      int i = strlen(*proc->proc.cgroup);
+      if( (*proc->proc.cgroup)[i-1]=='\n' )
+        (*proc->proc.cgroup)[i-1] = ' '; //little hack to remove trailing \n
+      lua_pushstring(L, *proc->proc.cgroup);
       return 1;
     }
     return 0;
@@ -707,14 +702,14 @@ static int l_register_filter (lua_State *L) {
 
 
 
-static const luaL_reg proc_t_meta[] = {
-  {"__gc",       proc_t_gc},
-  {"__tostring", proc_t_tostring},
-  {"__index", proc_t_index},
+static const luaL_reg u_proc_meta[] = {
+  {"__gc",       u_proc_gc},
+  {"__tostring", u_proc_tostring},
+  {"__index",    u_proc_index},
   {0, 0}
 };
 
-static const luaL_reg proc_t_methods[] = {
+static const luaL_reg u_proc_methods[] = {
   {NULL,NULL}
 };
 
@@ -742,6 +737,7 @@ static const luaL_reg R[] = {
   {"get_active_uids", l_get_active_uids},
   {"get_active_pids", l_get_active_pids},
   // misc
+  {"filter_rv",  l_filter_rv},
   {"get_config",  l_get_config},
   {"list_keys",  l_list_keys},
   {"log",  l_log},
@@ -790,27 +786,32 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_DEBUG, G_LOG_LEVEL_DEBUG)
   
   PUSH_INT(FILTER_STOP, FILTER_STOP)
+  PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)
+  
 
   PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
   PUSH_INT(IOPRIO_CLASS_BE, IOPRIO_CLASS_BE)
   PUSH_INT(IOPRIO_CLASS_IDLE, IOPRIO_CLASS_IDLE)
-
+  
+  PUSH_INT(UPROC_NEW, UPROC_NEW)
+  PUSH_INT(UPROC_INVALID, UPROC_INVALID)
+  PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)
 
   /* remove meta table */
 	lua_remove(L, -2);
-    
-    // map proc_t
-    luaL_register(L, U_PROC, proc_t_methods); 
-    luaL_newmetatable(L, U_PROC);
-    luaL_register(L, NULL, proc_t_meta);
-    //lua_pushliteral(L, "__index");
-    //lua_pushvalue(L, -3);
-    //lua_rawset(L, -3);                  /* metatable.__index = methods */
-    lua_pushliteral(L, "__metatable");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);
-    lua_pop(L, 1);
+
+  // map u_proc
+  luaL_register(L, U_PROC, u_proc_methods); 
+  luaL_newmetatable(L, U_PROC);
+  luaL_register(L, NULL, u_proc_meta);
+  //lua_pushliteral(L, "__index");
+  //lua_pushvalue(L, -3);
+  //lua_rawset(L, -3);                  /* metatable.__index = methods */
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -3);               /* dup methods table*/
+  lua_rawset(L, -3);
+  lua_pop(L, 1);
 
 	return 1;
 }

@@ -27,7 +27,7 @@ void filter_block_free(gpointer fb) {
 
 
 
-u_proc* u_proc_new(void) {
+u_proc* u_proc_new(proc_t *proc) {
   u_proc *rv;
   
   rv = g_new0(u_proc, 1);
@@ -35,8 +35,14 @@ u_proc* u_proc_new(void) {
   rv->ref = 1;
   rv->skip_filter = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                          NULL, filter_block_free);
-  
-  U_PROC_SET_STATE(rv,UPROC_NEW);
+
+  if(proc) {
+    rv->pid = proc->tgid;
+    U_PROC_SET_STATE(rv,UPROC_ALIVE);
+    memcpy(&(rv->proc), proc, sizeof(proc_t));
+  } else {
+    U_PROC_SET_STATE(rv,UPROC_NEW);
+  }
 
   return rv;
 }
@@ -56,10 +62,6 @@ void processes_free_value(gpointer data) {
   U_PROC_SET_STATE(proc, UPROC_INVALID);
   g_node_unlink(proc->node);
   u_proc_free(proc);
-}
-
-inline u_proc *proc_by_pid(int pid) {
-  return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
 }
 
 // rebuild the node tree from content of the hash table
@@ -87,10 +89,12 @@ void rebuild_tree() {
   while (g_hash_table_iter_next (&iter, &key, &value)) 
   {
     proc = (u_proc *)value;
-    parent = proc_by_pid(proc->proc.ppid);
-    g_assert(parent && parent->node);
-    g_node_unlink(proc->node);
-    g_node_append(parent->node, proc->node);
+    if(proc->proc.ppid) {
+      parent = proc_by_pid(proc->proc.ppid);
+      g_assert(parent && parent->node);
+      g_node_unlink(proc->node);
+      g_node_append(parent->node, proc->node);
+    }
   }
 
 
@@ -114,26 +118,27 @@ int update_processes() {
       // free all changable allocated buffers
       freesupgrp(&buf);
     } else {
-      proc = u_proc_new();
+      proc = u_proc_new(&buf);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
     }
     // we can simply steal the pointer of the current allocated buffer
-    memcpy(&(proc->proc), &buf, sizeof(proc_t));
+    //memcpy(&(proc->proc), &buf, sizeof(proc_t));
 
     if(!proc->node) {
       proc->node = g_node_new(proc);
-      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
-      // the parent should exist. in case it is missing we have to run a full
-      // tree rebuild then
-      if(parent) {
-        g_node_append(parent->node, proc->node);
-      } else {
-        full_update = TRUE;
+      if(proc->proc.ppid) {
+        parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
+        // the parent should exist. in case it is missing we have to run a full
+        // tree rebuild then
+        if(parent) {
+          g_node_append(parent->node, proc->node);
+        } else {
+          full_update = TRUE;
+        }
       }
     }
-  
-    g_list_foreach(filter_list, filter_run_for_proc, &buf);
-    freesupgrp(&buf);
+    //g_list_foreach(filter_list, filter_run_for_proc, &buf);
+    //freesupgrp(&buf);
   }
   closeproc(proctab);
   if(full_update) {
@@ -183,6 +188,7 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
   struct filter_block *flt_block =NULL;
   int rv = 0;
   time_t ttime = 0;
+  int timeout, flags;
 
   if(data == NULL)
     return;
@@ -213,13 +219,15 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
 
   flt_block->pid = proc->proc.tgid;
 
-  if(rv > 0) {
+  timeout = FILTER_TIMEOUT(rv);
+  flags = FILTER_FLAGS(rv);
+
+  if(timeout) {
     if(!ttime)
       time (&ttime);
-    flt_block->timeout = ttime + rv;
-
+    flt_block->timeout = ttime + abs(timeout);
   } else if(rv == FILTER_STOP) {
-    flt_block->skip = TRUE;  
+    flt_block->skip = TRUE;
   }
 
   g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt_block->pid), flt_block);
@@ -262,12 +270,17 @@ int load_rule_directory(char *path, char *load_pattern) {
     return 0;
   }
 
+  if(load_pattern)
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "load pattern: %s", load_pattern);
+
   while ((dit = readdir(dip)) != NULL)
   {
     if(fnmatch("*.lua", dit->d_name, 0))
       continue;
-    if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0))
+    if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "skip rule: %s", dit->d_name);
       continue;
+    }
 
     snprintf(rpath, PATH_MAX, "%s/%s", path, dit->d_name);
     load_lua_rule_file(lua_main_state, rpath);
