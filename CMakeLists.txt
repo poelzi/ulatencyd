@@ -102,8 +102,6 @@ configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LUA_INCLUDE_DIR} ${LIBCGROUP_INCLUDE_DIRS} ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS})
 
 
-
-
 set(CMAKE_CXX_FLAGS "-g -Wall")
 add_subdirectory(src/bc)
 add_subdirectory(src/proc)
@@ -117,4 +115,6 @@ add_subdirectory(modules)
 #                     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 enable_testing()
+set(CMAKE_CTEST_COMMAND "ctest -V")
+
 add_test(lua_tests src/ulatencyd -r tests --rule-pattern test.lua -v -v -v)

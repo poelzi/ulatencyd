@@ -19,7 +19,12 @@
 
 #define U_HEAD \
   guint ref; \
-  guint in_lua;
+  guint in_lua; \
+  void (*free_fnk)(void *data);
+
+struct _U_HEAD {
+  U_HEAD;
+};
 
 enum U_PROC_STATE {
   UPROC_NEW     = (1<<0),
@@ -53,6 +58,8 @@ enum FILTER_SKIP {
 enum FILTER_PRIORITIES {
   PRIO_IDLE=-1,
 };
+
+
 
 enum IO_PRIO_CLASS {
   IOPRIO_CLASS_NONE,
@@ -93,6 +100,7 @@ typedef struct _u_proc {
   guint last_update; // for detecting dead processes
   GNode *node; // for parent/child lookups
   GHashTable *skip_filter;
+  void *filter_owner;
 } u_proc;
 
 typedef struct _filter {
@@ -106,16 +114,36 @@ typedef struct _filter {
 
 #define INC_REF(P) P ->ref++;
 #define DEC_REF(P) \
-  do { P ->ref--; g_assert( P ->ref >= 0);} while(0);
+ do { P ->ref--; g_assert( P ->ref >= 0); \
+  if( P ->ref == 0 && P ->free_fnk) { P ->free_fnk( P ); P = NULL; }} while(0);
 
-#define LUA_FREE(P) (g_assert(P->in_lua > 0); P->in_lua = 0;)
-#define LUA_PUT(P) (P->in_lua = 1;)
-
-#define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 && P ->in_lua == 0) { FNK ( P ); }
+#define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 ) { FNK ( P ); }
 
 
 #define U_MALLOC(SIZE) g_malloc0(gsize n_bytes);
 #define U_FREE(PTR) g_free( PTR );
+
+typedef enum  {
+  UNSET = 0,
+  UNKNOWN,
+  CPU,
+  MEMORY,
+  BLOCK_IO,
+  SWAP_IO
+} CATEGORY_REASON;
+
+
+typedef struct _Category {
+  U_HEAD;
+  u_filter *source;
+  char     *name;
+  int      priority;
+  int      timeout;
+  CATEGORY_REASON reason;
+  int      value;
+  int      threshold;
+} u_category;
+
 
 
 struct u_cgroup {

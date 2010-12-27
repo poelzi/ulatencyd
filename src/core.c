@@ -26,12 +26,24 @@ void filter_block_free(gpointer fb) {
 
 
 
+void u_proc_free(void *ptr) {
+  u_proc *proc = ptr;
+  DEC_REF(proc);
+  if(proc->ref)
+    return;
+  
+  g_hash_table_remove_all (proc->skip_filter);
+  g_node_destroy(proc->node);
+  free(proc);
+}
+
 
 u_proc* u_proc_new(proc_t *proc) {
   u_proc *rv;
   
   rv = g_new0(u_proc, 1);
   
+  rv->free_fnk = u_proc_free;
   rv->ref = 1;
   rv->skip_filter = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                          NULL, filter_block_free);
@@ -45,16 +57,6 @@ u_proc* u_proc_new(proc_t *proc) {
   }
 
   return rv;
-}
-
-int u_proc_free(u_proc *proc) {
-  DEC_REF(proc);
-  if(proc->ref)
-    return;
-  
-  g_hash_table_remove_all (proc->skip_filter);
-  g_node_destroy(proc->node);
-  free(proc);
 }
 
 void processes_free_value(gpointer data) {
@@ -168,11 +170,14 @@ void cp_proc_t(const struct proc_t *src, struct proc_t *dst) {
  * filter code
  ************************************************************/
 
-
+void u_filter_free(void *ptr) {
+  // FIXME
+}
 
 u_filter* filter_new() {
   u_filter *rv = malloc(sizeof(u_filter));
   memset(rv, 0, sizeof(u_filter));
+  rv->free_fnk = u_filter_free;
   return rv;
 }
 

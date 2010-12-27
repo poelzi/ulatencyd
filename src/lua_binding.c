@@ -16,10 +16,6 @@
   lua_pushinteger(L,   NAME); \
   lua_settable(L, -3);
 
-#define OPENPROC_FLAGS PROC_FILLMEM | \
-  PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP
-
 
 //static proc_t *push_proc_t (lua_State *L);
 static u_proc *push_u_proc (lua_State *L, u_proc *proc);
@@ -233,6 +229,27 @@ static int l_list_pids (lua_State *L) {
   return 1;
 }
 
+static int l_list_processes (lua_State *L) {
+  int i = 1;
+  GHashTableIter iter;
+  gpointer ikey, value;
+  u_proc *proc;
+
+
+  lua_newtable (L);
+  g_hash_table_iter_init (&iter, processes);
+  while (g_hash_table_iter_next (&iter, &ikey, &value)) 
+  {
+    proc = (u_proc *)value;
+    lua_pushinteger(L, i);
+    push_u_proc(L, proc);
+    lua_settable(L, -3);
+    i++;
+  }
+  return 1;
+}
+
+
 static int l_set_active_pid(lua_State *L) {
   lua_Integer uid = luaL_checkinteger (L, 1);
   lua_Integer pid = luaL_checkinteger (L, 2);
@@ -355,7 +372,7 @@ static int l_add_interval (lua_State *L) {
 
 
 // bindings to proc_t
-#define U_PROC "u_proc"
+#define U_PROC "U_PROC"
 
 static u_proc *check_u_proc (lua_State *L, int index)
 {
@@ -410,6 +427,47 @@ static int u_proc_tostring (lua_State *L)
 }
 
 
+static int u_proc_get_parent (lua_State *L)
+{
+  u_proc *proc = check_u_proc(L, 1);
+  u_proc *parent;
+  
+  if(U_PROC_IS_INVALID(proc) || !proc->node || !proc->node->parent || 
+     !proc->node->parent->data)
+    return 0;
+
+  parent = (u_proc *)proc->node->parent->data;
+  push_u_proc(L, parent);
+  
+  return 1;
+}
+
+static int u_proc_get_children (lua_State *L)
+{
+  int i = 1, max;
+  GHashTableIter iter;
+  gpointer ikey, value;
+  u_proc *child;
+  u_proc *proc = check_u_proc(L, 1);
+
+  if(!proc->node)
+    return 0;
+
+  max = g_node_n_children(proc->node);
+
+  lua_newtable (L);
+
+  for(i = 0; i < max; i++) {
+    child = g_node_nth_child(proc->node, i)->data;
+    lua_pushinteger(L, i+1);
+    push_u_proc(L, child);
+    lua_settable(L, -3);
+    i++;
+  }
+  return 1;
+
+}
+
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
     lua_pushinteger(L, (lua_Integer)proc->proc.name); \
@@ -427,6 +485,40 @@ static int u_proc_index (lua_State *L)
   char path[PROCPATHLEN];
   u_proc *proc = check_u_proc(L, 1);
   const char *key = luaL_checkstring(L, 2);
+
+/*
+
+  //FIXME this should be handled by u_proc_methods somehow
+
+  //lua_getmetatable (L, 1);
+  lua_pushvalue(L, 2);
+  stackdump_g(L);
+
+  lua_rawget(L, 1);
+  stackdump_g(L);
+  
+  if(lua_isnil(L, 1)) {
+    lua_pop(L, 1);
+  } else {
+    return 1;
+  }
+  stackdump_g(L);
+*/  
+/*  if(luaL_getmetafield (L, 1, key)) {
+    //lua_insert (L, 1);
+    //lua_call (L, lua_gettop(L)-1, LUA_MULTRET);
+    printf("got something\n");
+    return 1;
+  }
+*/
+  if(!strcmp(key, "get_parent" )) { \
+    lua_pushcfunction(L, u_proc_get_parent);
+    return 1;
+  }
+  if(!strcmp(key, "get_children" )) { \
+    lua_pushcfunction(L, u_proc_get_children);
+    return 1;
+  }
 
   if(!strcmp(key, "is_valid" )) { \
     lua_pushboolean(L, U_PROC_IS_VALID(proc));
@@ -582,6 +674,9 @@ static int u_proc_index (lua_State *L)
   return 0;
 }
 
+
+// FILTER mappings
+
 int l_filter_callback(u_proc *proc, u_filter *flt) {
   gint rv;
   lua_State *L;
@@ -706,10 +801,11 @@ static const luaL_reg u_proc_meta[] = {
   {"__gc",       u_proc_gc},
   {"__tostring", u_proc_tostring},
   {"__index",    u_proc_index},
-  {0, 0}
+  {NULL, NULL}
 };
 
 static const luaL_reg u_proc_methods[] = {
+  {"get_parent", u_proc_get_parent},
   {NULL,NULL}
 };
 
@@ -730,6 +826,7 @@ static const luaL_reg R[] = {
   // pid receive
   {"get_pid",  l_get_pid},
   {"list_pids",  l_list_pids},
+  {"list_processes",  l_list_processes},
   {"add_timeout", l_add_interval},
   {"register_filter", l_register_filter},
   //
