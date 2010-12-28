@@ -370,15 +370,16 @@ static int l_add_interval (lua_State *L) {
   return 0;
 }
 
+// type checks and pushes
 
-// bindings to proc_t
 #define U_PROC "U_PROC"
+#define U_PROC_META "U_PROC_META"
 
 static u_proc *check_u_proc (lua_State *L, int index)
 {
   u_proc **p;
   luaL_checktype(L, index, LUA_TUSERDATA);
-  p = (u_proc **)luaL_checkudata(L, index, U_PROC);
+  p = (u_proc **)luaL_checkudata(L, index, U_PROC_META);
   if (p == NULL) luaL_typerror(L, index, U_PROC);
   return *p;
 }
@@ -397,7 +398,7 @@ static u_proc *push_u_proc (lua_State *L, u_proc *upr)
   *p = proc;
   //proc->in_lua = 1;
   //DEC_REF(proc);
-  luaL_getmetatable(L, U_PROC);
+  luaL_getmetatable(L, U_PROC_META);
   lua_setmetatable(L, -2);
 
   //up = 
@@ -408,13 +409,46 @@ static u_proc *push_u_proc (lua_State *L, u_proc *upr)
   return proc;
 }
 
+#define U_FLAG "U_FLAG"
+#define U_FLAG_META "U_FLAG_META"
+
+static u_flag *check_u_flag (lua_State *L, int index)
+{
+  u_flag **p;
+  luaL_checktype(L, index, LUA_TUSERDATA);
+  p = (u_flag **)luaL_checkudata(L, index, U_FLAG_META);
+  if (p == NULL) luaL_typerror(L, index, U_FLAG);
+  return *p;
+}
+
+static u_flag *push_u_flag (lua_State *L, u_flag *upr, void *source, const char *name)
+{
+  u_flag *flag;
+  //u_proc *p = (u_proc*)lua_newuserdata(L, sizeof(u_proc));
+  u_flag **p = (u_flag **)lua_newuserdata(L, sizeof(u_flag *));
+  if(!upr) {
+    flag = u_flag_new(source, name);
+  } else {
+    flag = upr;
+    INC_REF(flag);
+  }
+  *p = flag;
+
+  luaL_getmetatable(L, U_FLAG_META);
+  lua_setmetatable(L, -2);
+
+  return flag;
+}
+
+
+// bindings to u_proc
+
 
 static int u_proc_gc (lua_State *L)
 {
   u_proc *proc = check_u_proc(L, 1);
   //printf("goodbye proc_t (%p)\n", proc);
   DEC_REF(proc);
-  FREE_IF_UNREF(proc, u_proc_free);
   return 0;
 }
 
@@ -468,16 +502,87 @@ static int u_proc_get_children (lua_State *L)
 
 }
 
+static int u_proc_list_flags (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+  u_flag *fl;
+  GList *cur;
+
+
+  cur = g_list_first(proc->flags);
+  lua_newtable(L);
+  while(cur) {
+    fl = cur->data;
+    lua_pushinteger(L, i);
+    push_u_flag(L, fl, NULL, NULL);
+    lua_settable(L, -3);
+    i++;
+    cur = g_list_next (cur);
+  }
+  return 1;
+}
+
+static int u_proc_add_flag (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+  u_flag *flag = check_u_flag(L, 2);
+
+  lua_pushinteger(L, u_flag_add(proc, flag));
+
+  return 1;
+}
+
+static int u_proc_del_flag (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+  u_flag *flag = check_u_flag(L, 2);
+
+  lua_pushinteger(L, u_flag_del(proc, flag));
+
+  return 1;
+}
+
+static int u_proc_clear_flag_name (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+  const char *name = luaL_checkstring(L, 2);
+
+  u_flag_clear_name(proc, name);
+
+  return 0;
+}
+
+static int u_proc_clear_flag_source (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+
+  u_flag_clear_source(proc, L);
+
+  return 0;
+}
+
+static int u_proc_clear_flag_all (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+
+  u_flag_clear_all(proc);
+
+  return 0;
+}
+
+
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
     lua_pushinteger(L, (lua_Integer)proc->proc.name); \
     return 1; \
   }
+
 #define PUSH_STR(name) \
   if(!strcmp(key, #name )) { \
     lua_pushlstring(L, proc->proc.name, sizeof(proc->proc.name)); \
     return 1; \
   }
+
 
 static int u_proc_index (lua_State *L)
 {
@@ -519,6 +624,29 @@ static int u_proc_index (lua_State *L)
     lua_pushcfunction(L, u_proc_get_children);
     return 1;
   }
+
+  if(!strcmp(key, "list_flags" )) { \
+    lua_pushcfunction(L, u_proc_list_flags);
+    return 1;
+  }
+  if(!strcmp(key, "add_flag" )) { \
+    lua_pushcfunction(L, u_proc_add_flag);
+    return 1;
+  } else if(!strcmp(key, "del_flag" )) { \
+    lua_pushcfunction(L, u_proc_del_flag);
+    return 1;
+  } else if(!strcmp(key, "clear_flag_name" )) { \
+    lua_pushcfunction(L, u_proc_clear_flag_name);
+    return 1;
+  } else if(!strcmp(key, "clear_flag_source" )) { \
+    lua_pushcfunction(L, u_proc_clear_flag_source);
+    return 1;
+  } else if(!strcmp(key, "clear_flag_all" )) { \
+    lua_pushcfunction(L, u_proc_clear_flag_all);
+    return 1;
+  }
+    
+
 
   if(!strcmp(key, "is_valid" )) { \
     lua_pushboolean(L, U_PROC_IS_VALID(proc));
@@ -674,6 +802,121 @@ static int u_proc_index (lua_State *L)
   return 0;
 }
 
+#undef PUSH_INT
+#undef PUSH_STR
+
+// u_flag
+
+static int u_flag_gc (lua_State *L)
+{
+  u_flag *flag = check_u_flag(L, 1);
+  //printf("goodbye proc_t (%p)\n", proc);
+  DEC_REF(flag);
+  return 0;
+}
+
+
+static int u_flag_tostring (lua_State *L)
+{
+  u_flag **flag = lua_touserdata(L, 1);
+  u_flag *flg = *flag;
+  lua_pushfstring(L, "u_flag: <%p> %s ", flg, flg->name ? flg->name : "(no name)");
+  return 1;
+}
+
+#define PUSH_INT(name) \
+  if(!strcmp(key, #name )) { \
+    lua_pushinteger(L, (lua_Integer)flag->name); \
+    return 1; \
+  }
+
+#define PUSH_CHR(name) \
+  if(!strcmp(key, #name )) { \
+    lua_pushstring(L, flag->name); \
+    return 1; \
+  }
+
+#define PULL_INT(name) \
+  if(!strcmp(key, #name )) { \
+    flag->name = luaL_checkinteger(L, 3); \
+    return 0; \
+  }
+
+#define PULL_CHR(name) \
+  if(!strcmp(key, #name )) { \
+    flag->name = luaL_checkstring(L, 3); \
+    return 0; \
+  }
+
+
+static int u_flag_index (lua_State *L)
+{
+  u_flag *flag = check_u_flag(L, 1);
+  const char *key = luaL_checkstring(L, 2);
+
+  PUSH_CHR(name)
+  PUSH_INT(priority)
+  PUSH_INT(timeout)
+  PUSH_INT(reason)
+  PUSH_INT(value)
+  PUSH_INT(threshold)
+}
+
+static int u_flag_newindex (lua_State *L)
+{
+  u_flag *flag = check_u_flag(L, 1);
+  const char *key = luaL_checkstring(L, 2);
+
+  if(!strcmp(key, "name")) {
+    if(flag->name)
+      free(flag->name);
+    flag->name = g_strdup(luaL_checkstring(L, 3));
+    return 0;
+  }
+  PULL_INT(priority)
+  PULL_INT(timeout)
+  PULL_INT(reason)
+  PULL_INT(value)
+  PULL_INT(threshold)
+}
+
+static int l_flag_new (lua_State *L)
+{
+  //u_flag *flag = check_u_filter(L, 1);
+  
+  //luaL_checktype(L, 1, LUA_TTABLE);
+  const char *name = NULL;
+  //void *source = NULL;
+  
+  if(lua_isstring(L, 1)) {
+    name = lua_tostring(L, 1);
+  }
+
+  //lua_getfield(L, 1, "__u_source");
+  //if(!lua_islightuserdata(L, -1))
+  //  luaL_typerror(L, 2, "source instance not found");
+  //source = lua_touserdata(L, -1);
+
+  push_u_flag(L, NULL, L, name);
+  return 1;
+}
+
+
+static const luaL_reg u_flag_meta[] = {
+  {"__gc",       u_flag_gc},
+  {"__tostring", u_flag_tostring},
+  {"__index",    u_flag_index},
+  {"__newindex", u_flag_newindex},
+  {NULL, NULL}
+};
+
+static const luaL_reg u_flag_methods[] = {
+  {NULL,NULL}
+};
+
+
+
+
 
 // FILTER mappings
 
@@ -766,14 +1009,21 @@ static int l_register_filter (lua_State *L) {
   lf->lua_state = lua_newthread (L);
   lf->lua_state_id = luaL_ref(L, LUA_REGISTRYINDEX);
 
+  //lua_pushlightuserdata (L, flt);
+  //lua_setfield (L, 1, "__u_source");
+
   lua_pushvalue(L, 1);
   lf->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
+
+  lua_pushlightuserdata (L, flt);
+  lf->filter = luaL_ref(L, LUA_REGISTRYINDEX);
 
   lf->regexp_cmdline = map_reg(L, "re_cmdline");
   lf->regexp_basename = map_reg(L, "re_basename");
   if(lf->regexp_cmdline || lf->regexp_basename)
     flt->check = l_filter_check;
 
+  // construct a filter name if missing
   lua_getfield (L, 1, "name");
   lua_getstack(L, 1, &ar);
   lua_getinfo(L, "Sl", &ar);
@@ -787,6 +1037,8 @@ static int l_register_filter (lua_State *L) {
   }
   flt->name = g_strdup(lua_tostring(L, -1));
   lua_pop(L, 2);
+
+  // finish data structures
 
   flt->data = lf;
   flt->callback = l_filter_callback;
@@ -805,7 +1057,6 @@ static const luaL_reg u_proc_meta[] = {
 };
 
 static const luaL_reg u_proc_methods[] = {
-  {"get_parent", u_proc_get_parent},
   {NULL,NULL}
 };
 
@@ -829,7 +1080,9 @@ static const luaL_reg R[] = {
   {"list_processes",  l_list_processes},
   {"add_timeout", l_add_interval},
   {"register_filter", l_register_filter},
-  //
+  // flag code
+  {"new_flag", l_flag_new},
+  // group code
   {"set_active_pid", l_set_active_pid},
   {"get_active_uids", l_get_active_uids},
   {"get_active_pids", l_get_active_pids},
@@ -884,7 +1137,13 @@ int luaopen_ulatency(lua_State *L) {
   
   PUSH_INT(FILTER_STOP, FILTER_STOP)
   PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)
-  
+
+  PUSH_INT(REASON_UNSET, REASON_UNSET)
+  PUSH_INT(REASON_UNKNOWN, REASON_UNKNOWN)
+  PUSH_INT(REASON_CPU, REASON_CPU)
+  PUSH_INT(REASON_MEMORY, REASON_MEMORY)
+  PUSH_INT(REASON_BLOCK_IO, REASON_BLOCK_IO)
+  PUSH_INT(REASON_SWAP_IO, REASON_SWAP_IO)
 
   PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
@@ -900,15 +1159,28 @@ int luaopen_ulatency(lua_State *L) {
 
   // map u_proc
   luaL_register(L, U_PROC, u_proc_methods); 
-  luaL_newmetatable(L, U_PROC);
+  luaL_newmetatable(L, U_PROC_META);
   luaL_register(L, NULL, u_proc_meta);
   //lua_pushliteral(L, "__index");
   //lua_pushvalue(L, -3);
   //lua_rawset(L, -3);                  /* metatable.__index = methods */
   lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -3);               /* dup methods table*/
-  lua_rawset(L, -3);
+  lua_pushvalue(L, -2);               /* dup methods table*/
+  lua_rawset(L, -4);
   lua_pop(L, 1);
+
+  // map u_filter
+  luaL_register(L, U_FLAG, u_flag_methods); 
+  luaL_newmetatable(L, U_FLAG_META);
+  luaL_register(L, NULL, u_flag_meta);
+  //lua_pushliteral(L, "__index");
+  //lua_pushvalue(L, -3);
+  //lua_rawset(L, -3);                  /* metatable.__index = methods */
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -2);               /* dup methods table*/
+  lua_rawset(L, -4);
+  lua_pop(L, 1);
+
 
 	return 1;
 }

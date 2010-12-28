@@ -24,6 +24,9 @@ void filter_block_free(gpointer fb) {
   free(fb);
 }
 
+void u_head_free(gpointer fb) {
+  DEC_REF(fb);
+}
 
 
 void u_proc_free(void *ptr) {
@@ -33,6 +36,7 @@ void u_proc_free(void *ptr) {
     return;
   
   g_hash_table_remove_all (proc->skip_filter);
+  g_hash_table_unref(proc->skip_filter);
   g_node_destroy(proc->node);
   free(proc);
 }
@@ -47,6 +51,8 @@ u_proc* u_proc_new(proc_t *proc) {
   rv->ref = 1;
   rv->skip_filter = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                          NULL, filter_block_free);
+
+  rv->flags = NULL;
 
   if(proc) {
     rv->pid = proc->tgid;
@@ -63,7 +69,7 @@ void processes_free_value(gpointer data) {
   u_proc *proc = data;
   U_PROC_SET_STATE(proc, UPROC_INVALID);
   g_node_unlink(proc->node);
-  u_proc_free(proc);
+  DEC_REF(proc);
 }
 
 // rebuild the node tree from content of the hash table
@@ -124,7 +130,9 @@ int update_processes() {
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
     }
     // we can simply steal the pointer of the current allocated buffer
-    //memcpy(&(proc->proc), &buf, sizeof(proc_t));
+    memcpy(&(proc->proc), &buf, sizeof(proc_t));
+    U_PROC_UNSET_STATE(proc, UPROC_NEW);
+
 
     if(!proc->node) {
       proc->node = g_node_new(proc);
@@ -151,19 +159,106 @@ int update_processes() {
 
 
 
-void cp_proc_t(const struct proc_t *src, struct proc_t *dst) {
-  memcpy(dst, src, sizeof(struct proc_t));
-  allocsupgrp(dst);
-  int i;
-  for (i=0; i < src->nsupgid; i++)
-      memcpy(dst->supgrp[i], src->supgrp[i], P_G_SZ);
-  if (src->cmdline)
-    dst->cmdline = g_strdupv(src->cmdline);
-  if (src->environ)
-    dst->environ = g_strdupv(src->environ);
-  if (src->cgroup)
-    dst->cgroup = g_strdupv(src->cgroup);
+
+void u_flag_free(void *ptr) {
+  u_flag *flag = ptr;
+
+  g_assert(flag->ref == 0);
+
+  if(flag->name)
+    free(flag->name);
+  free(flag);
 }
+
+u_flag *u_flag_new(u_filter *source, const char *name) {
+  u_flag *rv;
+  
+  rv = malloc(sizeof(u_flag));
+  memset(rv, 0, sizeof(u_flag));
+  
+  rv->free_fnk = u_flag_free;
+  rv->ref = 1;
+  rv->source = source;
+
+  if(name) {
+    rv->name = g_strdup(name);
+  }
+
+  return rv;
+}
+
+int u_flag_add(u_proc *proc, u_flag *flag) {
+  if(!g_list_find(proc->flags, flag)) {
+    proc->flags = g_list_insert(proc->flags, flag, 0);
+    INC_REF(flag);
+    }
+  printf("num %d\n", g_list_length(proc->flags));
+}
+
+int u_flag_del(u_proc *proc, u_flag *flag) {
+  if(g_list_index(proc->flags, flag) != -1) {
+    DEC_REF(flag);
+  }
+  proc->flags = g_list_remove(proc->flags, flag);
+  printf("num %d\n", g_list_length(proc->flags));
+}
+
+static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
+  u_flag *flg = (u_flag *)a;
+
+  if(flg->source == match)
+    return 0;
+
+  return -1;
+}
+
+static int u_flag_match_name(gconstpointer a, gconstpointer name) {
+  u_flag *flg = (u_flag *)a;
+
+  return strcmp(flg->name, (char *)name);
+}
+
+
+int u_flag_clear_source(u_proc *proc, void *source) {
+  GList *item;
+  u_flag *flg;
+  while((item = g_list_find_custom(proc->flags, source, u_flag_match_source)) != NULL) {
+    flg = (u_flag *)item->data;
+    proc->flags = g_list_remove_link (proc->flags, item);
+    DEC_REF(item->data);
+    item->data = NULL;
+    g_list_free(item);
+  }
+}
+
+
+int u_flag_clear_name(u_proc *proc, const char *name) {
+  GList *item;
+  u_flag *flg;
+  while((item = g_list_find_custom(proc->flags, name, u_flag_match_name)) != NULL) {
+    flg = (u_flag *)item->data;
+    proc->flags = g_list_remove_link (proc->flags, item);
+    DEC_REF(item->data);
+    item->data = NULL;
+    g_list_free(item);
+  }
+}
+
+
+
+int u_flag_clear_all(u_proc *proc) {
+  GList *item;
+  u_flag *flg;
+  while((item = g_list_first(proc->flags)) != NULL) {
+    flg = (u_flag *)item->data;
+    proc->flags = g_list_remove_link (proc->flags, item);
+    DEC_REF(item->data);
+    item->data = NULL;
+    g_list_free(item);
+  }
+  g_list_free(proc->flags);
+}
+
 
 
 /*************************************************************

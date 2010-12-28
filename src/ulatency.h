@@ -45,7 +45,7 @@ enum FILTER_TYPES {
   FILTER_C
 };
 
-enum FILTER_SKIP {
+enum FILTER_FLAGS {
   FILTER_STOP          = (1<<0),
   FILTER_SKIP_CHILD   = (1<<1),
 };
@@ -82,6 +82,7 @@ struct lua_filter {
   int lua_state_id;
   int lua_func;
   int lua_data;
+  int filter;
   GRegex *regexp_cmdline;
   GRegex *regexp_basename;
 };
@@ -100,6 +101,8 @@ typedef struct _u_proc {
   guint last_update; // for detecting dead processes
   GNode *node; // for parent/child lookups
   GHashTable *skip_filter;
+  GList      *flags;
+  int         flags_changed;
   void *filter_owner;
 } u_proc;
 
@@ -114,8 +117,8 @@ typedef struct _filter {
 
 #define INC_REF(P) P ->ref++;
 #define DEC_REF(P) \
- do { P ->ref--; g_assert( P ->ref >= 0); \
-  if( P ->ref == 0 && P ->free_fnk) { P ->free_fnk( P ); P = NULL; }} while(0);
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) P ; uh->ref--; g_assert(uh->ref >= 0); \
+  if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0);
 
 #define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 ) { FNK ( P ); }
 
@@ -124,26 +127,41 @@ typedef struct _filter {
 #define U_FREE(PTR) g_free( PTR );
 
 typedef enum  {
-  UNSET = 0,
-  UNKNOWN,
-  CPU,
-  MEMORY,
-  BLOCK_IO,
-  SWAP_IO
-} CATEGORY_REASON;
+  REASON_UNSET = 0,
+  REASON_UNKNOWN,
+  REASON_CPU,
+  REASON_MEMORY,
+  REASON_BLOCK_IO,
+  REASON_SWAP_IO
+} FLAG_REASON;
 
-
-typedef struct _Category {
+/*typedef enum {
+  NONE = 0,
+  REPLACE_SOURCE,
+  ADD,
+} FLAG_BEHAVIOUR;
+*/
+typedef struct _FLAG {
   U_HEAD;
-  u_filter *source;
+  void     *source; // pointer to a data structure that is the "owner"
+//  FLAG_BEHAVIOUR age;
   char     *name;
   int      priority;
   int      timeout;
-  CATEGORY_REASON reason;
+  FLAG_REASON reason;
   int      value;
   int      threshold;
-} u_category;
+} u_flag;
 
+
+u_flag *u_flag_new(u_filter *source, const char *name);
+void u_flag_free(void *data);
+
+int u_flag_add(u_proc *proc, u_flag *flag);
+int u_flag_del(u_proc *proc, u_flag *flag);
+int u_flag_clear_source(u_proc *proc, void *source);
+int u_flag_clear_name(u_proc *proc, const char *name);
+int u_flag_clear_all(u_proc *proc);
 
 
 struct u_cgroup {

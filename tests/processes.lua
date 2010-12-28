@@ -51,6 +51,54 @@ function test_list_processes()
 
 end
 
+function test_new_flag() 
+  local flag = ulatency.new_flag("test")
+  assert_u_flag(flag)
+  assert_equal(flag.name, "test")
+  flag.name = "blubb"
+  assert_equal(flag.name, "blubb")
+  assert_equal(flag.priority, 0)
+  assert_equal(flag.timeout, 0)
+  assert_equal(flag.reason, 0)
+  assert_equal(flag.value, 0)
+  assert_equal(flag.threshold, 0)
+  flag.reason = ulatency.REASON_MEMORY
+  assert_equal(flag.reason, ulatency.REASON_MEMORY)
+  flag.value = -21823
+  assert_equal(flag.value, -21823)
+
+  local pid = ulatency.get_pid(1)
+  pid:add_flag(flag)
+  pid:add_flag(flag)
+  pid:add_flag(flag)
+  pprint(pid:list_flags())
+  assert_len(1, pid:list_flags(), "to much flags on proc")
+  
+  local flag2 = ulatency.new_flag("haha")
+  pid:add_flag(flag2)
+  pprint(pid:list_flags())
+  assert_len(2, pid:list_flags(), "to much flags on proc")
+  
+  pid:del_flag(flag2)
+  pprint(pid:list_flags())
+  assert_len(1, pid:list_flags(), "to much flags on proc")
+
+  flag2.name = "haha"
+  pid:add_flag(flag2)
+  pid:clear_flag_name("haha")
+  assert_len(1, pid:list_flags(), "to much flags on proc")
+
+  pid:clear_flag_source()
+  assert_len(0, pid:list_flags(), "source clear failed")
+
+  pid:add_flag(flag2)
+  pid:add_flag(flag)
+  pid:clear_flag_all()
+  assert_len(0, pid:list_flags(), "all clear failed")
+
+end
+
+
 
 function test_ok()
    assert_true(true)

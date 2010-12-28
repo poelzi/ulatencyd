@@ -31,7 +31,7 @@ function to_string(data, indent)
             end
         end
     else
-        print_debug(1, "Error: unknown data type: %s", type(data))
+        return tostring(data).."\n"
     end
 
     return str
@@ -41,13 +41,17 @@ function pprint(data)
   print(to_string(data))
 end
 
-U_PROC_META = debug.getregistry()["U_PROC"]
+U_PROC_META = debug.getregistry()["U_PROC_META"]
+U_FLAG_META = debug.getregistry()["U_FLAG_META"]
 
 function assert_u_proc(data)
   return assert_userdata(data, "Not a u_proc object") or 
-         true
-         -- FIXME
-         --assert_metatable(U_PROC_META, data, "Not a u_proc object")
+         assert_metatable(U_PROC_META, data, "Not a u_proc object")
+end
+
+function assert_u_flag(data)
+  return assert_userdata(data, "Not a u_flag object") or 
+         assert_metatable(U_FLAG_META, data, "Not a u_flag object")
 end
 
 arg = {}
