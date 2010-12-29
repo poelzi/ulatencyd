@@ -21,6 +21,7 @@
 
 //static proc_t *push_proc_t (lua_State *L);
 static u_proc *push_u_proc (lua_State *L, u_proc *proc);
+static int docall (lua_State *L, int narg, int clear);
 
 void stackdump_g(lua_State* l)
 {
@@ -352,7 +353,7 @@ gboolean l_call_function(gpointer data) {
   lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
   lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);
   //stackdump_g(cd->lua_state);
-  lua_call (cd->lua_state, 1, 1);
+  docall(cd->lua_state, 1, 1);
   rv = lua_toboolean (cd->lua_state, -1);
   lua_pop(cd->lua_state, 1);
 
@@ -609,6 +610,29 @@ static int u_proc_kill (lua_State *L) {
 }
 
 
+static int u_proc_get_n_children (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  lua_pushinteger(L, g_node_n_children(proc->node));
+
+  return 1;
+}
+
+static int u_proc_get_n_nodes (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  lua_pushinteger(L, g_node_n_nodes(proc->node, G_TRAVERSE_ALL));
+
+  return 1;
+}
+
+
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
     lua_pushinteger(L, (lua_Integer)proc->proc.name); \
@@ -687,6 +711,12 @@ static int u_proc_index (lua_State *L)
     return 1;
   } else if(!strcmp(key, "kill" )) {
     lua_pushcfunction(L, u_proc_kill);
+    return 1;
+  } else if(!strcmp(key, "get_n_children" )) {
+    lua_pushcfunction(L, u_proc_get_n_children);
+    return 1;
+  } else if(!strcmp(key, "get_n_nodes" )) {
+    lua_pushcfunction(L, u_proc_get_n_nodes);
     return 1;
   }
 
@@ -967,7 +997,7 @@ void l_scheduler_run(lua_State *L) {
   lua_getfield(L, -1, "scheduler");
   lua_remove(L, -2);
   if(!lua_isnil(L, -1)) {
-    lua_call(L, 0, 1);
+    docall(L, 0, 1);
     if(!lua_toboolean(L, -1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler returned false");
     }
@@ -999,8 +1029,7 @@ int l_filter_callback(u_proc *proc, u_filter *flt) {
   lua_pushvalue(L, -2);
   nproc = push_u_proc(L, proc);
   //cp_proc_t(proc, nproc);
-
-  lua_call(L, 2, 1);
+  docall(L, 2, 1);
   rv = lua_tointeger(L, -1);
   lua_pop(L, 2);
   //stackdump_g(L);
@@ -1266,6 +1295,41 @@ static int report (lua_State *L, int status) {
   }
   return status;
 }
+
+static int traceback (lua_State *L) {
+  if (!lua_isstring(L, 1))  /* 'message' not a string? */
+    return 1;  /* keep it intact */
+  lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    return 1;
+  }
+  lua_getfield(L, -1, "traceback");
+  if (!lua_isfunction(L, -1)) {
+    lua_pop(L, 2);
+    return 1;
+  }
+  lua_pushvalue(L, 1);  /* pass error message */
+  lua_pushinteger(L, 2);  /* skip this function and traceback */
+  lua_call(L, 2, 1);  /* call debug.traceback */
+  return 1;
+}
+
+static int docall (lua_State *L, int narg, int clear) {
+  int status;
+  int base = lua_gettop(L) - narg;  /* function index */
+  lua_pushcfunction(L, traceback);  /* push traceback function */
+  lua_insert(L, base);  /* put it under chunk and args */
+  status = lua_pcall(L, narg, (clear ? 0 : LUA_MULTRET), base);
+  lua_remove(L, base);  /* remove traceback function */
+  /* force a complete garbage collection in case of errors */
+  if (status != 0) {
+    report(L, status);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+  }
+  return status;
+}
+
 
 
 int load_lua_rule_file(lua_State *L, char *name) {

@@ -528,7 +528,7 @@ int load_modules(char *modules_directory) {
 int core_init() {
   // load config
   iteration = 1;
-  filter_list = g_list_alloc();
+  filter_list = NULL;
   processes_tree = g_node_new(NULL);
   processes = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, 
                                     processes_free_value);
