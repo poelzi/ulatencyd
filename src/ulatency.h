@@ -35,7 +35,7 @@ enum U_PROC_STATE {
 #define U_PROC_OK_MASK ~UPROC_INVALID
 
 #define U_PROC_IS_INVALID(P) ( P ->ustate & UPROC_INVALID )
-#define U_PROC_IS_VALID(P) ( P ->ustate & U_PROC_OK_MASK && UPROC_INVALID )
+#define U_PROC_IS_VALID(P) (( P ->ustate & U_PROC_OK_MASK)&& UPROC_INVALID )
 
 #define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
 #define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
@@ -92,6 +92,7 @@ struct lua_filter {
   int filter;
   GRegex *regexp_cmdline;
   GRegex *regexp_basename;
+  double min_percent;
 };
 
 struct filter_block {
@@ -102,15 +103,15 @@ struct filter_block {
 
 typedef struct _u_proc {
   U_HEAD;
-  int pid; // duplicate of proc.tgid
-  int ustate; // status bits of the proc referece
+  int           pid; // duplicate of proc.tgid
+  int           ustate; // status bits for process
   struct proc_t proc;
-  guint last_update; // for detecting dead processes
-  GNode *node; // for parent/child lookups
-  GHashTable *skip_filter;
-  GList      *flags;
-  int         flags_changed;
-  void *filter_owner;
+  guint         last_update; // for detecting dead processes
+  GNode         *node; // for parent/child lookups
+  GHashTable    *skip_filter;
+  GList         *flags;
+  int           flags_changed;
+  void          *filter_owner;
 } u_proc;
 
 typedef struct _filter {
@@ -244,6 +245,13 @@ int iterate(void *);
 void scheduler_run();
 int core_init();
 void core_unload();
+
+// caches
+double get_last_load();
+double get_last_percent();
+
+
+
 // lua_binding
 int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
 void l_scheduler_run(lua_State *L);

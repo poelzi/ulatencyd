@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <glib.h>
+#include <signal.h>
+#include <bits/signum.h>
 
 #define UL_META "ulatency"
 #define LUA_TABLE_INT(NAME) \
@@ -66,6 +68,18 @@ static int get_uptime (lua_State *L) {
   lua_pushnumber(L, idle_secs);
   return 2;
 }
+
+static int l_get_last_load(lua_State *L) {
+  lua_pushnumber(L, get_last_load());
+  return 1;
+}
+
+static int l_get_last_percent(lua_State *L) {
+  lua_pushnumber(L, get_last_percent());
+  return 1;
+}
+
+
 
 static int get_meminfo (lua_State *L) {
   lua_createtable (L, 10, 0);
@@ -570,6 +584,30 @@ static int u_proc_clear_flag_all (lua_State *L) {
   return 0;
 }
 
+static int u_proc_clear_flags_changed (lua_State *L) {
+  int i = 1;
+  u_proc *proc = check_u_proc(L, 1);
+
+  proc->flags_changed = 0;
+
+  return 0;
+}
+
+static int u_proc_kill (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  int signal = SIGTERM;
+  
+  if(lua_isnumber(L, 2)) {
+    signal = lua_tointeger(L, 2);
+  }
+  
+  if(U_PROC_IS_VALID(proc)) {
+    kill(proc->proc.tgid, signal);
+  }
+  
+  return 0;
+}
+
 
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
@@ -644,8 +682,13 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "clear_flag_all" )) { \
     lua_pushcfunction(L, u_proc_clear_flag_all);
     return 1;
+  } else if(!strcmp(key, "clear_flags_changed" )) { \
+    lua_pushcfunction(L, u_proc_clear_flags_changed);
+    return 1;
+  } else if(!strcmp(key, "kill" )) {
+    lua_pushcfunction(L, u_proc_kill);
+    return 1;
   }
-    
 
 
   if(!strcmp(key, "is_valid" )) { \
@@ -656,6 +699,9 @@ static int u_proc_index (lua_State *L)
     return 1;
   } else if(!strcmp(key, "pid" )) {
     lua_pushinteger(L, proc->pid);
+    return 1;
+  } else if(!strcmp(key, "flags_changed" )) {
+    lua_pushboolean(L, proc->flags_changed);
     return 1;
   }
 
@@ -973,6 +1019,9 @@ int l_filter_check(u_proc *proc, u_filter *flt) {
     if(g_regex_match(lft->regexp_cmdline, *proc->proc.cmdline, 0, NULL))
       return TRUE;
   }
+  if(lft->min_percent && lft->min_percent >= get_last_percent())
+    return TRUE;
+  
 /*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
   lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);
   //stackdump_g(cd->lua_state);
@@ -1032,7 +1081,13 @@ static int l_register_filter (lua_State *L) {
 
   lf->regexp_cmdline = map_reg(L, "re_cmdline");
   lf->regexp_basename = map_reg(L, "re_basename");
-  if(lf->regexp_cmdline || lf->regexp_basename)
+  lua_getfield (L, 1, "min_percent");
+  if (lua_isnumber(L, -1))
+    lf->min_percent = lua_tonumber (L, 1);
+  else
+    lf->min_percent = 0.0;
+
+  if(lf->regexp_cmdline || lf->regexp_basename || lf->min_percent)
     flt->check = l_filter_check;
 
   // construct a filter name if missing
@@ -1082,6 +1137,10 @@ static const luaL_reg R[] = {
   {"get_meminfo",  get_meminfo},
   {"get_vminfo",  get_vminfo},
   {"get_pid_digits",  l_get_pid_digits},
+
+  {"get_last_load",  l_get_last_load},
+  {"get_last_percent",  l_get_last_percent},
+
   // converts
   {"group_from_gid",  l_group_from_guid},
   {"user_from_uid",  l_user_from_uid},

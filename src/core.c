@@ -1,6 +1,7 @@
 #include "ulatency.h"
 
 #include "proc/procps.h"
+#include "proc/sysinfo.h"
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -15,6 +16,17 @@ GList *filter_list;
 GNode *processes_tree;
 GHashTable *processes;
 static int iteration;
+static double _last_load;
+static double _last_percent;
+
+double get_last_load() {
+  return _last_load;
+}
+
+double get_last_percent() {
+  return _last_percent;
+}
+
 
 /*************************************************************
  * u_proc code
@@ -193,7 +205,7 @@ int u_flag_add(u_proc *proc, u_flag *flag) {
     proc->flags = g_list_insert(proc->flags, flag, 0);
     INC_REF(flag);
     }
-  proc->flags_changed = iteration;
+  proc->flags_changed = 1;
 }
 
 int u_flag_del(u_proc *proc, u_flag *flag) {
@@ -201,7 +213,7 @@ int u_flag_del(u_proc *proc, u_flag *flag) {
     DEC_REF(flag);
   }
   proc->flags = g_list_remove(proc->flags, flag);
-  proc->flags_changed = iteration;
+  proc->flags_changed = 1;
 }
 
 static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
@@ -230,7 +242,7 @@ int u_flag_clear_source(u_proc *proc, void *source) {
     item->data = NULL;
     g_list_free(item);
   }
-  proc->flags_changed = iteration;
+  proc->flags_changed = 1;
 }
 
 
@@ -244,7 +256,7 @@ int u_flag_clear_name(u_proc *proc, const char *name) {
     item->data = NULL;
     g_list_free(item);
   }
-  proc->flags_changed = iteration;
+  proc->flags_changed = 1;
 }
 
 
@@ -260,7 +272,7 @@ int u_flag_clear_all(u_proc *proc) {
     g_list_free(item);
   }
   g_list_free(proc->flags);
-  proc->flags_changed = iteration;
+  proc->flags_changed = 1;
 }
 
 
@@ -390,8 +402,19 @@ void filter_run() {
   blocked_parent = NULL;
 }
 
+void update_caches() {
+  double a, b;
+  
+  loadavg(&_last_load, &a, &b);
+  _last_percent = (_last_load / (double)smp_num_cpus);
+
+}
+
+
 int iterate(gpointer ignored) {
   iteration += 1;
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "caches: %d", iteration);
+  update_caches();
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "update processes: %d", iteration);
   update_processes();
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "run filter: %d", iteration);
