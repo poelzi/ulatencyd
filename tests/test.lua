@@ -54,14 +54,45 @@ function assert_u_flag(data)
          assert_metatable(U_FLAG_META, data, "Not a u_flag object")
 end
 
+
+function assert_cmp_table(exp, val, err)
+  if #exp ~= #val then
+    assert_equal(exp, val, 0, "not same length")
+  end
+  for k, v in ipairs(exp) do
+    assert_equal(v, val[k], "value in table differs")
+  end
+end
+
 arg = {}
 
 require('tests.lunatest')
 
-lunatest.suite("test1")
-lunatest.suite("processes")
+suites = {"misc", "processes", "filter"}
+
+loaded_suites = lunatest.get_suites()
+
+current_id = 1
+current_suite = suites[current_id]
 
 
-lunatest.run()
-ulatency.quit_daemon()
+function run_suite(bla)
+  if loaded_suites[current_suite] then
+    if loaded_suites[current_suite].done and loaded_suites[current_suite].done() then
+      current_id = current_id + 1
+      current_suite = suites[current_id]
+    else
+      return true
+    end
+  end
+  lunatest.suite(current_suite)
+  lunatest.run(nil, current_suite)
+end
+
+ulatency.add_timeout(run_suite, 500)
+
+
+--ulatency.quit_daemon()
+ulatency.add_timeout(ulatency.quit_daemon, 100000)
+
 

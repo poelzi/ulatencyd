@@ -1,4 +1,5 @@
 #include "ulatency.h"
+#include "config.h"
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -12,7 +13,9 @@
 #include <glib.h>
 #include "proc/sysinfo.h"
 #include "proc/readproc.h"
+#ifdef LIBCGROUP
 #include <libcgroup.h>
+#endif
 #include <sys/mman.h>
 #include <error.h>
 
@@ -22,9 +25,9 @@ static gchar *rules_directory = "rules";
 static gchar *modules_directory = "modules";
 #else
 // FIXME need usage of PREFIX
-static gchar *config_file = CONFIG_PREFI "/ulatency/ulatencyd.conf";
-static gchar *rules_directory = CONFIG_PREFIX "/ulatency/rules";
-static gchar *modules_directory = INSTALL_PREFIX "/lib/ulatency/modules";
+static gchar *config_file = QUOTEME(CONFIG_PREFIX) "/ulatency/ulatencyd.conf";
+static gchar *rules_directory = QUOTEME(CONFIG_PREFIX) "/ulatency/rules";
+static gchar *modules_directory = QUOTEME(INSTALL_PREFIX) "/lib/ulatency/modules";
 #endif
 static gchar *load_pattern = NULL;
 static gint verbose = 1<<4;
@@ -84,7 +87,9 @@ int timeout_long(gpointer data) {
 
 void cleanup() {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "cleanup daemon");
+#ifdef LIBCGROUP
   cgroup_unload_cgroups();
+#endif
   // for valgrind
   core_unload();
 }
@@ -94,7 +99,9 @@ cleanup_on_signal (int signal)
 {
   // we have to make sure cgroup_unload_cgroups is called
   printf("abort cleanup\n");
+#ifdef LIBCGROUP
   cgroup_unload_cgroups();
+#endif
   exit(1);
 }
 
@@ -138,15 +145,25 @@ void load_config() {
     mount_point = "/dev/cgroups";
 }
 
+
+#define DEFAULT_CGROUPS "cpu,memory"
+
 int mount_cgroups() {
-  gchar   *argv[6];
+  gchar   *argv[10];
   gint    i, rv;
   gint    result;
   GError  *error = NULL;
+  char    *sub = g_key_file_get_string(config_data, CONFIG_CORE, "cgroup_subsys", NULL);
+  
+  if (!sub) {
+    sub = DEFAULT_CGROUPS;
+  }
   
   argv[i=0] = "/bin/mount";
   argv[++i] = "-t";
   argv[++i] = "cgroup";
+  argv[++i] = "-o";
+  argv[++i] = sub;
   argv[++i] = "none";
   argv[++i] = mount_point;
   argv[++i] = NULL;
@@ -197,17 +214,22 @@ int main (int argc, char *argv[])
   main_context = g_main_context_default();
   main_loop = g_main_loop_new(main_context, FALSE);
 
+#if LIBCGROUP
   if(cgroup_init()) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not init libcgroup. try mounting cgroups...");
     g_mkdir_with_parents(mount_point, 0755);
     if(!mount_cgroups() || cgroup_init()) {
 #ifdef DEVELOP_MODE
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "give up init libcgroup");
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
+      //g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "give up init libcgroup");
 #else
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
 #endif
     }
   }
+#else
+  mount_cgroups();
+#endif
 
   g_atexit(cleanup);
   
@@ -231,7 +253,7 @@ int main (int argc, char *argv[])
   timeout_long(NULL);
   g_timeout_add_seconds(60*5, timeout_long, NULL);
 
-  g_timeout_add_seconds(filter_interval, filter_run, NULL);
+  g_timeout_add_seconds(filter_interval, iterate, NULL);
 
   if(g_main_loop_is_running(main_loop));
     g_main_loop_run(main_loop);

@@ -1,9 +1,18 @@
+#ifndef __CONFIG_H
+#define __CONFIG_H
 
 // ioprio
 
 #cmakedefine SYS_ioprio_set @SYS_ioprio_set@
 #cmakedefine SYS_ioprio_get @SYS_ioprio_get@
 #cmakedefine ENABLE_NLS
+#cmakedefine LIBCGROUPS
+#cmakedefine CONFIG_PREFIX @CONFIG_PREFIX@
+#cmakedefine INSTALL_PREFIX @INSTALL_PREFIX@
+
+#define QUOTEME_(x) #x
+#define QUOTEME(x) QUOTEME_(x)
+
 
 // FIXME need detection
 /* Define to 1 if `ut_exit' is a member of `struct utmpx'. */
@@ -54,3 +63,5 @@
 #define HAVE_UTMPX_H 1
 /* Define to 1 if you have the <utmp.h> header file. */
 #define HAVE_UTMP_H 1
+
+#endif

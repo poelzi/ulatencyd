@@ -6,14 +6,14 @@
 #include <lauxlib.h>
 #include "proc/procps.h"
 #include "proc/readproc.h"
-#include <libcgroup.h>
+//#include <libcgroup.h>
 
 
 #define VERSION 0.1
 
 #define OPENPROC_FLAGS PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP
+  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP
 
 #define CONFIG_CORE "core"
 
@@ -59,6 +59,13 @@ enum FILTER_PRIORITIES {
   PRIO_IDLE=-1,
 };
 
+// default categories for convinience
+
+#define FLAG_CAT_MEDIA "MEDIA"
+#define FLAG_CAT_DESKTOP_UI "DESKTOP_UI"
+#define FLAG_CAT_DESKTOP_HIGH "DESKTOP_HIGH"
+#define FLAG_CAT_DESKTOP "DESKTOP"
+#define FLAG_CAT_DEAMON "DEAMON"
 
 
 enum IO_PRIO_CLASS {
@@ -192,6 +199,8 @@ struct user_process {
 
 // module prototype
 int (*MODULE_INIT)(void);
+int (*SCHEDULER_FNK)(void);
+
 
 // global variables
 extern GMainLoop *main_loop;
@@ -227,14 +236,17 @@ u_filter *filter_new();
 void filter_register(u_filter *filter);
 void filter_free(u_filter *filter);
 void filter_unregister(u_filter *filter);
-int filter_run(gpointer data);
-void filter_run_for_proc(gpointer data, gpointer user_data);
+void filter_run();
+int filter_run_for_proc(gpointer data, gpointer user_data);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
+int iterate(void *);
+void scheduler_run();
 int core_init();
 void core_unload();
 // lua_binding
 int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
+void l_scheduler_run(lua_State *L);
 
 
 // sysctrl.c

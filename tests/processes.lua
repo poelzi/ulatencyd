@@ -99,7 +99,3 @@ function test_new_flag()
 end
 
 
-
-function test_ok()
-   assert_true(true)
-end

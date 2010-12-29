@@ -7,8 +7,14 @@ INCLUDE(FindGettext)
 option(CONFIG_PREFIX "config prefix" "/etc")
 
 option(DEVELOP_MODE "build for development" FALSE)
+option(LIBCGROUPS "add libcgroups support" FALSE)
 
-pkg_check_modules(LIBCGROUP libcgroup REQUIRED)
+SET(INSTALL_PREFIX CMAKE_INSTALL_PREFIX)
+
+
+if(LIBCGROUPS)
+  pkg_check_modules(LIBCGROUP libcgroup OPTIONAL)
+endif(LIBCGROUPS)
 
 pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
 #pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)

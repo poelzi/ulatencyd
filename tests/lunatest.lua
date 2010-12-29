@@ -579,6 +579,10 @@ local function get_tests(mod)
    return ts
 end
 
+function get_suites()
+  return suites
+end
+
 ---Add a file as a test suite.
 -- @param modname The module to load as a suite. The file is
 -- interpreted in the same manner as require "modname".

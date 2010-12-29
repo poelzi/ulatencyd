@@ -14,7 +14,7 @@ lua_State *lua_main_state;
 GList *filter_list;
 GNode *processes_tree;
 GHashTable *processes;
-
+static int iteration;
 
 /*************************************************************
  * u_proc code
@@ -125,6 +125,7 @@ int update_processes() {
     if(proc) {
       // free all changable allocated buffers
       freesupgrp(&buf);
+      freeproc_light(&buf);
     } else {
       proc = u_proc_new(&buf);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
@@ -192,7 +193,7 @@ int u_flag_add(u_proc *proc, u_flag *flag) {
     proc->flags = g_list_insert(proc->flags, flag, 0);
     INC_REF(flag);
     }
-  printf("num %d\n", g_list_length(proc->flags));
+  proc->flags_changed = iteration;
 }
 
 int u_flag_del(u_proc *proc, u_flag *flag) {
@@ -200,7 +201,7 @@ int u_flag_del(u_proc *proc, u_flag *flag) {
     DEC_REF(flag);
   }
   proc->flags = g_list_remove(proc->flags, flag);
-  printf("num %d\n", g_list_length(proc->flags));
+  proc->flags_changed = iteration;
 }
 
 static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
@@ -229,6 +230,7 @@ int u_flag_clear_source(u_proc *proc, void *source) {
     item->data = NULL;
     g_list_free(item);
   }
+  proc->flags_changed = iteration;
 }
 
 
@@ -242,6 +244,7 @@ int u_flag_clear_name(u_proc *proc, const char *name) {
     item->data = NULL;
     g_list_free(item);
   }
+  proc->flags_changed = iteration;
 }
 
 
@@ -257,6 +260,7 @@ int u_flag_clear_all(u_proc *proc) {
     g_list_free(item);
   }
   g_list_free(proc->flags);
+  proc->flags_changed = iteration;
 }
 
 
@@ -282,25 +286,27 @@ void filter_register(u_filter *filter) {
 }
 
 
-void filter_run_for_proc(gpointer data, gpointer user_data) {
-  u_proc *proc = user_data;
-  u_filter *flt = data;
+int filter_run_for_proc(gpointer data, gpointer user_data) {
+  u_proc *proc = data;
+  u_filter *flt = user_data;
   struct filter_block *flt_block =NULL;
   int rv = 0;
   time_t ttime = 0;
   int timeout, flags;
 
-  if(data == NULL)
-    return;
+  printf("filter for proc %p\n", flt);
 
-  flt_block = (struct filter_block *)g_hash_table_lookup(proc->skip_filter, GUINT_TO_POINTER(proc->pid));
+  g_assert(data);
+
+  flt_block = (struct filter_block *)g_hash_table_lookup(proc->skip_filter, GUINT_TO_POINTER(flt));
+
   //g_hash_table_lookup
   if(flt_block) {
     time (&ttime);
     if(flt_block->skip)
-      return;
+      return 0;
     if(flt_block->timeout > ttime)
-      return;
+      return 0;
   }
 
   if(flt->check) {
@@ -312,7 +318,7 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
   rv = flt->callback(proc, flt);
 
   if(rv == 0)
-    return;
+    return rv;
 
   if(!flt_block)
     flt_block = malloc(sizeof(struct filter_block));
@@ -330,29 +336,71 @@ void filter_run_for_proc(gpointer data, gpointer user_data) {
     flt_block->skip = TRUE;
   }
 
-  g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt_block->pid), flt_block);
-
+  g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt), flt_block);
+  return rv;
 }
 
+static GNode *blocked_parent;
 
-int filter_run(gpointer data) {
-  int pid;
-  proc_t buf;
-  PROCTAB *proctab;
+gboolean filter_run_for_node(GNode *node, gpointer data) {
+  GNode *tmp;
+  int rv;
+  printf("run for node\n");
+  if(node == processes_tree)
+    return FALSE;
+  if(blocked_parent) {
+    do {
+      tmp = node->parent;
+      if(!tmp)
+        break;
 
-  proctab = openproc(OPENPROC_FLAGS);
-  if(!proctab)
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
-
-  while(readproc(proctab, &buf)){
-    g_list_foreach(filter_list, filter_run_for_proc, &buf);
-    freesupgrp(&buf);
+      if(tmp == blocked_parent) {
+        // we don't run filters on nodes those parent set the skip child flag
+        return FALSE;
+      } else if (tmp == processes_tree) {
+        // we can unset the block, as we must have left all childs
+        blocked_parent = NULL;
+        break;
+      }
+    } while(TRUE);
   }
-  closeproc(proctab);
+  rv = filter_run_for_proc(node->data, data);
+
+  if(FILTER_FLAGS(rv) & FILTER_SKIP_CHILD) {
+    blocked_parent = node;
+  }
+  return FALSE;
+}
+
+void scheduler_run() {
+  // FIXME make scheduler more flexible
+  l_scheduler_run(lua_main_state);
+}
+
+void filter_run() {
+  u_filter *flt;
+  GList *cur = g_list_first(filter_list);
+  while(cur) {
+    flt = cur->data;
+    blocked_parent = NULL;
+    g_node_traverse(processes_tree, G_PRE_ORDER,G_TRAVERSE_ALL, -1, 
+                    filter_run_for_node, flt);
+    cur = g_list_next(cur);
+  }
+  blocked_parent = NULL;
+}
+
+int iterate(gpointer ignored) {
+  iteration += 1;
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "update processes: %d", iteration);
+  update_processes();
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "run filter: %d", iteration);
+  filter_run();
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "schedule: %d", iteration);
+  scheduler_run();
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "done: %d", iteration);
   return TRUE;
 }
-
-
 
 
 /***************************************************************************
@@ -456,6 +504,7 @@ int load_modules(char *modules_directory) {
 
 int core_init() {
   // load config
+  iteration = 1;
   filter_list = g_list_alloc();
   processes_tree = g_node_new(NULL);
   processes = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, 
@@ -466,7 +515,9 @@ int core_init() {
   luaL_openlibs(lua_main_state);
   luaopen_bc(lua_main_state);
   luaopen_ulatency(lua_main_state);
+#ifdef LIBCGROUP
   luaopen_cgroup(lua_main_state);
+#endif
   // FIXME
   if(load_lua_rule_file(lua_main_state, "src/core.lua"))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
@@ -475,3 +526,4 @@ int core_init() {
 void core_unload() {
   lua_gc (lua_main_state, LUA_GCCOLLECT, 0);
 }
+

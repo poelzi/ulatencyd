@@ -916,7 +916,19 @@ static const luaL_reg u_flag_methods[] = {
 
 
 
-
+void l_scheduler_run(lua_State *L) {
+  lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
+  lua_getfield(L, -1, "scheduler");
+  lua_remove(L, -2);
+  if(!lua_isnil(L, -1)) {
+    lua_call(L, 0, 1);
+    if(!lua_toboolean(L, -1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler returned false");
+    }
+  }
+  lua_pop(L, 1);
+  //stackdump_g(L);
+}
 
 // FILTER mappings
 
@@ -1059,7 +1071,6 @@ static const luaL_reg u_proc_meta[] = {
 static const luaL_reg u_proc_methods[] = {
   {NULL,NULL}
 };
-
 
 
 
@@ -1210,3 +1221,4 @@ int load_lua_rule_file(lua_State *L, char *name) {
   return 0;
 
 }
+

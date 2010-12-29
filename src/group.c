@@ -65,8 +65,7 @@ void set_active_pid(guint uid, guint pid)
   // remove the entries to much
   up->last_change = time(NULL);
 
-  if(g_list_length(ua->actives) > ua->max_processes)
-    ua->actives = g_list_sort(ua->actives, cmp_last_change);
+  ua->actives = g_list_sort(ua->actives, cmp_last_change);
 
   while(g_list_length(ua->actives) > ua->max_processes) {
     ua->actives = g_list_remove(ua->actives, g_list_last(ua->actives)->data);

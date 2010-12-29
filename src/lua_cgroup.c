@@ -238,11 +238,45 @@ static int l_##NAME (lua_State *L) \
 
 CGROUP_INT(cgroup_create_cgroup,(cg->group, para));
 CGROUP_INT(cgroup_create_cgroup_from_parent,(cg->group, para));
-CGROUP_INT(cgroup_modify_cgroup,(cg->group));
+//CGROUP_INT(cgroup_modify_cgroup,(cg->group));
 CGROUP_INT(cgroup_delete_cgroup,(cg->group, para));
 CGROUP_INT(cgroup_delete_cgroup_ext,(cg->group, para));
 
-CGROUP_INT(cgroup_get_cgroup,(cg->group));
+//CGROUP_INT(cgroup_get_cgroup,(cg->group));
+
+static int l_cgroup_get_cgroup (lua_State *L) \
+{ \
+  struct u_cgroup *cg = check_cgroup(L, 1); \
+  int para = lua_tointeger(L, 2); \
+  int rv = 0; \
+  if (cg) { \
+    rv =  cgroup_get_cgroup (cg->group) ; \
+    lua_pushinteger(L, rv); \
+    return 1; \
+  } \
+  lua_pushstring(L, "Not a valid cgroup"); \
+  lua_error (L); \
+  return 0; \
+}
+
+
+
+static int l_cgroup_modify_cgroup (lua_State *L) 
+{ 
+  struct u_cgroup *cg = check_cgroup(L, 1); 
+  int para = lua_tointeger(L, 2); 
+  int rv = 0; 
+  if (cg) { 
+    rv =  cgroup_modify_cgroup(cg->group); 
+    lua_pushinteger(L, rv); 
+    return 1; 
+  } 
+  lua_pushstring(L, "Not a valid cgroup"); 
+  lua_error (L); 
+  return 0; 
+}
+
+
 
 static int l_cgroup_attach_task_pid(lua_State *L)
 {
@@ -255,8 +289,8 @@ static int l_cgroup_attach_task_pid(lua_State *L)
 
 static int l_cgroup_copy_cgroup (lua_State *L)
 {
-  struct u_cgroup *usrc = check_cgroup(L, 1);
-  struct u_cgroup *udst = check_cgroup(L, 2);
+  struct u_cgroup *udst = check_cgroup(L, 1);
+  struct u_cgroup *usrc = check_cgroup(L, 2);
   int rv;
   
   if(udst && usrc) {
@@ -450,6 +484,31 @@ static int l_cgroup_get_names(lua_State *L)
   return 1;
 }
 
+static int l_cgroup_get_name(lua_State *L)
+{
+  struct u_cgroup *uc = check_cgroup(L, 1);
+  
+  if(uc->name)
+    lua_pushstring(L, uc->name);
+  else
+    return 0;
+  
+  return 1;
+}
+
+static int l_cgroup_get_name_controller(lua_State *L)
+{
+  struct u_cgroup_controller *uc = check_cgroup_controller(L, 1);
+  
+  if(uc->name)
+    lua_pushstring(L, uc->name);
+  else
+    return 0;
+  
+  return 1;
+}
+
+
 
 /*
 cgroup_copy_cgroup (struct cgroup *dst, struct cgroup *src)
@@ -473,7 +532,6 @@ static int l_cgroup_copy_cgroup (lua_State *L)
 static const luaL_reg cgroup_meta[] = {
   //{"__gc",       proc_t_gc},
   {"__tostring", cgroup_tostring},
-  //{"__index", proc_t_index},
   {NULL, NULL}
 };
 
@@ -488,6 +546,8 @@ static const luaL_reg cgroup_methods[] = {
   {"delete_cgroup_ext", l_cgroup_delete_cgroup_ext},
   {"get_cgroup", l_cgroup_get_cgroup},
   {"attach_pid", l_cgroup_attach_task_pid},
+  {"copy_from", l_cgroup_copy_cgroup},
+  {"get_name", l_cgroup_get_name},
   {NULL,NULL}
 };
 
@@ -505,6 +565,7 @@ static const luaL_reg cgroup_controller_methods[] = {
   {"get_value_bool", l_cgroup_get_value_bool},
   {"get_value_string", l_cgroup_get_value_str},
   {"get_names", l_cgroup_get_names},
+  {"get_name", l_cgroup_get_name_controller},
   {NULL,NULL}
 };
 
