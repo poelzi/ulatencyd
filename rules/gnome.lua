@@ -4,11 +4,12 @@ GnomeUI = {
   name = "GnomeUI",
   re_basename = "metacity|compiz|gnome-panel",
   --re_basename = "metacity",
-  check = function(proc)
-    local flag = ulatency.new_flag("desktop_ui")
-    proc.add_flag(flag)
-    print("added flag")
-    return ulatency.filter_rv(ulatency.FILTER_STOP)
+  check = function(self, proc)
+    local flag = ulatency.new_flag("user.ui")
+    proc:add_flag(flag)
+    pprint(proc:list_flags())
+    rv = ulatency.filter_rv(ulatency.FILTER_STOP)
+    return rv
   end
 }
 

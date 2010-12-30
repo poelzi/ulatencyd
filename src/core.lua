@@ -1,4 +1,3 @@
-print("core")
 
 -- logging shortcuts
 function ulatency.log_debug(msg)
@@ -40,6 +39,9 @@ local function mkdirp(path)
 end
 
 
+require("posix")
+
+
 local _CGroup_Cache = {}
 
 CGroup = {}
@@ -74,7 +76,8 @@ function CGroup.new(name, init)
   if rv then
     return rv
   end
-  rv = setmetatable( {name=name, uncommited = init or {}}, CGroupMeta)
+  uncommited=(init or {})
+  rv = setmetatable( {name=name, uncommited=uncommited}, CGroupMeta)
   _CGroup_Cache[name] = rv
   return rv
 end
@@ -160,8 +163,8 @@ end
 
 function CGroup:commit()
   mkdirp(self:path())
-  uncommited = pairs(rawget(self, "uncommited")) 
-  for k, v in uncommited do
+  uncommited = rawget(self, "uncommited")
+  for k, v in pairs(uncommited) do
     path = self:path(k)
     fp = io.open(path, "w")
     if fp then

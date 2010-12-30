@@ -164,9 +164,9 @@ int update_processes() {
     //freesupgrp(&buf);
   }
   closeproc(proctab);
-  if(full_update) {
+  //if(full_update) {
     rebuild_tree();
-  }
+  //}
 
 }
 
@@ -306,7 +306,7 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
   time_t ttime = 0;
   int timeout, flags;
 
-  printf("filter for proc %p\n", flt);
+  //printf("filter for proc %p\n", flt);
 
   g_assert(data);
 
@@ -332,8 +332,10 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
   if(rv == 0)
     return rv;
 
-  if(!flt_block)
+  if(!flt_block) {
     flt_block = malloc(sizeof(struct filter_block));
+    g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt), flt_block);
+  }
 
   flt_block->pid = proc->proc.tgid;
 
@@ -348,7 +350,6 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
     flt_block->skip = TRUE;
   }
 
-  g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt), flt_block);
   return rv;
 }
 
@@ -357,7 +358,7 @@ static GNode *blocked_parent;
 gboolean filter_run_for_node(GNode *node, gpointer data) {
   GNode *tmp;
   int rv;
-  printf("run for node\n");
+  //printf("run for node\n");
   if(node == processes_tree)
     return FALSE;
   if(blocked_parent) {
@@ -395,6 +396,7 @@ void filter_run() {
   while(cur) {
     flt = cur->data;
     blocked_parent = NULL;
+    printf("children %d %d\n", g_node_n_children(processes_tree), g_node_n_nodes (processes_tree,G_TRAVERSE_ALL ));
     g_node_traverse(processes_tree, G_PRE_ORDER,G_TRAVERSE_ALL, -1, 
                     filter_run_for_node, flt);
     cur = g_list_next(cur);

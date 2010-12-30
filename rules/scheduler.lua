@@ -1,10 +1,6 @@
 
 require("posix")
 
-function is_user_uid(uid)
-  return uid > 999
-end
-
 u_groups = {}
 
 
@@ -31,22 +27,182 @@ end
 
 --ulatency.quit_daemon()
 
+ul_group = CGroup.new("s_ul")
+local pid = posix.getpid()["pid"]
+ul_group:add_task(pid)
+ul_group:commit()
+
 ITER = 1
+
+
+
+
+
+MAPPING = { 
+  USER = {
+    name = "user",
+    cgroups_name = "u_${euid}",
+    check = function(proc)
+              return ( proc.euid > 999 )
+            end,
+    param = { ["cpu.shares"]="3048" },
+    children = {
+      MEDIA = { 
+        name = "media",
+        param = { ["cpu.shares"]="2048" },
+        check = function(proc)
+                  return false
+                end,
+      },
+      UI = { 
+        name = "ui",
+        param = { ["cpu.shares"]="2048" },
+        label = { "user.ui" }
+      },
+      POISON = { 
+        name = "poison",
+        param = { ["cpu.shares"]="10" },
+        label = { "user.poison" }
+      },
+      IDLE = { 
+        name = "idle",
+        param = { ["cpu.shares"]="400" },
+      },
+    },
+  },
+  ULATENCY = {
+    name = "system_ulatency",
+    cgroups_name = "s_ulatency",
+    param = { ["cpu.shares"]="500", ["memory.swappiness"] = "0" },
+    check = function(proc)
+              return (proc.pid == posix.getpid()["pid"])
+            end
+  },
+  ESSENTIAL = {
+    name = "system_essential",
+    cgroups_name = "s_essential",
+    param = { ["cpu.shares"]="3048" },
+    label = { "system.essential" }
+  },
+  SYSTEM = {
+    name = "system",
+    cgroups_name = "s_daemon",
+    check = function(proc)
+              return true
+            end,
+    param = { ["cpu.shares"]="800" },
+  },
+}
+  
+pprint(MAPPING)
+
+function check_label(labels, proc)
+  for j, flag in pairs(proc:list_flags()) do
+    for k, slabel in pairs(labels) do
+      if flag.name == slabel then
+        return true
+      end
+    end
+  end
+end
+
+function check(proc, rule)
+  assert(proc)
+  if rule.label then
+    if check_label(rule.label, proc) then
+      return rule
+    end
+  elseif rule.check then
+    if rule.check(proc) then
+      return rule
+    end
+  end
+  return nil
+end
+
+function run_list(proc, lst)
+  local rv = {}
+  for key, rule in pairs(lst) do
+    match = check(proc, rule)
+    if match then
+      rv[#rv+1] = match
+      if match.children then
+        best_subs = run_list(proc, match.children)
+        --print("got bestsubs", type(best_subs), best_subs, #best_subs)
+        if best_subs and #best_subs > 0 then
+          for i,sub in ipairs(best_subs) do
+            rv[#rv+1] = sub
+          end
+        end
+      end
+      break
+    end
+  end
+  return rv
+end
+
+local function format_name(proc, map)
+  if map.cgroups_name then
+    function get(name)
+      local rv2 = proc[name]
+      rv2 = tostring(rv2)
+      return rv2
+    end
+    return string.gsub(map.cgroups_name, "%$\{(%w+)\}", get)
+  end
+  return map.name
+end
+
+local function build_path_parts(proc, res)
+  local rv = {}
+  for i,k in ipairs(res) do
+    local cname = format_name(proc, k)
+    rv[#rv+1] = cname
+  end
+  return rv
+end
+
+local function create_group(proc, prefix, mapping)
+  name = format_name(proc, mapping)
+  if #prefix > 0 then
+    path = prefix .. "/" .. name
+  else
+    path = name
+  end
+  return CGroup.new(path, mapping.param)
+end
+
+local function map_to_group(proc, parts)
+  chain = build_path_parts(proc, parts)
+  path = table.concat(chain, "/")
+  cgr = CGroup.get_group(path)
+  if cgr then
+    return cgr
+  end
+
+  local prefix = ""
+  for i, parrule in ipairs(parts) do
+    --local parent = create_group(proc, prefix, 
+    cgr = create_group(proc, prefix, parrule)
+    prefix = cgr.name
+  end
+  print("final prefix", prefix)
+  --CGroup.new(mapping.name, )n-ar
+  return cgr
+end
 
 
 function test_sched()
   local group
-
+  
   for k,proc in ipairs(ulatency.list_processes()) do
-    --print("sched", v)
-    if is_user_uid(proc.euid) then
-      group = get_user_group(proc.euid)
-    else
-      group = CGroup.new("s_daemon")
-    end
-    --print("attach", proc.pid, "old", proc.cgroups)
-    if group then
+    --print("sched", proc, proc.cmdline)
+    if proc.block_scheduler == 0 then
+      local mappings = run_list(proc, MAPPING)
+      --pprint(res)
+      group = map_to_group(proc, mappings)
       group:add_task(proc.pid, true)
+      --pprint(build_path_parts(proc, res))
     end
   end
   for k, v in pairs(CGroup.get_groups()) do

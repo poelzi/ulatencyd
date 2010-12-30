@@ -52,7 +52,7 @@ enum FILTER_FLAGS {
 
 #define FILTER_TIMEOUT(v) ( v & 0xFFFF)
 #define FILTER_FLAGS(v) ( v >> 16)
-#define FILTER_MIX(flages,timeout) (( flags << 16 ) & timeout )
+#define FILTER_MIX(flages,timeout) (( flags << 16 ) | timeout )
 
 
 enum FILTER_PRIORITIES {
@@ -61,12 +61,16 @@ enum FILTER_PRIORITIES {
 
 // default categories for convinience
 
+/*
 #define FLAG_CAT_MEDIA "MEDIA"
 #define FLAG_CAT_DESKTOP_UI "DESKTOP_UI"
 #define FLAG_CAT_DESKTOP_HIGH "DESKTOP_HIGH"
 #define FLAG_CAT_DESKTOP "DESKTOP"
+#define FLAG_CAT_DESKTOP_IDLE "DESKTOP_IDLE"
+#define FLAG_CAT_DESKTOP_POISON "DESKTOP_POISON"
 #define FLAG_CAT_DEAMON "DEAMON"
-
+#define FLAG_CAT_DEAMON_ESSENTIAL "DEAMON_ESSENTIAL"
+*/
 
 enum IO_PRIO_CLASS {
   IOPRIO_CLASS_NONE,
@@ -112,6 +116,7 @@ typedef struct _u_proc {
   GList         *flags;
   int           flags_changed;
   void          *filter_owner;
+  int           block_scheduler; // this should be respected by the scheduler
 } u_proc;
 
 typedef struct _filter {
