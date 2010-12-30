@@ -47,11 +47,18 @@ MAPPING = {
             end,
     param = { ["cpu.shares"]="3048" },
     children = {
+      POISON = { 
+        name = "poison",
+        param = { ["cpu.shares"]="10" },
+        label = { "user.poison" }
+      },
       MEDIA = { 
         name = "media",
         param = { ["cpu.shares"]="2048" },
+        label = { "user.media" },
         check = function(proc)
-                  return false
+                  print("classived, ui.media", proc)
+                  return true
                 end,
       },
       UI = { 
@@ -59,14 +66,17 @@ MAPPING = {
         param = { ["cpu.shares"]="2048" },
         label = { "user.ui" }
       },
-      POISON = { 
-        name = "poison",
-        param = { ["cpu.shares"]="10" },
-        label = { "user.poison" }
-      },
       IDLE = { 
         name = "idle",
-        param = { ["cpu.shares"]="400" },
+        param = {  },
+      },
+      SESSION = { 
+        name = "session",
+        param = { ["cpu.shares"]="600" },
+        cgroups_name = "${session}",
+        check = function(proc)
+                  return true
+                end,
       },
     },
   },
@@ -196,8 +206,8 @@ function test_sched()
   local group
   
   for k,proc in ipairs(ulatency.list_processes()) do
-    --print("sched", proc, proc.cmdline)
-    if proc.flags_changed and proc.block_scheduler == 0 then
+--    print("sched", proc, proc.cmdline)
+    if proc.block_scheduler == 0 then
       local mappings = run_list(proc, MAPPING)
       --pprint(res)
       group = map_to_group(proc, mappings)

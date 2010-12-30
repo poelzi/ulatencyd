@@ -117,6 +117,7 @@ typedef struct _u_proc {
   int           flags_changed;
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
+  int           lua_data;
 } u_proc;
 
 typedef struct _filter {

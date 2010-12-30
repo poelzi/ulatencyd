@@ -1,19 +1,18 @@
 
 
-GnomeUI = {
-  name = "GnomeUI",
-  re_basename = "metacity|compiz|gnome-panel|gtk-window-deco",
+MediaPlayer = {
+  name = "MediaPlayer",
+  re_cmdline = "mplayer|xine|vlc",
   --re_basename = "metacity",
   check = function(self, proc)
-    local flag = ulatency.new_flag("user.ui")
+    local flag = ulatency.new_flag("user.media")
     proc:add_flag(flag)
-
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)
     return rv
-  end
+  end,
 }
 
-ulatency.register_filter(GnomeUI)
+ulatency.register_filter(MediaPlayer)
 --[[
 
 print(ul.get_config("TestFilter", "something"))

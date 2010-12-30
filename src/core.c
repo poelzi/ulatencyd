@@ -43,10 +43,10 @@ void u_head_free(gpointer fb) {
 
 void u_proc_free(void *ptr) {
   u_proc *proc = ptr;
-  DEC_REF(proc);
-  if(proc->ref)
-    return;
-  
+
+  if(proc->lua_data) {
+    luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
+  }
   g_hash_table_remove_all (proc->skip_filter);
   g_hash_table_unref(proc->skip_filter);
   g_node_destroy(proc->node);
@@ -65,6 +65,7 @@ u_proc* u_proc_new(proc_t *proc) {
                                          NULL, filter_block_free);
 
   rv->flags = NULL;
+  rv->flags_changed = TRUE;
 
   if(proc) {
     rv->pid = proc->tgid;
@@ -136,8 +137,8 @@ int update_processes() {
     proc = proc_by_pid(buf.tgid);
     if(proc) {
       // free all changable allocated buffers
-      freesupgrp(&buf);
-      freeproc_light(&buf);
+      freesupgrp(&(proc->proc));
+      freeproc_light(&(proc->proc));
     } else {
       proc = u_proc_new(&buf);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
@@ -145,6 +146,7 @@ int update_processes() {
     // we can simply steal the pointer of the current allocated buffer
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
+    U_PROC_UNSET_STATE(proc, UPROC_ALIVE);
 
 
     if(!proc->node) {
@@ -158,15 +160,17 @@ int update_processes() {
         } else {
           full_update = TRUE;
         }
+      } else {
+        g_node_append(processes_tree, proc->node);
       }
     }
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
   }
   closeproc(proctab);
-  //if(full_update) {
+  if(full_update) {
     rebuild_tree();
-  //}
+  }
 
 }
 
@@ -358,6 +362,8 @@ static GNode *blocked_parent;
 gboolean filter_run_for_node(GNode *node, gpointer data) {
   GNode *tmp;
   int rv;
+  u_filter *uf = data;
+  //printf("rfn %s ;", uf->name);
   //printf("run for node\n");
   if(node == processes_tree)
     return FALSE;
@@ -392,8 +398,10 @@ void scheduler_run() {
 
 void filter_run() {
   u_filter *flt;
+  //printf("run filter %p, %d\n", filter_list, g_list_length(filter_list));
   GList *cur = g_list_first(filter_list);
   while(cur) {
+    //printf("cur %p\n", cur);
     flt = cur->data;
     blocked_parent = NULL;
     printf("children %d %d\n", g_node_n_children(processes_tree), g_node_n_nodes (processes_tree,G_TRAVERSE_ALL ));

@@ -756,6 +756,17 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "block_scheduler" )) {
     lua_pushinteger(L, proc->block_scheduler);
     return 1;
+  } else if(!strcmp(key, "data" )) {
+    if(!proc->lua_data) {
+      lua_newtable(L);
+      lua_pushvalue(L, -1);
+      proc->lua_data = luaL_ref(L, LUA_REGISTRYINDEX);
+      return 1;
+    } else {
+      lua_rawgeti(L, LUA_REGISTRYINDEX, proc->lua_data);
+      return 1;
+    }
+    return 0;
   }
 
 
@@ -1132,7 +1143,6 @@ static int l_register_filter (lua_State *L) {
 
   //lua_pushlightuserdata (L, flt);
   //lua_setfield (L, 1, "__u_source");
-
   lua_pushvalue(L, 1);
   lf->lua_func = luaL_ref(L, LUA_REGISTRYINDEX);
 
@@ -1142,10 +1152,12 @@ static int l_register_filter (lua_State *L) {
   lf->regexp_cmdline = map_reg(L, "re_cmdline");
   lf->regexp_basename = map_reg(L, "re_basename");
   lua_getfield (L, 1, "min_percent");
-  if (lua_isnumber(L, -1))
+  if (lua_isnumber(L, -1)) {
     lf->min_percent = lua_tonumber (L, 1);
-  else
+  } else {
     lf->min_percent = 0.0;
+    lua_pop(L, 1);
+  }
 
   if(lf->regexp_cmdline || lf->regexp_basename || lf->min_percent)
     flt->check = l_filter_check;
@@ -1163,6 +1175,7 @@ static int l_register_filter (lua_State *L) {
       lua_pushstring(L, "(unknown)");
   }
   flt->name = g_strdup(lua_tostring(L, -1));
+  // remove name strings
   lua_pop(L, 2);
 
   // finish data structures
