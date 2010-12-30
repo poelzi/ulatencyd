@@ -475,7 +475,7 @@ static int u_proc_gc (lua_State *L)
 static int u_proc_tostring (lua_State *L)
 {
   u_proc **proc = lua_touserdata(L, 1);
-  lua_pushfstring(L, "proc_t: <%p> pid:%d", (*proc), (*proc)->pid);
+  lua_pushfstring(L, "u_proc: <%p> pid:%d %s", (*proc), (*proc)->pid, &(*proc)->proc.cmd);
   return 1;
 }
 

@@ -1,0 +1,37 @@
+Writing Lua Rules Howto
+
+Rules are lua tables:
+
+
+
+
+Prefilters:
+
+  re_basename = <perl regular expression>   - Regular expression must match the basename of process
+  re_cmdline = <perl regular expression>    - Must match the command line
+  min_percent = <decimal>                   - min percent of of cpu utalisation
+
+Warning: The prefilters can't currently be changed after loading.
+basename is limited to 15 chars
+
+Prefilters reduce the amount of filter calling by using fast c checks before the
+check function is called. 
+
+min_percent means load/num_cores must be >= of min]percent.
+
+Any may match for the rule to get fired.
+
+
+Importent to know:
+
+proc objects are shared between all systems. If you save a reference you do
+not save the data, but only a reference to it. Accessing values will always be
+the most recent version of it. If you want create a history of data, you have
+to store them as copies. If you save references they may be to a dead process, but
+still there. To prevent memory leaks you should check them periodicy if thoy are
+still valid.
+
+
+
+!!! Don't do's !!!
+

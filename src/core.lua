@@ -77,7 +77,7 @@ function CGroup.new(name, init)
     return rv
   end
   uncommited=(init or {})
-  rv = setmetatable( {name=name, uncommited=uncommited}, CGroupMeta)
+  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}}, CGroupMeta)
   _CGroup_Cache[name] = rv
   return rv
 end
@@ -159,6 +159,15 @@ function CGroup:add_task(pid, instant)
       fp:close()
     end
   end
+end
+
+function CGroup:is_dirty()
+  if #rawget(self, "uncommited") > 0 or
+     #rawget(self, "new_tasks") > 0 or 
+     posix.access(self:path()) ~= 0 then
+     return true
+  end
+  return false
 end
 
 function CGroup:commit()

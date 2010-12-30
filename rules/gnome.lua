@@ -2,12 +2,11 @@
 
 GnomeUI = {
   name = "GnomeUI",
-  re_basename = "metacity|compiz|gnome-panel",
+  re_basename = "metacity|compiz|gnome-panel|gtk-window-deco",
   --re_basename = "metacity",
   check = function(self, proc)
     local flag = ulatency.new_flag("user.ui")
     proc:add_flag(flag)
-    pprint(proc:list_flags())
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)
     return rv
   end

@@ -197,11 +197,15 @@ function test_sched()
   
   for k,proc in ipairs(ulatency.list_processes()) do
     --print("sched", proc, proc.cmdline)
-    if proc.block_scheduler == 0 then
+    if proc.flags_changed and proc.block_scheduler == 0 then
       local mappings = run_list(proc, MAPPING)
       --pprint(res)
       group = map_to_group(proc, mappings)
+      if group:is_dirty() then
+        group:commit()
+      end
       group:add_task(proc.pid, true)
+      proc:clear_flags_changed()
       --pprint(build_path_parts(proc, res))
     end
   end
