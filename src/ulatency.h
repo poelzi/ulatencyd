@@ -205,9 +205,14 @@ struct user_process {
   time_t last_change;
 };
 
+typedef struct {
+  int (*all)(void);    // make scheduler run over all processes
+  int (*one)(u_proc *);  // schedule for one (new) process
+} u_scheduler;
+
+
 // module prototype
 int (*MODULE_INIT)(void);
-int (*SCHEDULER_FNK)(void);
 
 
 // global variables
@@ -217,6 +222,7 @@ extern GKeyFile *config_data;
 extern GList* active_users;
 extern GHashTable* processes;
 extern GNode* processes_tree;
+extern lua_State *lua_main_state;
 //extern gchar *load_pattern;
 
 // core.c
@@ -248,8 +254,11 @@ void filter_run();
 int filter_run_for_proc(gpointer data, gpointer user_data);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
+
+int scheduler_run_one(u_proc *proc);
+int scheduler_run();
 int iterate(void *);
-void scheduler_run();
+
 int core_init();
 void core_unload();
 
@@ -259,9 +268,11 @@ double get_last_percent();
 
 
 
+
 // lua_binding
 int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
-void l_scheduler_run(lua_State *L);
+
+extern u_scheduler LUA_SCHEDULER;
 
 
 // sysctrl.c

@@ -1091,22 +1091,59 @@ static const luaL_reg u_flag_methods[] = {
 
 
 
-void l_scheduler_run(lua_State *L) {
+int l_scheduler_run(lua_State *L, u_proc *proc) {
+  int base = lua_gettop(L);
+  char *key = "all";
+  int args = 1;
+  int rv = 1;
   lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
   lua_getfield(L, -1, "scheduler");
   lua_remove(L, 1);
-  if(!lua_isnil(L, -1)) {
-    if(docall(L, 0, 1)) {
+  if(lua_istable(L, 1)) {
+    if(proc) {
+      key = "one";
+    }
+    lua_getfield(L, 1, key);
+    if(!lua_isfunction(L, 2)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "can't find lua scheduling handling function: %s", key);
+      goto error;
+    }
+    lua_pushvalue(L, 1);
+    if(proc) {
+      push_u_proc(L, proc);
+      args = 2;
+    }
+    if(docall(L, args, 1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler failed");
       return;
     }
     if(!lua_toboolean(L, -1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler returned false");
+    } else {
+      rv = 0;
     }
   }
-  lua_pop(L, 1);
+
+error:
+  lua_pop(L, lua_gettop(L)-base);
+  return rv;
   //stackdump_g(L);
 }
+
+int wrap_l_scheduler_run() {
+  return l_scheduler_run(lua_main_state, NULL);
+}
+
+int wrap_l_scheduler_run_one(u_proc *proc) {
+  return l_scheduler_run(lua_main_state, proc);
+}
+
+
+u_scheduler LUA_SCHEDULER = {
+  .all=wrap_l_scheduler_run,
+  .one=wrap_l_scheduler_run_one
+};
+
 
 // FILTER mappings
 
@@ -1275,6 +1312,11 @@ static const luaL_reg u_proc_methods[] = {
 };
 
 
+static int l_run_interation (lua_State *L) {
+  // DANGEROUS: can cause endless loop
+  iterate(NULL);
+  return 0;
+}
 
 /* object table */
 static const luaL_reg R[] = {
@@ -1309,6 +1351,7 @@ static const luaL_reg R[] = {
   {"list_keys",  l_list_keys},
   {"log",  l_log},
   {"quit_daemon", l_quit},
+  {"run_iteration", l_run_interation},
 	{NULL,        NULL}
 };
 

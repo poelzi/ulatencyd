@@ -204,30 +204,38 @@ local function map_to_group(proc, parts)
 end
 
 
-function test_sched()
+Scheduler = {}
+
+function Scheduler:all()
   local group
-  
+
   for k,proc in ipairs(ulatency.list_processes()) do
 --    print("sched", proc, proc.cmdline)
-    if proc.block_scheduler == 0 then
-      local mappings = run_list(proc, MAPPING)
-      --pprint(res)
-      group = map_to_group(proc, mappings)
-      if group then
-        if group:is_dirty() then
-          group:commit()
-        end
-        group:add_task(proc.pid, true)
-        proc:clear_flags_changed()
-      end
-      --pprint(build_path_parts(proc, res))
-    end
+    self:one(proc)
   end
   for k, v in pairs(CGroup.get_groups()) do
     v:commit()
   end
   return true
 end
+
+function Scheduler:one(proc)
+  if proc.block_scheduler == 0 then
+    local mappings = run_list(proc, MAPPING)
+    --pprint(res)
+    group = map_to_group(proc, mappings)
+    if group then
+      if group:is_dirty() then
+        group:commit()
+      end
+      group:add_task(proc.pid, true)
+      proc:clear_flags_changed()
+    end
+    --pprint(build_path_parts(proc, res))
+  end
+end
+
+
 
 function byby()
   ulatency.quit_daemon()
@@ -236,7 +244,7 @@ end
 
 --ulatency.add_timeout(byby, 100000)
 
-ulatency.scheduler = test_sched
+ulatency.scheduler = Scheduler
 
 
 

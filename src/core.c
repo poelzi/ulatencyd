@@ -15,6 +15,7 @@ lua_State *lua_main_state;
 GList *filter_list;
 GNode *processes_tree;
 GHashTable *processes;
+u_scheduler scheduler = {NULL};
 static int iteration;
 static double _last_load;
 static double _last_percent;
@@ -391,10 +392,24 @@ gboolean filter_run_for_node(GNode *node, gpointer data) {
   return FALSE;
 }
 
-void scheduler_run() {
+int scheduler_run() {
   // FIXME make scheduler more flexible
-  l_scheduler_run(lua_main_state);
+  if(scheduler.all) {
+    return scheduler.all();
+  } else {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "no scheduler.all set");
+  }
 }
+
+int scheduler_run_one(u_proc *proc) {
+  // FIXME make scheduler more flexible
+  if(scheduler.one) {
+    return scheduler.one(proc);
+  }
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "no scheduler.one set");
+  return 1;
+}
+
 
 void filter_run() {
   u_filter *flt;
@@ -412,7 +427,7 @@ void filter_run() {
   blocked_parent = NULL;
 }
 
-void update_caches() {
+static void update_caches() {
   double a, b;
   
   loadavg(&_last_load, &a, &b);
@@ -434,6 +449,21 @@ int iterate(gpointer ignored) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "done: %d", iteration);
   return TRUE;
 }
+
+/***************************************************************************
+ * scheduler stuff
+ **************************************************************************/
+
+int scheduler_set(u_scheduler *sched) {
+  if(sched) {
+    memcpy(&scheduler, sched, sizeof(u_scheduler));
+  } else {
+    memset(&scheduler, 0, sizeof(u_scheduler));
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "unset scheduler");
+  }
+  return 0;
+}
+
 
 
 /***************************************************************************
@@ -551,7 +581,11 @@ int core_init() {
 #ifdef LIBCGROUP
   luaopen_cgroup(lua_main_state);
 #endif
-  // FIXME
+
+  // FIXME make it configurable
+  scheduler_set(&LUA_SCHEDULER);
+
+  // FIXME path
   if(load_lua_rule_file(lua_main_state, "src/core.lua"))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
 }
