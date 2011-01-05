@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg width="73cm" height="29cm" viewBox="52 53 1459 566" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g>
+    <rect style="fill: #ffffff" x="53" y="139" width="231" height="81"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="53" y="139" width="231" height="81"/>
+    <text style="fill: #000000;text-anchor:middle;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="168.5" y="183.4">
+      <tspan x="168.5" y="183.4">Linux Kernel</tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="510" y="54.0002" width="603.203" height="297"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="510" y="54.0002" width="603.203" height="297"/>
+    <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="519" y="206.4">
+      <tspan x="519" y="206.4"></tspan>
+    </text>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="285.009" y1="183.667" x2="496.771" y2="191.24"/>
+    <polygon style="fill: #ffffff" points="496.593,196.237 506.765,191.598 496.95,186.244 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="496.593,196.237 506.765,191.598 496.95,186.244 "/>
+  </g>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="338" y="115">
+    <tspan x="338" y="115">Collect informations:</tspan>
+    <tspan x="338" y="131">- proc</tspan>
+    <tspan x="338" y="147">- netlink</tspan>
+    <tspan x="338" y="163">- (audit)</tspan>
+  </text>
+  <g>
+    <rect style="fill: #ffffff" x="516" y="107" width="291" height="190"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="516" y="107" width="291" height="190"/>
+    <text style="fill: #000000;text-anchor:middle;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="661.5" y="173.9">
+      <tspan x="661.5" y="173.9">Core:</tspan>
+      <tspan x="661.5" y="189.9">- process tree</tspan>
+      <tspan x="661.5" y="205.9">- process tagging</tspan>
+      <tspan x="661.5" y="221.9">- process manipulation</tspan>
+      <tspan x="661.5" y="237.9">-...</tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="677" y="267" width="359.203" height="79"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="677" y="267" width="359.203" height="79"/>
+    <text style="fill: #000000;text-anchor:middle;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="856.601" y="302.4">
+      <tspan x="856.601" y="302.4">Scheduler</tspan>
+      <tspan x="856.601" y="318.4">Lua / Module</tspan>
+    </text>
+  </g>
+  <g>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 198.557,231.221 A 436.297,436.297 0 0 0 806.481,346.563"/>
+    <polygon style="fill: #ffffff" points="202.633,228.631 193.044,222.882 194.198,234.002 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="202.633,228.631 193.044,222.882 194.198,234.002 "/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="675.203" y="57.0002" width="360" height="81"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="675.203" y="57.0002" width="360" height="81"/>
+    <text style="fill: #000000;text-anchor:middle;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="855.203" y="93.4002">
+      <tspan x="855.203" y="93.4002">Rules</tspan>
+      <tspan x="855.203" y="109.4">Lua / Modules</tspan>
+    </text>
+  </g>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="661.5" y="202">
+    <tspan x="661.5" y="202"></tspan>
+  </text>
+  <g>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 664.782,60.4905 A 223.041,223.041 0 0 0 596.972,99.7082"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 589.729,99.2531 A 5,5 0 0 0 596.55,106.566"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="596.797" y1="99.501" x2="589.482" y2="106.318"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 670.94,63.5436 A 5,5 0 0 0 667.997,53.9864"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="664.689" y1="60.2357" x2="674.247" y2="57.2943"/>
+  </g>
+  <g>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 596.546,304.735 A 166.698,166.698 0 0 0 666.313,343.473"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 596.506,297.934 A 5,5 0 0 0 589.229,304.794"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="596.299" y1="305.001" x2="589.436" y2="297.728"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 670.128,349.713 A 5,5 0 0 0 672.109,339.912"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="666.218" y1="343.823" x2="676.02" y2="345.802"/>
+  </g>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="615.936" y="75.0004">
+    <tspan x="615.936" y="75.0004">Lua</tspan>
+    <tspan x="615.936" y="91.0004">Bindings</tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="661.5" y="202">
+    <tspan x="661.5" y="202"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="518.936" y="441.001">
+    <tspan x="518.936" y="441.001">Kernel optimization:</tspan>
+    <tspan x="518.936" y="457.001">- cgroups</tspan>
+    <tspan x="518.936" y="473.001">- nice</tspan>
+    <tspan x="518.936" y="489.001">- ionice </tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="855.203" y="97.5002">
+    <tspan x="855.203" y="97.5002"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="422.936" y="348.001">
+    <tspan x="422.936" y="348.001"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="168.5" y="179.5">
+    <tspan x="168.5" y="179.5"></tspan>
+  </text>
+  <g>
+    <rect style="fill: #ffffff" x="804.153" y="463.154" width="267" height="142"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="804.153" y="463.154" width="267" height="142"/>
+    <text style="fill: #000000;text-anchor:middle;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="937.653" y="538.054">
+      <tspan x="937.653" y="538.054">Userspace</tspan>
+    </text>
+  </g>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="347.615" y="114.087">
+    <tspan x="347.615" y="114.087"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="661.5" y="202">
+    <tspan x="661.5" y="202"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="1040.2" y="112.907">
+    <tspan x="1040.2" y="112.907"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="572.703" y="322.007">
+    <tspan x="572.703" y="322.007">Lua</tspan>
+    <tspan x="572.703" y="338.007">Bindings</tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="811.601" y="202.5">
+    <tspan x="811.601" y="202.5"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="811.601" y="202.5">
+    <tspan x="811.601" y="202.5"></tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:15.2287;font-family:sanserif;font-style:normal;font-weight:700" x="515.203" y="69.0002">
+    <tspan x="515.203" y="69.0002">ulatencyd</tspan>
+  </text>
+  <g>
+    <rect style="fill: #ffffff" x="849.203" y="143" width="185" height="119"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="849.203" y="143" width="185" height="119"/>
+    <text style="fill: #000000;text-anchor:middle;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="941.703" y="182.4">
+      <tspan x="941.703" y="182.4">Modules</tspan>
+      <tspan x="941.703" y="198.4">- dbus</tspan>
+      <tspan x="941.703" y="214.4">- xserver observation</tspan>
+      <tspan x="941.703" y="230.4">-...</tspan>
+    </text>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="811.472" y1="202.053" x2="844.731" y2="202.447"/>
+    <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="819.294,197.146 809.236,202.027 819.176,207.145 "/>
+    <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="836.908,207.355 846.967,202.474 837.027,197.356 "/>
+  </g>
+  <g>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1076.5,555.777 A 179.386,179.386 0 0 0 1038.67,202.599"/>
+    <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1046.49,197.618 1036.44,202.522 1046.39,207.618 "/>
+    <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1082.98,549.238 1074.34,556.326 1085.19,558.99 "/>
+  </g>
+  <g>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 175.191,221.004 A 496.606,496.606 0 0 0 791.381,600.659"/>
+    <polygon style="fill: #ffffff" points="792.845,605.597 801.006,597.956 789.996,596.012 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="792.845,605.597 801.006,597.956 789.996,596.012 "/>
+  </g>
+  <text style="fill: #000000;text-anchor:start;font-size:21.663;font-family:sanserif;font-style:normal;font-weight:normal" x="408.3" y="541.746">
+    <tspan x="408.3" y="541.746">Effect</tspan>
+  </text>
+  <text style="fill: #000000;text-anchor:start;font-size:12.7998;font-family:sanserif;font-style:normal;font-weight:normal" x="1223.86" y="372.895">
+    <tspan x="1223.86" y="372.895">- information receival</tspan>
+    <tspan x="1223.86" y="388.895">- interface for user wishes</tspan>
+    <tspan x="1223.86" y="404.895">- interaction with other daemons like upstart</tspan>
+    <tspan x="1223.86" y="420.895"></tspan>
+  </text>
+</svg>

@@ -1,10 +1,13 @@
-WARNING: this program is under development and not working yet
+WARNING: this program is under development and only suited for testing.
 
 == What is ulatency ==
 
 Ulatency is a daemon that controls how the Linux kernel will spend it's
 resources on the running processes. It uses dynamic cgroups to give the kernel
 hints and limitations on processes.
+
+It strongly supports the lua scripting language for writing rules and the
+scheduler code.
 
 == What tries it to fix ==
 
@@ -15,6 +18,9 @@ Processes that run wild to slow down the system by causing massive swaping will
 be isolated.
 
 == Architecture ==
+
+See docs/architecture.svg for a general overview.
+
 
 The core of the daemon is written in c, embedding a lua interpreter.
 Most of the rules are written in lua scripts, as heuristics for system behavior
