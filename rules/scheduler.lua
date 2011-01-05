@@ -35,8 +35,8 @@ ul_group:commit()
 ITER = 1
 
 
-
-
+-- WARNING: don't use non alpha numeric characters in name
+-- FIXME: build validator
 
 MAPPING = { 
   USER = {
@@ -152,6 +152,7 @@ function run_list(proc, lst)
 end
 
 local function format_name(proc, map)
+  -- generates the final path for the process for the map
   if map.cgroups_name then
     function get(name)
       local rv2 = proc[name]
@@ -164,6 +165,7 @@ local function format_name(proc, map)
 end
 
 local function build_path_parts(proc, res)
+  -- build a array for 
   local rv = {}
   for i,k in ipairs(res) do
     local cname = format_name(proc, k)
@@ -183,9 +185,9 @@ local function create_group(proc, prefix, mapping)
 end
 
 local function map_to_group(proc, parts)
-  chain = build_path_parts(proc, parts)
-  path = table.concat(chain, "/")
-  cgr = CGroup.get_group(path)
+  local chain = build_path_parts(proc, parts)
+  local path = table.concat(chain, "/")
+  local cgr = CGroup.get_group(path)
   if cgr then
     return cgr
   end
@@ -211,11 +213,13 @@ function test_sched()
       local mappings = run_list(proc, MAPPING)
       --pprint(res)
       group = map_to_group(proc, mappings)
-      if group:is_dirty() then
-        group:commit()
+      if group then
+        if group:is_dirty() then
+          group:commit()
+        end
+        group:add_task(proc.pid, true)
+        proc:clear_flags_changed()
       end
-      group:add_task(proc.pid, true)
-      proc:clear_flags_changed()
       --pprint(build_path_parts(proc, res))
     end
   end
@@ -239,6 +243,9 @@ ulatency.scheduler = test_sched
 
 
 --[[
+
+-- OLD libcgroup cra
+
 function mk_group(name)
   grp = cgroups.new_cgroup("/"..name)
   cpu = grp:add_controller("cpu")

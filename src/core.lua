@@ -112,13 +112,13 @@ function CGroup:parent()
   return CGroup.new(name)
 end
 
-function CGroup:get_value(key, value)
+function CGroup:get_value(key, raw)
   uncommited = rawget(self, "uncommited")
-  if uncommited[key] then
+  if uncommited[key] and not raw then
     return uncommited[key]
   end
   local path = self:path(key)
-  if posix.access(path) then
+  if posix.access(path) == 0 then
     local fp = open(path, "r")
     return fp:read("*a")
   end
@@ -201,7 +201,38 @@ function CGroup:commit()
   end
 end
 
+function CGroup:add_children(proc, fnc)
+  function add_childs(list)
+    for i,v in pairs(list) do
+      self:add_task(v.pid)
+      if fnc then
+        fnc(v)
+      end
+    end
+    for i,v in pairs(list) do
+      add_childs(v.children)
+    end
+  end
+  add_childs(proc.children)
+end
 
+
+function CGroup.create_isolation_group(proc, children)
+  ng = CGroup.new("iso_"..tostring(pid))
+  ng.commit()
+  ng.add_task(proc.pid)
+  proc:set_block_scheduler(1)
+
+end
+
+function CGroup:starve(what)
+  if what == "memory" then
+    nv = self:get_value("memory.usage_in_bytes", true)
+    if nv then
+      self:set_value("memory.limit_in_bytes", nv)
+    end
+  end
+end
 
 
 

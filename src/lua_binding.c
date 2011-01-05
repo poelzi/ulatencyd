@@ -354,6 +354,7 @@ gboolean l_call_function(gpointer data) {
   lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);
   //stackdump_g(cd->lua_state);
   rv = docall(cd->lua_state, 1, 1);
+  //stackdump_g(cd->lua_state);
   if(rv) {
     // FIXME case of errror, stop the filter ???
     return TRUE;
@@ -515,7 +516,6 @@ static int u_proc_get_children (lua_State *L)
     lua_pushinteger(L, i+1);
     push_u_proc(L, child);
     lua_settable(L, -3);
-    i++;
   }
   return 1;
 
@@ -524,20 +524,35 @@ static int u_proc_get_children (lua_State *L)
 static int u_proc_list_flags (lua_State *L) {
   int i = 1;
   u_proc *proc = check_u_proc(L, 1);
+  int recr = lua_toboolean(L, 2);
   u_flag *fl;
   GList *cur;
 
-
-  cur = g_list_first(proc->flags);
   lua_newtable(L);
-  while(cur) {
-    fl = cur->data;
-    lua_pushinteger(L, i);
-    push_u_flag(L, fl, NULL, NULL);
-    lua_settable(L, -3);
-    i++;
-    cur = g_list_next (cur);
-  }
+  do {
+    cur = g_list_first(proc->flags);
+    while(cur) {
+      fl = cur->data;
+      if(recr == 2 && !fl->inherit) {
+        cur = g_list_next (cur);
+        continue;
+      }
+      lua_pushinteger(L, i);
+      push_u_flag(L, fl, NULL, NULL);
+      lua_settable(L, -3);
+      i++;
+      cur = g_list_next (cur);
+    }
+    if(recr) {
+      if(!proc->node || !proc->node->parent || proc->node->parent == processes_tree) {
+        proc = NULL;
+        break;
+      }
+      proc = (u_proc *)(proc->node->parent->data);
+      if(recr == 1)
+        recr = 2;
+    }
+  } while (recr && proc);
   return 1;
 }
 
@@ -941,6 +956,13 @@ static int u_flag_tostring (lua_State *L)
     return 1; \
   }
 
+#define PUSH_BOOL(name) \
+  if(!strcmp(key, #name )) { \
+    lua_pushboolean(L, flag->name); \
+    return 1; \
+  }
+
+
 #define PUSH_CHR(name) \
   if(!strcmp(key, #name )) { \
     lua_pushstring(L, flag->name); \
@@ -966,11 +988,13 @@ static int u_flag_index (lua_State *L)
   const char *key = luaL_checkstring(L, 2);
 
   PUSH_CHR(name)
+  PUSH_BOOL(inherit)
   PUSH_INT(priority)
   PUSH_INT(timeout)
   PUSH_INT(reason)
   PUSH_INT(value)
   PUSH_INT(threshold)
+  return 0;
 }
 
 static int u_flag_newindex (lua_State *L)
@@ -984,20 +1008,48 @@ static int u_flag_newindex (lua_State *L)
     flag->name = g_strdup(luaL_checkstring(L, 3));
     return 0;
   }
+  PULL_INT(inherit)
   PULL_INT(priority)
   PULL_INT(timeout)
   PULL_INT(reason)
   PULL_INT(value)
   PULL_INT(threshold)
+  return 0;
 }
+
+#define CHK_N_SET(name, conv) \
+  lua_getfield (L, 1, #name ); \
+  if(!lua_isnil (L, -1)) { \
+    flag-> name = conv (L, -1); \
+  } \
+  lua_pop(L, 1);
+
 
 static int l_flag_new (lua_State *L)
 {
   //u_flag *flag = check_u_filter(L, 1);
-  
+  u_flag *flag = NULL;
   //luaL_checktype(L, 1, LUA_TTABLE);
   const char *name = NULL;
   //void *source = NULL;
+
+  if(lua_istable(L, 1)) {
+    lua_getfield (L, 1, "name");
+    if(lua_isstring(L, -1)) {
+      name = lua_tostring(L, -1);
+    }
+    lua_pop(L, 1);
+
+    flag = push_u_flag(L, NULL, L, name);
+
+    CHK_N_SET(inherit, lua_toboolean)
+    CHK_N_SET(priority, lua_tointeger)
+    CHK_N_SET(timeout, lua_tointeger)
+    CHK_N_SET(reason, lua_tointeger)
+    CHK_N_SET(value, lua_tointeger)
+    CHK_N_SET(threshold, lua_tointeger)
+    return 1;
+  }
   
   if(lua_isstring(L, 1)) {
     name = lua_tostring(L, 1);
@@ -1012,12 +1064,24 @@ static int l_flag_new (lua_State *L)
   return 1;
 }
 
+#undef CHK_N_SET
+
+static int u_flag_eq (lua_State *L)
+{
+  u_flag *flag = check_u_flag(L, 1);
+  u_flag *flag2 = check_u_flag(L, 2);
+
+  lua_pushboolean(L, flag == flag2);
+  return 1;
+}
+
 
 static const luaL_reg u_flag_meta[] = {
   {"__gc",       u_flag_gc},
   {"__tostring", u_flag_tostring},
   {"__index",    u_flag_index},
   {"__newindex", u_flag_newindex},
+  {"__eq",       u_flag_eq},
   {NULL, NULL}
 };
 
@@ -1188,11 +1252,21 @@ static int l_register_filter (lua_State *L) {
 }
 
 
+static int u_proc_eq (lua_State *L)
+{
+  u_proc *proc = check_u_proc(L, 1);
+  u_proc *proc2 = check_u_proc(L, 2);
+
+  lua_pushboolean(L, proc == proc2);
+  return 1;
+}
+
 
 static const luaL_reg u_proc_meta[] = {
   {"__gc",       u_proc_gc},
   {"__tostring", u_proc_tostring},
   {"__index",    u_proc_index},
+  {"__eq",       u_proc_eq},
   {NULL, NULL}
 };
 
@@ -1337,16 +1411,29 @@ int luaopen_ulatency(lua_State *L) {
 static int report (lua_State *L, int status) {
   if (status && !lua_isnil(L, -1)) {
     const char *msg = lua_tostring(L, -1);
-    if (msg == NULL) msg = "(error object is not a string)";
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "%s", msg);
+    if (msg == NULL) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, 
+            "(status: %d, error object is not a string. it is: %s)", 
+            status, lua_typename(L, -1));
+    } else {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "%d: %s", status, msg);
+    }
     lua_pop(L, 1);
   }
+  //stackdump_g(L);
   return status;
 }
 
 static int traceback (lua_State *L) {
-  if (!lua_isstring(L, 1))  /* 'message' not a string? */
-    return 1;  /* keep it intact */
+  //if (!lua_isstring(L, 1))  /* 'message' not a string? */
+  //  return 1;  /* keep it intact */
+  //lua_tostring(L, 1);
+  if (!lua_isstring(L, 1)) {
+    lua_getfield(L, LUA_GLOBALSINDEX, "tostring");
+    //lua_pushvalue(L, 1);  /* pass error message */
+    lua_call(L, 1, 1); 
+  }
+  
   lua_getfield(L, LUA_GLOBALSINDEX, "debug");
   if (!lua_istable(L, -1)) {
     lua_pop(L, 1);
@@ -1357,6 +1444,7 @@ static int traceback (lua_State *L) {
     lua_pop(L, 2);
     return 1;
   }
+  //lua_pushliteral(L, "bla");
   lua_pushvalue(L, 1);  /* pass error message */
   lua_pushinteger(L, 2);  /* skip this function and traceback */
   lua_call(L, 2, 1);  /* call debug.traceback */
@@ -1366,12 +1454,14 @@ static int traceback (lua_State *L) {
 static int docall (lua_State *L, int narg, int nresults) {
   int status;
   int base = lua_gettop(L) - narg;  /* function index */
+  //printf("docall\n");
   lua_pushcfunction(L, traceback);  /* push traceback function */
   lua_insert(L, base);  /* put it under chunk and args */
+  //stackdump_g(L);
   status = lua_pcall(L, narg, nresults, base);
+  //printf("--- %d\n", status);
   //stackdump_g(L);
   lua_remove(L, base);  /* remove traceback function */
-  stackdump_g(L);
   /* force a complete garbage collection in case of errors */
   if (status != 0) {
     report(L, status);

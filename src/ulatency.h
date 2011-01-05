@@ -35,7 +35,7 @@ enum U_PROC_STATE {
 #define U_PROC_OK_MASK ~UPROC_INVALID
 
 #define U_PROC_IS_INVALID(P) ( P ->ustate & UPROC_INVALID )
-#define U_PROC_IS_VALID(P) (( P ->ustate & U_PROC_OK_MASK)&& UPROC_INVALID )
+#define U_PROC_IS_VALID(P) ((( P ->ustate & U_PROC_OK_MASK ) & UPROC_INVALID ) == 0)
 
 #define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
 #define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
@@ -157,14 +157,15 @@ typedef enum  {
 */
 typedef struct _FLAG {
   U_HEAD;
-  void     *source; // pointer to a data structure that is the "owner"
+  void     *source;       // pointer to a data structure that is the "owner"
 //  FLAG_BEHAVIOUR age;
-  char     *name;
-  int      priority;
-  int      timeout;
-  FLAG_REASON reason;
-  int      value;
-  int      threshold;
+  char     *name;         // label name
+  int      inherit;      // will apply to all children
+  int      timeout;       // timeout when the flag will disapear
+  FLAG_REASON reason;     // why the flag was set. This makes most sense with emergency flags
+  int      priority;      // custom data: priority
+  int      value;         // custom data: value
+  int      threshold;     // custom data: threshold
 } u_flag;
 
 

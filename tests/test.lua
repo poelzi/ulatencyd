@@ -55,12 +55,15 @@ function assert_u_flag(data)
 end
 
 
-function assert_cmp_table(exp, val, err)
-  if #exp ~= #val then
-    assert_equal(exp, val, 0, "not same length")
-  end
-  for k, v in ipairs(exp) do
-    assert_equal(v, val[k], "value in table differs")
+function assert_cmp_table(exp, val, err, ign)
+  for k, v in pairs(exp) do
+    if not ign or not ign.k then
+      if type(v) == "table" then
+        assert_cmp_table(v, val[k], "sub value in table differ", ign)
+      else
+        assert_equal(v, val[k], err or "value in table differs")
+      end
+    end
   end
 end
 
@@ -68,25 +71,37 @@ arg = {}
 
 require('tests.lunatest')
 
-suites = {"misc", "processes", "filter"}
+suites = {"processes", "misc"}
 
 loaded_suites = lunatest.get_suites()
 
-current_id = 1
+current_id = 0
 current_suite = suites[current_id]
 
 
 function run_suite(bla)
-  if loaded_suites[current_suite] then
-    if loaded_suites[current_suite].done and loaded_suites[current_suite].done() then
-      current_id = current_id + 1
-      current_suite = suites[current_id]
-    else
+  while true do
+    if loaded_suites[current_suite] then
+      if loaded_suites[current_suite].test_done then
+        if not loaded_suites[current_suite].test_done() then
+          return true
+        end
+      end
+    end
+    current_id = current_id + 1
+    current_suite = suites[current_id]
+    if not current_suite then
+      print("tests done")
+      ulatency.quit_daemon()
+      return false
+    end
+    lunatest.suite(current_suite)
+    loaded_suites = lunatest.get_suites()
+    lunatest.run(nil, current_suite)
+    if loaded_suites[current_suite].test_done then
       return true
     end
   end
-  lunatest.suite(current_suite)
-  lunatest.run(nil, current_suite)
 end
 
 ulatency.add_timeout(run_suite, 500)
