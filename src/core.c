@@ -437,16 +437,28 @@ static void update_caches() {
 
 
 int iterate(gpointer ignored) {
+  GTimer *timer = g_timer_new();
+  gdouble last, current;
+  gulong dump;
+
+  g_timer_start(timer);
   iteration += 1;
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "caches: %d", iteration);
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "start iteration %d:", iteration);
   update_caches();
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "update processes: %d", iteration);
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "update processes:");
+  last = g_timer_elapsed(timer, &dump);
   update_processes();
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "run filter: %d", iteration);
+  current = g_timer_elapsed(timer, &dump);
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. run filter:", (current - last));
+  last = current;
   filter_run();
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "schedule: %d", iteration);
+  current = g_timer_elapsed(timer, &dump);
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. schedule:", (current - last));
+  last = current;
   scheduler_run();
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "done: %d", iteration);
+  g_timer_stop(timer);
+  current = g_timer_elapsed(timer, &dump);
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. complete run %d took %0.2F", (current - last), iteration, current);
   return TRUE;
 }
 

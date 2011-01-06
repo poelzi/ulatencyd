@@ -17,6 +17,22 @@ ulatencyd monitors the system and categorizes the running processes into cgroups
 Processes that run wild to slow down the system by causing massive swaping will
 be isolated.
 
+== Building ==
+
+Compiling:
+
+ # cmake .
+ # make DEBUG=1
+
+Configure options:
+
+ # ccmake .
+
+Running:
+
+ # sudo ./src/ulatencyd -v 4
+
+
 == Architecture ==
 
 See docs/architecture.svg for a general overview.

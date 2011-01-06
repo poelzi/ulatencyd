@@ -42,7 +42,11 @@ static gboolean beep = FALSE;
 //static gboolean rand = FALSE;
 
 static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpointer data, GError **error) {
-  verbose = verbose << 1;
+  int i = 1;
+  if(value) {
+    i = atoi(value);
+  }
+  verbose = verbose << i;
 }
 
 static GOptionEntry entries[] =
@@ -50,7 +54,7 @@ static GOptionEntry entries[] =
   { "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_file, "Use config file", NULL},
   { "rules-directory", 'r', 0, G_OPTION_ARG_FILENAME, &rules_directory, "Path with ", NULL},
   { "rule-pattern", 0, 0, G_OPTION_ARG_STRING, &load_pattern, "Load only rules matching the pattern", NULL},
-  { "verbose", 'v', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
+  { "verbose", 'v', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
 
 //  { "max-size", 'm', 0, G_OPTION_ARG_INT, &max_size, "Test up to 2^M items", "M" },
 //  { "beep", 'b', 0, G_OPTION_ARG_NONE, &beep, "Beep when done", NULL },

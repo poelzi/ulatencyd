@@ -1,3 +1,4 @@
+posix = require("posix")
 
 -- logging shortcuts
 function ulatency.log_debug(msg)
@@ -23,6 +24,15 @@ end
 
 -- CGroups interface
 
+if posix.getpasswd(posix.getenv("LOGNAME")).uid > 0 then
+  ulatency.log_info("disable cgroups error logging. not running as root")
+  function cg_log(...)
+  end
+else
+  cg_log = ulatency.log_warning
+end
+
+
 
 local function mkdirp(path)
   if posix.access(path) ~= 0 then
@@ -31,7 +41,7 @@ local function mkdirp(path)
       name = "/" .. table.concat(parts, "/", 1, i)
       if posix.access(name, posix.R_OK) ~= 0 then
         if posix.mkdir(name) ~= 0 then
-          print("can't create "..name)
+          cg_log("can't create "..name)
         end
       end
     end
@@ -181,7 +191,7 @@ function CGroup:commit()
       fp:close()
       uncommited[k] = nil
     else
-      print("can't write into :"..tostring(path))
+      cg_log("can't write into :"..tostring(path))
     end
   end
   local t_file = self:path("tasks")
