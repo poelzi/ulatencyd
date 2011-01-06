@@ -6,8 +6,9 @@ INCLUDE(FindGettext)
 
 option(CONFIG_PREFIX "config prefix" "/etc")
 
-option(DEVELOP_MODE "build for development" FALSE)
+option(DEVELOP_MODE "build for development" TRUE)
 option(LIBCGROUPS "add libcgroups support" FALSE)
+option(LUA_JIT "enable luajit support when available" FALSE)
 
 SET(INSTALL_PREFIX CMAKE_INSTALL_PREFIX)
 
@@ -49,13 +50,21 @@ IF(DEVELOP_MODE)
   add_definitions(-DDEVELOP_MODE)
 ENDIF(DEVELOP_MODE)
 
-#find_package(lua51)
-INCLUDE(FindLua51)
+IF(LUA_JIT)
+  pkg_check_modules(LUAJIT luajit)
+ENDIF(LUA_JIT)
 
-IF(NOT LUA51_FOUND)
-  message(FATAL_ERROR "lua 5.1 not found")
-ENDIF(NOT LUA51_FOUND)
 
+IF(NOT LUA_FOUND)
+
+  #find_package(lua51)
+  INCLUDE(FindLua51)
+
+  IF(NOT LUA51_FOUND)
+    message(FATAL_ERROR "lua 5.1 not found")
+  ENDIF(NOT LUA51_FOUND)
+
+ENDIF(NOT LUA_FOUND)
 # config.h checks
 #include(ConfigureChecks.cmake)
 #MACRO(INSERT_INTO_MAP _TYPE _KEY _VALUE)
@@ -102,10 +111,18 @@ if(GETTEXT_FOUND)
   set(ENABLE_NLS 1)
 endif(GETTEXT_FOUND)
 
-configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+configure_file(config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 
-include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LUA_INCLUDE_DIR} ${LIBCGROUP_INCLUDE_DIRS} ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS})
+include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LIBCGROUP_INCLUDE_DIRS} ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS})
+
+IF(LUA_JIT AND LUAJIT_FOUND)
+  include_directories (${LUAJIT_INCLUDE_DIRS})
+  set(MY_LUA_LIBRARIES ${LUAJIT_LIBRARIES})
+ELSE(LUA_JIT AND LUAJIT_FOUND)
+  include_directories (${LUA_INCLUDE_DIR})
+  set(MY_LUA_LIBRARIES ${LUA_LIBRARIES})
+ENDIF(LUA_JIT AND LUAJIT_FOUND)
 
 
 set(CMAKE_CXX_FLAGS "-g -Wall")
@@ -115,10 +132,39 @@ add_subdirectory(src)
 add_subdirectory(modules)
 
 
-#add_custom_command(OUTPUT "runtest"
-#                     echo "cool"
-#                     MAIN_DEPENDENCY src/ulatencyd
-#                     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+# FIXME make distclean recrusive
+set_property(GLOBAL PROPERTY ALLOW_DUPLICATE_CUSTOM_TARGETS TRUE)
+
+ADD_CUSTOM_TARGET (distclean @echo cleaning for source distribution)
+SET(DISTCLEANED
+ cmake.depends
+ cmake.check_depends
+ CMakeCache.txt
+ cmake.check_cache
+ *.cmake
+ Makefile
+ core core.*
+ gmon.out
+ *~
+ GPATH
+ GRTAGS
+ GSYMS
+ GTAGS
+)
+
+ADD_CUSTOM_COMMAND(
+  DEPENDS src/distclean clean
+  COMMENT "distribution clean"
+  COMMAND rm
+  ARGS    -Rf CMakeTmp ${DISTCLEANED}
+  TARGET  distclean
+)
+
+#
+#
+# add_custom_target(dist-clean 
+#                      COMMAND rm -rf CMakeCache.txt CMakeFiles/ CTestTestfile.cmake cmake_install.cmake Makefile
+#                      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 enable_testing()
 set(CMAKE_CTEST_COMMAND "ctest -V")

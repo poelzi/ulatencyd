@@ -1,11 +1,15 @@
 TODO:
-- add process affinity api
+- add process affinity api (maybe better done with cgroups cpuset)
 - add chrt interface for realtime attributes etc
 
-- using audit linux system to watch process creation/deletion auditctl
 - upstart plugin
 - dbus interface
+  - interface for notification of rough processes, when processes or groups of them
+    where killed and why
+  - interface for user wishes pinning to different parameters (cli)
 - rules rules rules ;-)
+
+- maybe: using audit linux system to watch process creation/deletion auditctl or more interessting syscalls
 
 
 UNLIKLY:
