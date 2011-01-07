@@ -233,6 +233,7 @@ function Scheduler:one(proc)
     end
     --pprint(build_path_parts(proc, res))
   end
+  return true
 end
 
 

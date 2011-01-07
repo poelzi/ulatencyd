@@ -82,7 +82,8 @@ u_proc* u_proc_new(proc_t *proc) {
 void processes_free_value(gpointer data) {
   u_proc *proc = data;
   U_PROC_SET_STATE(proc, UPROC_INVALID);
-  g_node_unlink(proc->node);
+  if(proc->node)
+    g_node_unlink(proc->node);
   DEC_REF(proc);
 }
 
@@ -242,7 +243,8 @@ int process_new(int pid) {
   if(!process_update_pid(pid))
     return 0;
   proc = proc_by_pid(pid);
-  g_assert(proc);
+  if(!proc)
+    return;
   filter_for_proc(proc);
   scheduler_run_one(proc);
 }
@@ -499,7 +501,13 @@ void filter_run() {
     //printf("cur %p\n", cur);
     flt = cur->data;
     blocked_parent = NULL;
-    printf("children %d %d\n", g_node_n_children(processes_tree), g_node_n_nodes (processes_tree,G_TRAVERSE_ALL ));
+    if(flt->precheck)
+      if(flt->precheck(flt)) {
+        cur = g_list_next(cur);
+        continue;
+      }
+    g_debug("run filter: %s", flt->name);
+    //printf("children %d %d\n", g_node_n_children(processes_tree), g_node_n_nodes (processes_tree,G_TRAVERSE_ALL ));
     g_node_traverse(processes_tree, G_PRE_ORDER,G_TRAVERSE_ALL, -1, 
                     filter_run_for_node, flt);
     cur = g_list_next(cur);

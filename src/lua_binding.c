@@ -1170,11 +1170,43 @@ int l_filter_callback(u_proc *proc, u_filter *flt) {
   //cp_proc_t(proc, nproc);
   if(docall(L, 2, 1)) {
     // execution error.
-    //lua_pop(L, 1);
+    lua_pop(L, 1);
     return 0;
   }
   //stackdump_g(L);
   rv = lua_tointeger(L, -1);
+  lua_pop(L, 2);
+  return rv;
+}
+
+int l_filter_precheck(u_filter *flt) {
+  gint rv;
+  lua_State *L;
+  u_proc *nproc;
+  struct lua_filter *lf = (struct lua_filter *)flt->data;
+
+  g_assert(flt->type == FILTER_LUA);
+
+  L = lf->lua_state;
+
+  if(lf->min_percent && lf->min_percent >= get_last_percent())
+    return TRUE;
+
+  lua_rawgeti (L, LUA_REGISTRYINDEX, lf->lua_func);
+  //lua_pushstring(lf->lua_state, "check")
+  lua_getfield (L, -1, "precheck");
+  if(!lua_isfunction(L, -1)) {
+    lua_pop(L, 2);
+    return FALSE;
+  }
+  lua_pushvalue(L, -2);
+  if(docall(L, 1, 1)) {
+    // execution error.
+    lua_pop(L, 1);
+    return FALSE;
+  }
+  //stackdump_g(L);
+  rv = lua_toboolean(L, -1);
   lua_pop(L, 2);
   return rv;
 }
@@ -1191,9 +1223,7 @@ int l_filter_check(u_proc *proc, u_filter *flt) {
     if(g_regex_match(lft->regexp_cmdline, *proc->proc.cmdline, 0, NULL))
       return TRUE;
   }
-  if(lft->min_percent && lft->min_percent >= get_last_percent())
-    return TRUE;
-  
+ 
 /*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
   lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);
   //stackdump_g(cd->lua_state);
@@ -1283,6 +1313,7 @@ static int l_register_filter (lua_State *L) {
 
   flt->data = lf;
   flt->callback = l_filter_callback;
+  flt->precheck = l_filter_precheck;
   filter_register(flt);
 
   return 0;

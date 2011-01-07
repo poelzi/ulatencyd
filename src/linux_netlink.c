@@ -274,15 +274,15 @@ int init_netlink(GMainLoop *loop) {
 //	g_socket_set_keepalive (socket, TRUE);
 //	socket_fd = g_socket_get_fd(socket);
 	if (bind(socket_fd, (struct sockaddr *)&my_nla, sizeof(my_nla)) < 0) {
-		g_error("binding sk_nl error: %s\n", strerror(errno));
-		exit(1);
+		g_warning("binding sk_nl error: %s\n", strerror(errno));
+		goto out;
 	}
 
 
 	gsocket = g_socket_new_from_fd(socket_fd, NULL);
 	if(gsocket == NULL) {
-		g_error("can't create socket");	
-		exit(1);
+		g_warning("can't create socket");	
+		goto out;
 	}
 
 	nl_hdr = (struct nlmsghdr *)buff;
@@ -310,7 +310,6 @@ int init_netlink(GMainLoop *loop) {
 	if (send(socket_fd, nl_hdr, nl_hdr->nlmsg_len, 0) != nl_hdr->nlmsg_len) {
 		g_warning("failed to send proc connector mcast ctl op!: %s\n",
 			strerror(errno));
-		exit(1);
 	}
 	g_debug("sent\n");
 
@@ -329,6 +328,9 @@ int init_netlink(GMainLoop *loop) {
 	g_source_set_callback (source, (GSourceFunc) nl_connection_handler, loop, NULL);
 	g_source_attach (source, NULL);
 
+	return 0;
+out:
+	return 1;
 	/* send some data */
 /*	wrote = g_socket_send (socket, buffer, 5, NULL, &error);
 	if (wrote != 5) {

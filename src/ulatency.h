@@ -124,6 +124,7 @@ typedef struct _filter {
   U_HEAD;
   enum FILTER_TYPES type;
   char *name;
+  int (*precheck)(struct _filter *filter);
   int (*check)(u_proc *pr, struct _filter *filter);
   int (*callback)(u_proc *pr, struct _filter *filter);
   void *data;
