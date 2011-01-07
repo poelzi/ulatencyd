@@ -114,6 +114,13 @@ void rebuild_tree() {
     proc = (u_proc *)value;
     if(proc->proc.ppid) {
       parent = proc_by_pid(proc->proc.ppid);
+      // this should't happen, but under fork stress init may not have
+      // collected so the parent does not exist.
+      if(!parent) {
+        g_warning("parent missing. attaching to pid 1");
+        parent = proc_by_pid(1);
+      }
+      
       g_assert(parent && parent->node);
       g_node_unlink(proc->node);
       g_node_append(parent->node, proc->node);
@@ -192,7 +199,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
         parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
         // the parent should exist. in case it is missing we have to run a full
         // tree rebuild then
-        if(parent) {
+        if(parent && parent->node) {
           g_node_append(parent->node, proc->node);
         } else {
           full_update = TRUE;
@@ -210,9 +217,9 @@ int update_processes_run(PROCTAB *proctab, int full) {
     removed = g_hash_table_foreach_remove(processes, 
                                           processes_is_last_changed,
                                           &run);
-    if(full_update) {
-      rebuild_tree();
-    }
+  }
+  if(full_update) {
+    rebuild_tree();
   }
   return rv;
 
