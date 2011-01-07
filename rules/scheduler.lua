@@ -229,7 +229,7 @@ function Scheduler:one(proc)
         group:commit()
       end
       group:add_task(proc.pid, true)
-      proc:clear_flags_changed()
+      proc:clear_changed()
     end
     --pprint(build_path_parts(proc, res))
   end

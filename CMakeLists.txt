@@ -21,6 +21,7 @@ pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
 #pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)
 
 pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
+pkg_check_modules(GIO gio-2.0 REQUIRED)
 
 
 # FIXME: libproc should export more symbols
@@ -73,38 +74,6 @@ ENDIF(NOT LUA_FOUND)
 
 #FIXME check this
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "alpha")
-  SET("SYS_ioprio_set" "442")
-  SET("SYS_ioprio_get" "443")
-endif(CMAKE_SYSTEM_PROCESSOR STREQUAL "alpha")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "i.*86")
-  SET("SYS_ioprio_set" "289")
-  SET("SYS_ioprio_get" "290")
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "i.*86")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "ia64.*")
-  SET("SYS_ioprio_set" "1274")
-  SET("SYS_ioprio_get" "1275")
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ia64.*")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "powerpc.*")
-  SET("SYS_ioprio_set" "273")
-  SET("SYS_ioprio_get" "274")
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "powerpc.*")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "s390.*")
-  SET("SYS_ioprio_set" "282")
-  SET("SYS_ioprio_get" "283")
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "s390.*")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "sparc.*")
-  SET("SYS_ioprio_set" "196")
-  SET("SYS_ioprio_get" "218")
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "sparc.*")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "sh.*")
-  SET("SYS_ioprio_set" "288")
-  SET("SYS_ioprio_get" "289")
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "sh.*")
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-  SET("SYS_ioprio_set" "252")
-  SET("SYS_ioprio_get" "251")
-endif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
 
 if(GETTEXT_FOUND)
@@ -114,7 +83,9 @@ endif(GETTEXT_FOUND)
 configure_file(config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 
-include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LIBCGROUP_INCLUDE_DIRS} ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS})
+include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LIBCGROUP_INCLUDE_DIRS} 
+                     ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS}
+                     ${GIO_INCLUDE_DIRS})
 
 IF(LUA_JIT AND LUAJIT_FOUND)
   include_directories (${LUAJIT_INCLUDE_DIRS})

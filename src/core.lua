@@ -30,6 +30,8 @@ if posix.getpasswd(posix.getenv("LOGNAME")).uid > 0 then
   end
 else
   cg_log = ulatency.log_warning
+  function cg_log(...)
+  end
 end
 
 

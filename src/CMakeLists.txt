@@ -11,8 +11,8 @@ IF(LIBCGROUPS)
 ENDIF(LIBCGROUPS)
 
 add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
-               coreutils/readutmp.c coreutils/xalloc-die.c ${EXTRA_C} 
-               lua_binding.c)
+               coreutils/readutmp.c coreutils/xalloc-die.c linux_netlink.c
+               ${EXTRA_C} lua_binding.c)
 target_link_libraries (ulatencyd proc lbc dl ${MY_LUA_LIBRARIES} 
-                       ${LIBCGROUP_LIBRARIES} ${GLIB2_LIBRARIES})
+                       ${LIBCGROUP_LIBRARIES} ${GLIB2_LIBRARIES} ${GIO_LIBRARIES})
 

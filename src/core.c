@@ -66,7 +66,7 @@ u_proc* u_proc_new(proc_t *proc) {
                                          NULL, filter_block_free);
 
   rv->flags = NULL;
-  rv->flags_changed = TRUE;
+  rv->changed = TRUE;
 
   if(proc) {
     rv->pid = proc->tgid;
@@ -122,17 +122,48 @@ void rebuild_tree() {
 
 }
 
+static int detect_changed(proc_t *old, proc_t *new) {
+  // detects changes of main paramenters
+  if(old->euid != new->euid || old->session != new->session ||
+     old->egid != new->egid)
+     return 1;
+  return 0;
+}
 
-int update_processes() {
-  PROCTAB *proctab;
+static gboolean processes_is_last_changed(gpointer key, gpointer value,
+                                         gpointer user_data) {
+  u_proc *proc = (u_proc *)value;
+  int last_changed = *(int *)user_data;
+
+  return (proc->last_update != last_changed);
+
+}
+
+int process_remove(u_proc *proc) {
+  return g_hash_table_remove(processes, GUINT_TO_POINTER(proc->pid));
+}
+
+int process_remove_by_pid(int pid) {
+  return g_hash_table_remove(processes, GUINT_TO_POINTER(pid));
+}
+
+
+int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
   u_proc *proc;
   u_proc *parent;
   gboolean full_update = FALSE;
+  static int run = 0;
+  int removed;
+  int rv = 0;
+  
+  if(full)
+    run++;
 
-  proctab = openproc(OPENPROC_FLAGS);
-  if(!proctab)
+  if(!proctab) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
+    return 1;
+  }
 
   while(readproc(proctab, &buf)){
     proc = proc_by_pid(buf.tgid);
@@ -144,6 +175,10 @@ int update_processes() {
       proc = u_proc_new(&buf);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
     }
+    // detect change of important parameters that will cause a reschedule
+    proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
+    if(full)
+      proc->last_update = run;
     // we can simply steal the pointer of the current allocated buffer
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
@@ -165,17 +200,52 @@ int update_processes() {
         g_node_append(processes_tree, proc->node);
       }
     }
+    rv++;
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
   }
-  closeproc(proctab);
-  if(full_update) {
-    rebuild_tree();
+
+  if(full) {
+    removed = g_hash_table_foreach_remove(processes, 
+                                          processes_is_last_changed,
+                                          &run);
+    if(full_update) {
+      rebuild_tree();
+    }
   }
+  return rv;
 
 }
 
+int process_update_all() {
+  int rv;
+  PROCTAB *proctab;
+  proctab = openproc(OPENPROC_FLAGS);
+  rv = update_processes_run(proctab, TRUE);
+  closeproc(proctab);
+  return rv;
+}
 
+int process_update_pid(int pid) {
+  pid_t pids [2] = { pid, 0 };
+  int rv;
+  PROCTAB *proctab;
+  proctab = openproc(OPENPROC_FLAGS | PROC_PID, pids);
+  rv = update_processes_run(proctab, FALSE);
+  closeproc(proctab);
+  return rv;
+}
+
+int process_new(int pid) {
+  u_proc *proc;
+  // if the process is already dead we can exit
+  if(!process_update_pid(pid))
+    return 0;
+  proc = proc_by_pid(pid);
+  g_assert(proc);
+  filter_for_proc(proc);
+  scheduler_run_one(proc);
+}
 
 
 void u_flag_free(void *ptr) {
@@ -210,7 +280,7 @@ int u_flag_add(u_proc *proc, u_flag *flag) {
     proc->flags = g_list_insert(proc->flags, flag, 0);
     INC_REF(flag);
     }
-  proc->flags_changed = 1;
+  proc->changed = 1;
 }
 
 int u_flag_del(u_proc *proc, u_flag *flag) {
@@ -218,7 +288,7 @@ int u_flag_del(u_proc *proc, u_flag *flag) {
     DEC_REF(flag);
   }
   proc->flags = g_list_remove(proc->flags, flag);
-  proc->flags_changed = 1;
+  proc->changed = 1;
 }
 
 static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
@@ -247,7 +317,7 @@ int u_flag_clear_source(u_proc *proc, void *source) {
     item->data = NULL;
     g_list_free(item);
   }
-  proc->flags_changed = 1;
+  proc->changed = 1;
 }
 
 
@@ -261,7 +331,7 @@ int u_flag_clear_name(u_proc *proc, const char *name) {
     item->data = NULL;
     g_list_free(item);
   }
-  proc->flags_changed = 1;
+  proc->changed = 1;
 }
 
 
@@ -277,7 +347,7 @@ int u_flag_clear_all(u_proc *proc) {
     g_list_free(item);
   }
   g_list_free(proc->flags);
-  proc->flags_changed = 1;
+  proc->changed = 1;
 }
 
 
@@ -410,6 +480,16 @@ int scheduler_run_one(u_proc *proc) {
   return 1;
 }
 
+void filter_for_proc(u_proc *proc) {
+  /* run all filters on one proc */
+  GList *cur = g_list_first(filter_list);
+  while(cur) {
+    filter_run_for_proc(proc, cur->data);
+    cur = g_list_next(cur);
+  }
+
+}
+
 
 void filter_run() {
   u_filter *flt;
@@ -447,7 +527,7 @@ int iterate(gpointer ignored) {
   update_caches();
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "update processes:");
   last = g_timer_elapsed(timer, &dump);
-  update_processes();
+  process_update_all();
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. run filter:", (current - last));
   last = current;
@@ -487,6 +567,8 @@ int load_rule_directory(char *path, char *load_pattern) {
   struct dirent   *dit;
   char rpath[PATH_MAX+1];
 
+  g_message("load rule directory: %s", path);
+
   if ((dip = opendir(path)) == NULL)
   {
     perror("opendir");
@@ -494,14 +576,14 @@ int load_rule_directory(char *path, char *load_pattern) {
   }
 
   if(load_pattern)
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "load pattern: %s", load_pattern);
+    g_message("load pattern: %s", load_pattern);
 
   while ((dit = readdir(dip)) != NULL)
   {
     if(fnmatch("*.lua", dit->d_name, 0))
       continue;
     if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0)) {
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "skip rule: %s", dit->d_name);
+      g_debug("skip rule: %s", dit->d_name);
       continue;
     }
 

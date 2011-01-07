@@ -114,7 +114,7 @@ typedef struct _u_proc {
   GNode         *node; // for parent/child lookups
   GHashTable    *skip_filter;
   GList         *flags;
-  int           flags_changed;
+  int           changed; // flags or main parameters of process like uid, gid, sid
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
   int           lua_data;
@@ -251,9 +251,18 @@ void filter_register(u_filter *filter);
 void filter_free(u_filter *filter);
 void filter_unregister(u_filter *filter);
 void filter_run();
+void filter_for_proc(u_proc *proc);
+
 int filter_run_for_proc(gpointer data, gpointer user_data);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
+// notify system of a new pids/changed/dead pids
+int process_new(int pid);
+int process_remove(u_proc *proc);
+int process_remove_by_pid(int pid);
+int process_update_pid(int pid);
+
+int process_update_all();
 
 int scheduler_run_one(u_proc *proc);
 int scheduler_run();

@@ -604,11 +604,11 @@ static int u_proc_clear_flag_all (lua_State *L) {
   return 0;
 }
 
-static int u_proc_clear_flags_changed (lua_State *L) {
+static int u_proc_clear_changed (lua_State *L) {
   int i = 1;
   u_proc *proc = check_u_proc(L, 1);
 
-  proc->flags_changed = 0;
+  proc->changed = 0;
 
   return 0;
 }
@@ -738,8 +738,8 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "clear_flag_all" )) { \
     lua_pushcfunction(L, u_proc_clear_flag_all);
     return 1;
-  } else if(!strcmp(key, "clear_flags_changed" )) { \
-    lua_pushcfunction(L, u_proc_clear_flags_changed);
+  } else if(!strcmp(key, "clear_changed" )) { \
+    lua_pushcfunction(L, u_proc_clear_changed);
     return 1;
   } else if(!strcmp(key, "kill" )) {
     lua_pushcfunction(L, u_proc_kill);
@@ -765,8 +765,8 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "pid" )) {
     lua_pushinteger(L, proc->pid);
     return 1;
-  } else if(!strcmp(key, "flags_changed" )) {
-    lua_pushboolean(L, proc->flags_changed);
+  } else if(!strcmp(key, "changed" )) {
+    lua_pushboolean(L, proc->changed);
     return 1;
   } else if(!strcmp(key, "block_scheduler" )) {
     lua_pushinteger(L, proc->block_scheduler);

@@ -41,6 +41,9 @@ static gboolean beep = FALSE;
 */
 //static gboolean rand = FALSE;
 
+
+int init_netlink(GMainLoop *loop);
+
 static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpointer data, GError **error) {
   int i = 1;
   if(value) {
@@ -250,9 +253,11 @@ int main (int argc, char *argv[])
   core_init();
   avoid_oom_killer();
   load_modules(modules_directory);
-  update_processes();
-  printf("rd: %s\n", rules_directory);
   load_rule_directory(rules_directory, load_pattern);
+
+  process_update_all();
+  init_netlink(main_loop);
+
   // small hack
   timeout_long(NULL);
   g_timeout_add_seconds(60*5, timeout_long, NULL);

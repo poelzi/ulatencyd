@@ -15,19 +15,18 @@
 #include "nls.h"
 #include <fcntl.h>
 
-
 const char *to_prio[] = { "none", "realtime", "best-effort", "idle", };
 
 // IO PRIO stuff
 
 static inline int ioprio_set(int which, int who, int ioprio)
 {
-	return syscall(SYS_ioprio_set, which, who, ioprio);
+	return syscall(__NR_ioprio_set, which, who, ioprio);
 }
 
 static inline int ioprio_get(int which, int who)
 {
-	return syscall(SYS_ioprio_get, which, who);
+	return syscall(__NR_ioprio_get, which, who);
 }
 
 enum {
