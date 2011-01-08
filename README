@@ -49,7 +49,7 @@ Configure options:
 
 Running:
 
- # sudo ./src/ulatencyd -v 4
+ # sudo ./src/ulatencyd -v 3
 
 
 == Architecture ==
