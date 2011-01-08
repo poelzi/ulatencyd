@@ -17,6 +17,19 @@ ulatencyd monitors the system and categorizes the running processes into cgroups
 Processes that run wild to slow down the system by causing massive swaping will
 be isolated.
 
+== Isn't CONFIG_SCHED_DESKTOP enough ? ==
+
+There is a patch for 2.6.38 in pipeline, see http://thread.gmane.org/gmane.linux.kernel/1050575
+
+I think that this mimimal aproach is good for some circumstances, but does not
+provide enough flexibility required for a true low latency desktop.
+Perfect desktop scheduling needs a lot of heuristics, that don't belong in
+the kernel. For example, the patch won't protect you from swap of death, fork bombs,
+can't detect which process you are actually using and give more cpu shares to them,
+can't give realtime priorities to processes like jackd, etc...
+
+ulatencyd is designed for fixing exactly that.
+
 == Building ==
 
 Compiling:
