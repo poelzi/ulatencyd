@@ -2,24 +2,49 @@ Writing Lua Rules Howto
 
 Rules are lua tables:
 
+MyFilter = {
+  name = "MyFilter",
+  re_basename = <PERL_REGEXP>,
+  rc_cmdline = <PERL_REGEXP>
+  min_percent = <decimal>
+
+  precheck = function(self)
+    -- executed befor any process. if exits must return
+    -- true for filter to get applyed
+  end
+
+  check = function(self, proc)
+    -- check one process. all processes are checked form the top (init)
+    -- descenting all children
+  end
+}
 
 
+There are two types of prefilters. The first prefilters check if the filter
+is applyed to any process at all. 
 
 Prefilters:
 
+  min_percent = <decimal>                   - min percent of of cpu utalisation
+  precheck()
+
+
+The pre process filters are checked first, and if they exist and apply, the
+check function is executed on the process. If no filters exist, the check
+function is always executed.
+
+Per process prefilters:
   re_basename = <perl regular expression>   - Regular expression must match the basename of process
   re_cmdline = <perl regular expression>    - Must match the command line
-  min_percent = <decimal>                   - min percent of of cpu utalisation
 
-Warning: The prefilters can't currently be changed after loading.
-basename is limited to 15 chars
+Warning: The prefilters can't currently be changed after registering the filter.
+basename is limited to 15 chars.
 
 Prefilters reduce the amount of filter calling by using fast c checks before the
-check function is called. 
+check function is called. If any prefilter matches, the 
 
-min_percent means load/num_cores must be >= of min]percent.
-
-Any may match for the rule to get fired.
+min_percent means load/num_cores. The current load must be >= of min_percent for
+the prefilter to match.
 
 
 Importent to know:
@@ -29,9 +54,16 @@ not save the data, but only a reference to it. Accessing values will always be
 the most recent version of it. If you want create a history of data, you have
 to store them as copies. If you save references they may be to a dead process, but
 still there. To prevent memory leaks you should check them periodicy if thoy are
-still valid.
+still valid. You can check if the process of your reference is still alive with
+"proc.is_valid".
 
-
+Best practise is to store your data attached to the process, so it gets collected
+when the process dies. Use "proc.data" for a table shared between all lua scripts.
+You should use proc.data[SOMEUNIQUESTRING] to prevent clashes between rules.
 
 !!! Don't do's !!!
 
+Try not to fork or execute external programs from rules. This is especially
+important when you try to detect something like a fork bomb or extrem load...
+If you store data, cleanup your memory. You can easliy register a cleanup
+timeout function for that

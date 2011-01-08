@@ -9,6 +9,11 @@
 //#include <libcgroup.h>
 
 
+#define G_LOG_LEVEL_TRACE   1 << 8
+#define g_trace(...)    g_log (G_LOG_DOMAIN,         \
+                               G_LOG_LEVEL_TRACE,    \
+                               __VA_ARGS__)
+
 #define VERSION 0.1
 
 #define OPENPROC_FLAGS PROC_FILLMEM | \
@@ -19,7 +24,6 @@
 
 #define U_HEAD \
   guint ref; \
-  guint in_lua; \
   void (*free_fnk)(void *data);
 
 struct _U_HEAD {

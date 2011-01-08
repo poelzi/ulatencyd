@@ -44,6 +44,8 @@ void u_head_free(gpointer fb) {
 
 void u_proc_free(void *ptr) {
   u_proc *proc = ptr;
+  GNode *nparent, *cur;
+  u_proc *proc_tmp;
 
   g_assert(proc->ref == 0);
 
@@ -53,6 +55,30 @@ void u_proc_free(void *ptr) {
   //g_hash_table_remove_all (proc->skip_filter);
   //g_hash_table_unref(proc->skip_filter);
   g_hash_table_destroy (proc->skip_filter);
+
+  if(g_node_n_children(proc->node)) {
+    // the process which dies has some children. we have to move children
+    // to a new parent. Try the parent of the dead process first
+    if(proc->node->parent) {
+      nparent = proc->node->parent;
+    } else {
+      proc_tmp = proc_by_pid(1);
+      if(proc_tmp && proc_tmp->node) {
+        nparent = proc_tmp->node;
+      } else {
+        // this should not happen, but we have to attach the node somewhere
+        // this could happen if the netlink messages arrive befor a fill update
+        g_warning("attach child from dead process to root tree");
+        nparent = processes_tree;
+      }
+    }
+    g_node_unlink(proc->node);
+    while((cur = g_node_first_child(proc->node)) != NULL) {
+      g_node_unlink(cur);
+      g_node_append(nparent, cur);
+    }
+  }
+  g_assert(g_node_n_children(proc->node) == 0);
   g_node_destroy(proc->node);
   freesupgrp(&(proc->proc));
   freeproc_light(&(proc->proc));
@@ -203,19 +229,28 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
     if(!proc->node) {
       proc->node = g_node_new(proc);
-      if(proc->proc.ppid) {
-        parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
-        // the parent should exist. in case it is missing we have to run a full
-        // tree rebuild then
-        if(parent && parent->node) {
+    }
+    if(proc->proc.ppid) {
+      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
+      // the parent should exist. in case it is missing we have to run a full
+      // tree rebuild then
+      if(parent && parent->node) {
+        if(proc->node->parent != parent->node) {
+          g_node_unlink(proc->node);
           g_node_append(parent->node, proc->node);
-        } else {
-          full_update = TRUE;
         }
       } else {
+        full_update = TRUE;
+      }
+    } else {
+      // this is kinda bad. 
+      if(proc->node->parent != processes_tree) {
+        if(!G_NODE_IS_ROOT(proc->node))
+          g_node_unlink(proc->node);
         g_node_append(processes_tree, proc->node);
       }
     }
+
     rv++;
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
@@ -426,6 +461,7 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
 
   if(!flt_block) {
     flt_block = malloc(sizeof(struct filter_block));
+    memset(flt_block, 0, sizeof(struct filter_block));
     g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt), flt_block);
   }
 

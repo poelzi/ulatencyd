@@ -21,6 +21,18 @@ function ulatency.log_critical(msg)
   ulatency.log(ulatency.LOG_LEVEL_CRITICAL, msg)
 end
 
+function re_from_table(tab)
+  return table.concat(tab, "|")
+end
+
+
+function string:split(sep)
+        local sep, fields = sep or ":", {}
+        local pattern = string.format("([^%s]+)", sep)
+        self:gsub(pattern, function(c) fields[#fields+1] = c end)
+        return fields
+end
+
 
 -- CGroups interface
 
@@ -51,8 +63,6 @@ local function mkdirp(path)
 end
 
 
-require("posix")
-
 
 local _CGroup_Cache = {}
 
@@ -73,23 +83,32 @@ if string.sub(ROOT_PATH, -1) ~= "/" then
   ROOT_PATH = ROOT_PATH .. "/"
 end
 
-CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
+-- try mounting the mountpoints
+mkdirp(ROOT_PATH)
 
-function string:split(sep)
-        local sep, fields = sep or ":", {}
-        local pattern = string.format("([^%s]+)", sep)
-        self:gsub(pattern, function(c) fields[#fields+1] = c end)
-        return fields
+MNT_PNTS = {
+  cm="cpu,memory,cpuset",
+  io="blkio"
+}
+
+for n,v in pairs(MNT_PNTS) do
+  mkdirp(ROOT_PATH..n)
+  prog = "/bin/mount -t cgroup -o "..v.." none "..ROOT_PATH..n.."/"
+  ulatency.log_info("mount cgroups: "..prog)
+  fd = io.popen(prog, "r")
+  print(fd:read("*a"))
 end
 
+CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
 
-function CGroup.new(name, init)
+
+function CGroup.new(name, init, tree)
   rv = _CGroup_Cache[name]
   if rv then
     return rv
   end
   uncommited=(init or {})
-  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}}, CGroupMeta)
+  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}, tree=tree or "cm"}, CGroupMeta)
   _CGroup_Cache[name] = rv
   return rv
 end
@@ -105,9 +124,9 @@ end
 
 function CGroup:path(file)
   if file then
-    return ROOT_PATH .. self.name .. "/" .. tostring(file)
+    return ROOT_PATH .. self.tree .. "/".. self.name .. "/" .. tostring(file)
   else
-   return ROOT_PATH .. self.name
+   return ROOT_PATH .. self.tree .. "/" .. self.name
   end
 end
 

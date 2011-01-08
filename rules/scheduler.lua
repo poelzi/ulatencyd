@@ -53,6 +53,15 @@ MAPPING = {
         label = { "user.poison" }
       },
       MEDIA = { 
+        name = "bg_high",
+        param = { ["cpu.shares"]="1024" },
+        label = { "user.bg_high" },
+        check = function(proc)
+                  print("classived, ui.bg_high", proc)
+                  return true
+                end,
+      },
+      MEDIA = { 
         name = "media",
         param = { ["cpu.shares"]="2048" },
         label = { "user.media" },
@@ -209,7 +218,8 @@ Scheduler = {}
 function Scheduler:all()
   local group
 
-  for k,proc in ipairs(ulatency.list_processes()) do
+  -- list only changed processes
+  for k,proc in ipairs(ulatency.list_processes(true)) do
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end

@@ -67,7 +67,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 	ev = (struct proc_event*)cn_hdr->data;
 	switch (ev->what) {
 	case PROC_EVENT_UID:
-		g_debug("UID Event: PID = %d, tGID = %d, rUID = %d,"
+		g_trace("UID Event: PID = %d, tGID = %d, rUID = %d,"
 				" eUID = %d", ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.ruid,
@@ -76,7 +76,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		process_new(ev->event_data.id.process_pid);
 		break;
 	case PROC_EVENT_GID:
-		g_debug("GID Event: PID = %d, tGID = %d, rGID = %d,"
+		g_trace("GID Event: PID = %d, tGID = %d, rGID = %d,"
 				" eGID = %d", ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.rgid,
@@ -85,16 +85,16 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		process_new(ev->event_data.id.process_pid);
 		break;
 	case PROC_EVENT_FORK:
-		g_debug("FORK Event: PARENT = %d PID = %d",
+		g_trace("FORK Event: PARENT = %d PID = %d",
 			ev->event_data.fork.parent_pid, ev->event_data.fork.child_pid);
 		process_new(ev->event_data.fork.child_pid);
 		break;
 	case PROC_EVENT_EXIT:
-		g_debug("EXIT Event: PID = %d",ev->event_data.exit.process_pid);
+		g_trace("EXIT Event: PID = %d",ev->event_data.exit.process_pid);
 		process_remove_by_pid(ev->event_data.exit.process_pid);
 		break;
 	case PROC_EVENT_EXEC:
-		g_debug("EXEC Event: PID = %d, tGID = %d",
+		g_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
 		process_new(ev->event_data.exec.process_pid);
@@ -152,7 +152,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 		if (error != NULL) {
 			g_warning ("failed to get data: %s", error->message);
 			g_error_free (error);
-			ret = FALSE;
+			// no reason to stop
 			goto out;
 		}
 		if (len == ENOBUFS) {

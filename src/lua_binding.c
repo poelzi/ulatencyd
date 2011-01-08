@@ -249,6 +249,7 @@ static int l_list_processes (lua_State *L) {
   GHashTableIter iter;
   gpointer ikey, value;
   u_proc *proc;
+  int changed = lua_toboolean(L, 1);
 
 
   lua_newtable (L);
@@ -256,6 +257,10 @@ static int l_list_processes (lua_State *L) {
   while (g_hash_table_iter_next (&iter, &ikey, &value)) 
   {
     proc = (u_proc *)value;
+    if(changed) {
+      if(!proc->changed)
+        continue;
+    }
     lua_pushinteger(L, i);
     push_u_proc(L, proc);
     lua_settable(L, -3);

@@ -91,8 +91,8 @@ function run_suite(bla)
     current_id = current_id + 1
     current_suite = suites[current_id]
     if not current_suite then
-      print("tests done")
-      ulatency.quit_daemon()
+      print("all lua tests done")
+      ulatency.quit_daemon(0)
       return false
     end
     lunatest.suite(current_suite)

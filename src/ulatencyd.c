@@ -206,6 +206,8 @@ int main (int argc, char *argv[])
   GOptionContext *context;
   config_data = g_key_file_new();
 
+  g_type_init ();
+
   context = g_option_context_new ("- latency optimizing daemon");
   g_option_context_add_main_entries (context, entries, /*GETTEXT_PACKAGE*/NULL);
   if (!g_option_context_parse (context, &argc, &argv, &error))
@@ -235,7 +237,7 @@ int main (int argc, char *argv[])
     }
   }
 #else
-  mount_cgroups();
+  //mount_cgroups();
 #endif
 
   g_atexit(cleanup);
