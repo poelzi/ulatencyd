@@ -40,13 +40,13 @@ ITER = 1
 -- FIXME: build validator
 
 MAPPING = { 
-  ESSENTIAL = {
+  {
     name = "system_essential",
     cgroups_name = "s_essential",
     param = { ["cpu.shares"]="3048" },
     label = { "system.essential" }
   },
-  USER = {
+  {
     name = "user",
     cgroups_name = "u_${euid}",
     check = function(proc)
@@ -54,12 +54,12 @@ MAPPING = {
             end,
     param = { ["cpu.shares"]="3048" },
     children = {
-      POISON = { 
+      { 
         name = "poison",
         param = { ["cpu.shares"]="10" },
         label = { "user.poison" }
       },
-      MEDIA = { 
+      { 
         name = "bg_high",
         param = { ["cpu.shares"]="1024" },
         label = { "user.bg_high" },
@@ -68,7 +68,7 @@ MAPPING = {
                   return true
                 end,
       },
-      MEDIA = { 
+      { 
         name = "media",
         param = { ["cpu.shares"]="2048" },
         label = { "user.media" },
@@ -77,16 +77,16 @@ MAPPING = {
                   return true
                 end,
       },
-      UI = { 
+      { 
         name = "ui",
         param = { ["cpu.shares"]="2048" },
         label = { "user.ui" }
       },
-      IDLE = { 
+      { 
         name = "idle",
         param = {  },
       },
-      SESSION = { 
+      { 
         name = "session",
         param = { ["cpu.shares"]="600" },
         cgroups_name = "${session}",
@@ -96,7 +96,7 @@ MAPPING = {
       },
     },
   },
-  SYSTEM = {
+  {
     name = "system",
     cgroups_name = "s_daemon",
     check = function(proc)
@@ -123,8 +123,6 @@ function check(proc, rule)
   assert(proc)
   if rule.label then
     if check_label(rule.label, proc) then
-      pprint("match label"..tostring(proc))
-      pprint(rule.label)
       return rule
     end
   elseif rule.check then
@@ -137,7 +135,7 @@ end
 
 function run_list(proc, lst)
   local rv = {}
-  for key, rule in pairs(lst) do
+  for key, rule in ipairs(lst) do
     match = check(proc, rule)
     if match then
       rv[#rv+1] = match
