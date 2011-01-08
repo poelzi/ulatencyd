@@ -45,12 +45,17 @@ void u_head_free(gpointer fb) {
 void u_proc_free(void *ptr) {
   u_proc *proc = ptr;
 
+  g_assert(proc->ref == 0);
+
   if(proc->lua_data) {
     luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
   }
-  g_hash_table_remove_all (proc->skip_filter);
-  g_hash_table_unref(proc->skip_filter);
+  //g_hash_table_remove_all (proc->skip_filter);
+  //g_hash_table_unref(proc->skip_filter);
+  g_hash_table_destroy (proc->skip_filter);
   g_node_destroy(proc->node);
+  freesupgrp(&(proc->proc));
+  freeproc_light(&(proc->proc));
   free(proc);
 }
 
@@ -80,6 +85,9 @@ u_proc* u_proc_new(proc_t *proc) {
 }
 
 void processes_free_value(gpointer data) {
+  // called when a process is freed from the process list
+  // this means that the process is not valid anymore and is
+  // marked as such
   u_proc *proc = data;
   U_PROC_SET_STATE(proc, UPROC_INVALID);
   if(proc->node)
@@ -190,7 +198,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
     // we can simply steal the pointer of the current allocated buffer
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
-    U_PROC_UNSET_STATE(proc, UPROC_ALIVE);
+    U_PROC_SET_STATE(proc, UPROC_ALIVE);
 
 
     if(!proc->node) {

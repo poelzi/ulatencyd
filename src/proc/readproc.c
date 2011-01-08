@@ -954,8 +954,9 @@ void freesupgrp(proc_t *p) {
     if(!p->supgid)
       return;
     for (i=0; i<p->nsupgid; i++)
-      if (p->supgrp[i]) 
+      if (p->supgrp[i])
         free(p->supgrp[i]);
+    free(p->supgid);
     free(p->supgrp);
     p->supgid = NULL;
     p->supgrp = NULL;
@@ -967,12 +968,15 @@ void freeproc(proc_t* p) {
 	return;
     /* ptrs are after strings to avoid copying memory when building them. */
     /* so free is called on the address of the address of strvec[0]. */
-    if (p->cmdline)
-	free((void*)*p->cmdline);
-    if (p->environ)
-	free((void*)*p->environ);
-    if (p->cgroup)
-	free((void*)*p->cgroup);
+  if (p->cmdline)
+	  free((void*)*p->cmdline);
+  if (p->environ)
+	  free((void*)*p->environ);
+  if (p->cgroup)
+	  free((void*)*p->cgroup);
+  if (p->supgid)
+  	free(p->supgid);
+
   //printf("frp: %p\n", p);
     free(p);
 }

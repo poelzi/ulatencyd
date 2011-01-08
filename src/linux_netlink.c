@@ -143,7 +143,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 
 	/* there is data */
 	if ((condition & G_IO_IN) > 0) {
-		len = g_socket_receive (socket, buffer, 1024, NULL, &error);
+		//len = g_socket_receive (socket, buffer, 1024, NULL, &error);
 
 		len = g_socket_receive (socket, buff, sizeof(buff), NULL, &error);
 	//recv_len = recvfrom(sk_nl, buff, sizeof(buff), 0,
@@ -162,7 +162,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 		if (len == 0)
 			goto out;
 		nlh = (struct nlmsghdr *)buff;
-		while (NLMSG_OK(nlh, recv_len)) {
+		while (NLMSG_OK(nlh, len)) {
 			cn_hdr = NLMSG_DATA(nlh);
 			if (nlh->nlmsg_type == NLMSG_NOOP) {
 				nlh = NLMSG_NEXT(nlh, recv_len);
