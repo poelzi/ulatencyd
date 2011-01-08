@@ -78,4 +78,4 @@ The processes are traveld in tree order. This means that the progress tree is
 mapped into the data structure and traveled from top (id = 1, which is the init)
 and then trough all the children.
 
-
+For more informations see docs/RULES_HOWTO.txt
