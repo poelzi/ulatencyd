@@ -474,7 +474,7 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
     if(!ttime)
       time (&ttime);
     flt_block->timeout = ttime + abs(timeout);
-  } else if(rv == FILTER_STOP) {
+  } else if(flags == FILTER_STOP) {
     flt_block->skip = TRUE;
   }
 
