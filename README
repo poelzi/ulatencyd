@@ -32,6 +32,12 @@ ulatencyd is designed for fixing exactly that.
 
 == Building ==
 
+Build Requirements:
+  libglib2.0-dev
+  libdbus-glib-1-dev
+  liblua5.1-0-dev | libluajit-5.1-dev
+  liblua5.1-posix1
+
 Compiling:
 
  # cmake .

@@ -56,7 +56,7 @@ IF(LUA_JIT)
 ENDIF(LUA_JIT)
 
 
-IF(NOT LUA_FOUND)
+IF(NOT LUAJIT_FOUND)
 
   #find_package(lua51)
   INCLUDE(FindLua51)
@@ -65,7 +65,7 @@ IF(NOT LUA_FOUND)
     message(FATAL_ERROR "lua 5.1 not found")
   ENDIF(NOT LUA51_FOUND)
 
-ENDIF(NOT LUA_FOUND)
+ENDIF(NOT LUAJIT_FOUND)
 # config.h checks
 #include(ConfigureChecks.cmake)
 #MACRO(INSERT_INTO_MAP _TYPE _KEY _VALUE)
