@@ -234,6 +234,7 @@ function Scheduler:one(proc)
     local mappings = run_list(proc, MAPPING)
     --pprint(res)
     group = map_to_group(proc, mappings)
+    --print(tostring(proc.pid) .. " : ".. tostring(group))
     if group then
       if group:is_dirty() then
         group:commit()

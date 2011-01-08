@@ -2,6 +2,8 @@ TODO:
 - add process affinity api (maybe better done with cgroups cpuset)
 - add chrt interface for realtime attributes etc
 
+- use the lua bignumber interface to export the long long variables of the proc_t structure
+  to lua
 - upstart plugin
 - dbus interface
   - interface for notification of rough processes, when processes or groups of them
@@ -9,8 +11,8 @@ TODO:
   - interface for user wishes pinning to different parameters (cli)
 - rules rules rules ;-)
 
-- maybe: using audit linux system to watch process creation/deletion auditctl or more interessting syscalls
 
 
 UNLIKLY:
+- maybe: using audit linux system to watch process creation/deletion auditctl or more interessting syscalls
 - having a copy of libproc is very ugly, but currently it does not export enough symbols

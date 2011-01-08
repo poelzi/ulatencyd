@@ -1,5 +1,30 @@
 posix = require("posix")
 
+-- monkey patching lua core
+
+function string:split(sep)
+        local sep, fields = sep or ":", {}
+        local pattern = string.format("([^%s]+)", sep)
+        self:gsub(pattern, function(c) fields[#fields+1] = c end)
+        return fields
+end
+
+function table.copy(t)
+  local t2 = {}
+  for k,v in pairs(t) do
+    t2[k] = v
+  end
+  return t2
+end
+
+function table.merge(t, t2)
+  for k,v in pairs(t2) do
+    t[k] = v
+  end
+  return t
+end
+
+
 -- logging shortcuts
 function ulatency.log_debug(msg)
   ulatency.log(ulatency.LOG_LEVEL_DEBUG, msg)
@@ -26,24 +51,14 @@ function re_from_table(tab)
 end
 
 
-function string:split(sep)
-        local sep, fields = sep or ":", {}
-        local pattern = string.format("([^%s]+)", sep)
-        self:gsub(pattern, function(c) fields[#fields+1] = c end)
-        return fields
-end
-
-
 -- CGroups interface
 
-if posix.getpasswd(posix.getenv("LOGNAME")).uid > 0 then
+if ulatency.get_uid() > 0 then
   ulatency.log_info("disable cgroups error logging. not running as root")
   function cg_log(...)
   end
 else
   cg_log = ulatency.log_warning
-  function cg_log(...)
-  end
 end
 
 
@@ -86,6 +101,8 @@ end
 -- try mounting the mountpoints
 mkdirp(ROOT_PATH)
 
+-- FIXME move to config file
+
 MNT_PNTS = {
   cm="cpu,memory,cpuset",
   io="blkio"
@@ -99,6 +116,17 @@ for n,v in pairs(MNT_PNTS) do
   print(fd:read("*a"))
 end
 
+-- FIXME we need some better solution for that :-/
+-- cpuset, very powerfull, but can't create a group with unset cpus or mems
+CGROUP_DEFAULT = {
+  cm={["cpuset.cpus"] = "0-"..tostring(ulatency.smp_num_cpus-1),
+      ["cpuset.mems"] = "0"
+    },
+}
+
+
+
+
 CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
 
 
@@ -107,8 +135,14 @@ function CGroup.new(name, init, tree)
   if rv then
     return rv
   end
-  uncommited=(init or {})
-  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}, tree=tree or "cm"}, CGroupMeta)
+  tree = tree or "cm"
+  if CGROUP_DEFAULT[tree] then
+    cinit = table.copy(CGROUP_DEFAULT[tree])
+  else
+    cinit = {}
+  end
+  uncommited=table.merge(cinit, init or {})
+  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}, tree=tree}, CGroupMeta)
   _CGroup_Cache[name] = rv
   return rv
 end
@@ -181,13 +215,18 @@ function CGroup:add_task(pid, instant)
     rawset(self, "new_tasks", nt)
   end
   nt[#nt+1] = pid
-  
+  --pprint(nt)
   if instant then
+    --print("instant")
     local t_file = self:path("tasks")
     fp = io.open(t_file, "w")
+    --print(t_file)
     if fp then
-      fp:write(pid)
+      fp:write(tostring(pid))
+    --  print("write")
       fp:close()
+    else
+      cg_log("can't attach "..pid.." to group "..t_file)
     end
   end
 end
@@ -208,6 +247,7 @@ function CGroup:commit()
     path = self:path(k)
     fp = io.open(path, "w")
     if fp then
+      --print("write"..path)
       fp:write(v)
       fp:close()
       uncommited[k] = nil

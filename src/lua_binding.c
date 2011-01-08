@@ -1350,9 +1350,16 @@ static const luaL_reg u_proc_methods[] = {
 
 static int l_run_interation (lua_State *L) {
   // DANGEROUS: can cause endless loop
+  g_debug("run iteration from lua");
   iterate(NULL);
   return 0;
 }
+
+static int l_get_uid (lua_State *L) {
+  lua_pushinteger(L, getuid());
+  return 1;
+}
+
 
 /* object table */
 static const luaL_reg R[] = {
@@ -1386,6 +1393,7 @@ static const luaL_reg R[] = {
   {"get_config",  l_get_config},
   {"list_keys",  l_list_keys},
   {"log",  l_log},
+  {"get_uid", l_get_uid},
   {"quit_daemon", l_quit},
   {"run_iteration", l_run_interation},
 	{NULL,        NULL}
