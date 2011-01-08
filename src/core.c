@@ -441,9 +441,9 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
 
   //g_hash_table_lookup
   if(flt_block) {
-    time (&ttime);
     if(flt_block->skip)
       return 0;
+    time (&ttime);
     if(flt_block->timeout > ttime)
       return 0;
   }

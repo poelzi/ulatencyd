@@ -11,6 +11,10 @@
 #include <glib.h>
 #include <signal.h>
 #include <bits/signum.h>
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#include <sched.h>
 
 #define UL_META "ulatency"
 #define LUA_TABLE_INT(NAME) \
@@ -666,9 +670,27 @@ static int u_proc_set_block_scheduler (lua_State *L) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "block_scheduler set to: %d by %s", value, "(FIXME)");
   proc->block_scheduler = value;
   
-  return 1;
+  return 0;
 }
 
+static int u_proc_set_rtprio (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  struct sched_param param = {0};
+  int value = luaL_checkint(L, 2);
+  if(lua_isnumber(L, 3))
+    param.sched_priority = lua_tointeger(L, 3);
+
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "rtprio set to: %d by %s", value, "(FIXME)");
+
+  sched_setscheduler(proc->pid, value, &param);
+  
+  return 1;
+}
 
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
@@ -758,8 +780,10 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "set_block_scheduler" )) {
     lua_pushcfunction(L, u_proc_set_block_scheduler);
     return 1;
-  } 
-
+  } else if(!strcmp(key, "set_rtprio" )) {
+    lua_pushcfunction(L, u_proc_set_rtprio);
+    return 1;
+  }
 
   if(!strcmp(key, "is_valid" )) { \
     lua_pushboolean(L, U_PROC_IS_VALID(proc));
@@ -788,6 +812,7 @@ static int u_proc_index (lua_State *L)
     }
     return 0;
   }
+
 
 
   // data of proc.proc must be invalidated as the process is already dead
@@ -1250,6 +1275,7 @@ static GRegex *map_reg(lua_State *L, char *key) {
   const char *tmp;
   GRegex *rv = NULL;
   lua_getfield (L, 1, key);
+  stackdump_g(L);
   if(lua_isstring(L, -1)) {
     rv = g_regex_new(lua_tostring(L, -1), G_REGEX_OPTIMIZE, 0, &error);
     if(error && error->code) {
@@ -1347,6 +1373,17 @@ static const luaL_reg u_proc_methods[] = {
   {NULL,NULL}
 };
 
+static int l_process_update (lua_State *L) {
+  // DANGEROUS: can cause endless loop
+  int pid = lua_tointeger(L, 1);
+  if(pid) {
+    process_update_pid(pid);
+  } else {
+    process_update_all();
+  }
+  return 0;
+}
+
 
 static int l_run_interation (lua_State *L) {
   // DANGEROUS: can cause endless loop
@@ -1395,6 +1432,8 @@ static const luaL_reg R[] = {
   {"log",  l_log},
   {"get_uid", l_get_uid},
   {"quit_daemon", l_quit},
+
+  {"process_update", l_process_update},
   {"run_iteration", l_run_interation},
 	{NULL,        NULL}
 };
@@ -1453,7 +1492,14 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
   PUSH_INT(IOPRIO_CLASS_BE, IOPRIO_CLASS_BE)
   PUSH_INT(IOPRIO_CLASS_IDLE, IOPRIO_CLASS_IDLE)
-  
+
+  // realtime priority stuff
+  PUSH_INT(SCHED_OTHER, SCHED_OTHER)
+  PUSH_INT(SCHED_FIFO, SCHED_FIFO)
+  PUSH_INT(SCHED_RR, SCHED_RR)
+  PUSH_INT(SCHED_BATCH, SCHED_BATCH)
+  PUSH_INT(SCHED_IDLE, SCHED_IDLE)
+
   PUSH_INT(UPROC_NEW, UPROC_NEW)
   PUSH_INT(UPROC_INVALID, UPROC_INVALID)
   PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)

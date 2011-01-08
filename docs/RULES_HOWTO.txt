@@ -46,6 +46,24 @@ check function is called. If any prefilter matches, the
 min_percent means load/num_cores. The current load must be >= of min_percent for
 the prefilter to match.
 
+The check function returns an integer that contains informs the core about two 
+things. An timeout value of 16 bits in seconds when the filter should be run again,
+and flags about the transversel.
+
+  FILTER_STOP         -- stops the filter on this process, so it is never run again
+  FILTER_SKIP_CHILD   -- skips all child process of the current process
+
+FILTER_STOP is very important. If you have a static filter that marks the process
+with a flag and you will never change that label on this process, you simple return
+FILTER_STOP. The flag will stay on the process for it's lifetime.
+
+the return value is calculated with:
+ulatency.filter_rv(ulatency.FILTER_A [+ulatency.FILTER_B ...] , [timeout])
+
+WARNING: as lua does not have OR on integer values and the flags are binary
+flags, you have to make sure not to generate invalid flags if you calculate them
+through addition.
+
 
 Importent to know:
 

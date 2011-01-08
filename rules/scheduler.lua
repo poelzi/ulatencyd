@@ -27,9 +27,10 @@ end
 
 --ulatency.quit_daemon()
 
-ul_group = CGroup.new("s_ul")
-local pid = posix.getpid()["pid"]
-ul_group:add_task(pid)
+ul_group = CGroup.new("s_ul", { ["cpu.shares"]="500", ["memory.swappiness"] = "0" })
+local UL_PID = posix.getpid()["pid"]
+print("ul_pid"..UL_PID)
+ul_group:add_task(UL_PID)
 ul_group:commit()
 
 ITER = 1
@@ -39,6 +40,12 @@ ITER = 1
 -- FIXME: build validator
 
 MAPPING = { 
+  ESSENTIAL = {
+    name = "system_essential",
+    cgroups_name = "s_essential",
+    param = { ["cpu.shares"]="3048" },
+    label = { "system.essential" }
+  },
   USER = {
     name = "user",
     cgroups_name = "u_${euid}",
@@ -89,25 +96,12 @@ MAPPING = {
       },
     },
   },
-  ULATENCY = {
-    name = "system_ulatency",
-    cgroups_name = "s_ulatency",
-    param = { ["cpu.shares"]="500", ["memory.swappiness"] = "0" },
-    check = function(proc)
-              return (proc.pid == posix.getpid()["pid"])
-            end
-  },
-  ESSENTIAL = {
-    name = "system_essential",
-    cgroups_name = "s_essential",
-    param = { ["cpu.shares"]="3048" },
-    label = { "system.essential" }
-  },
   SYSTEM = {
     name = "system",
     cgroups_name = "s_daemon",
     check = function(proc)
-              return true
+              -- don't put kernel threads into a cgroup
+              return (proc.ppid ~= 0 or proc.pid == 1)
             end,
     param = { ["cpu.shares"]="800" },
   },
@@ -129,6 +123,8 @@ function check(proc, rule)
   assert(proc)
   if rule.label then
     if check_label(rule.label, proc) then
+      pprint("match label"..tostring(proc))
+      pprint(rule.label)
       return rule
     end
   elseif rule.check then
@@ -215,22 +211,29 @@ end
 
 Scheduler = {}
 
+local ALL = false
 function Scheduler:all()
   local group
 
   -- list only changed processes
-  for k,proc in ipairs(ulatency.list_processes(true)) do
+  for k,proc in ipairs(ulatency.list_processes(ALL)) do
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end
   for k, v in pairs(CGroup.get_groups()) do
     v:commit()
   end
+  ALL = true
   return true
 end
 
 function Scheduler:one(proc)
   if proc.block_scheduler == 0 then
+    -- we shall not touch us
+    if proc.pid == UL_PID then
+      proc:clear_changed()
+      return true
+    end
     local mappings = run_list(proc, MAPPING)
     --pprint(res)
     group = map_to_group(proc, mappings)
