@@ -262,6 +262,7 @@ int main (int argc, char *argv[])
 
   // small hack
   timeout_long(NULL);
+  iterate(NULL);
   g_timeout_add_seconds(60*5, timeout_long, NULL);
 
   g_timeout_add_seconds(filter_interval, iterate, NULL);
