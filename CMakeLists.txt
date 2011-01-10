@@ -101,6 +101,10 @@ add_subdirectory(src/bc)
 add_subdirectory(src/proc)
 add_subdirectory(src)
 add_subdirectory(modules)
+add_subdirectory(tests)
+
+
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 
 
 # FIXME make distclean recrusive
