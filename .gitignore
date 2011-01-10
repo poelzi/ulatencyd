@@ -10,6 +10,7 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
+tests/memleak
 
 # cmake 
 cmake_install.cmake

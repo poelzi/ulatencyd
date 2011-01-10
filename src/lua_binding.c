@@ -1275,7 +1275,7 @@ static GRegex *map_reg(lua_State *L, char *key) {
   const char *tmp;
   GRegex *rv = NULL;
   lua_getfield (L, 1, key);
-  stackdump_g(L);
+  //stackdump_g(L);
   if(lua_isstring(L, -1)) {
     rv = g_regex_new(lua_tostring(L, -1), G_REGEX_OPTIMIZE, 0, &error);
     if(error && error->code) {

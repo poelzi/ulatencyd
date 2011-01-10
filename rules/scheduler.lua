@@ -3,6 +3,8 @@ require("posix")
 
 u_groups = {}
 
+local MAPPING = {}
+
 
 --[[
 
@@ -29,7 +31,7 @@ end
 
 ul_group = CGroup.new("s_ul", { ["cpu.shares"]="500", ["memory.swappiness"] = "0" })
 local UL_PID = posix.getpid()["pid"]
-print("ul_pid"..UL_PID)
+--print("ul_pid"..UL_PID)
 ul_group:add_task(UL_PID)
 ul_group:commit()
 
@@ -39,75 +41,6 @@ ITER = 1
 -- WARNING: don't use non alpha numeric characters in name
 -- FIXME: build validator
 
-MAPPING = { 
-  {
-    name = "system_essential",
-    cgroups_name = "s_essential",
-    param = { ["cpu.shares"]="3048" },
-    label = { "system.essential" }
-  },
-  {
-    name = "user",
-    cgroups_name = "u_${euid}",
-    check = function(proc)
-              return ( proc.euid > 999 )
-            end,
-    param = { ["cpu.shares"]="3048" },
-    children = {
-      { 
-        name = "poison",
-        param = { ["cpu.shares"]="10" },
-        label = { "user.poison" }
-      },
-      { 
-        name = "bg_high",
-        param = { ["cpu.shares"]="1024" },
-        label = { "user.bg_high" },
-        check = function(proc)
-                  print("classived, ui.bg_high", proc)
-                  return true
-                end,
-      },
-      { 
-        name = "media",
-        param = { ["cpu.shares"]="2048" },
-        label = { "user.media" },
-        check = function(proc)
-                  print("classived, ui.media", proc)
-                  return true
-                end,
-      },
-      { 
-        name = "ui",
-        param = { ["cpu.shares"]="2048" },
-        label = { "user.ui" }
-      },
-      { 
-        name = "idle",
-        param = {  },
-      },
-      { 
-        name = "session",
-        param = { ["cpu.shares"]="600" },
-        cgroups_name = "${session}",
-        check = function(proc)
-                  return true
-                end,
-      },
-    },
-  },
-  {
-    name = "system",
-    cgroups_name = "s_daemon",
-    check = function(proc)
-              -- don't put kernel threads into a cgroup
-              return (proc.ppid ~= 0 or proc.pid == 1)
-            end,
-    param = { ["cpu.shares"]="800" },
-  },
-}
-  
-pprint(MAPPING)
 
 function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags()) do
@@ -226,6 +159,16 @@ function Scheduler:all()
 end
 
 function Scheduler:one(proc)
+  if #MAPPING == 0 then
+    local scheduler_config = ulatency.get_config("scheduler", "mapping")
+    ulatency.log_info("Scheduler use mapping: "..scheduler_config)
+    local mapping_name = "SCHEDULER_MAPPING_"..string.upper(scheduler_config)
+    MAPPING = getfenv()[mapping_name]
+    if not MAPPING or #MAPPING == 0 then
+      ulatency.log_error("invalid mapping: "..mapping_name)
+    end
+    pprint(MAPPING)
+  end
   if proc.block_scheduler == 0 then
     -- we shall not touch us
     if proc.pid == UL_PID then
