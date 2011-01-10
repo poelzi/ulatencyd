@@ -575,7 +575,7 @@ static void update_caches() {
 }
 
 
-int iterate(gpointer ignored) {
+int iterate(gpointer rv) {
   GTimer *timer = g_timer_new();
   gdouble last, current;
   gulong dump;
@@ -598,7 +598,7 @@ int iterate(gpointer ignored) {
   g_timer_stop(timer);
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. complete run %d took %0.2F", (current - last), iteration, current);
-  return TRUE;
+  return GPOINTER_TO_INT(rv);
 }
 
 /***************************************************************************

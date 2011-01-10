@@ -262,10 +262,10 @@ int main (int argc, char *argv[])
 
   // small hack
   timeout_long(NULL);
-  iterate(NULL);
-  g_timeout_add_seconds(60*5, timeout_long, NULL);
+  iterate(GUINT_TO_POINTER(0));
+  g_timeout_add_seconds(60*5, timeout_long, GUINT_TO_POINTER(1));
 
-  g_timeout_add_seconds(filter_interval, iterate, NULL);
+  g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
 
   if(g_main_loop_is_running(main_loop));
     g_main_loop_run(main_loop);
