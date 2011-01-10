@@ -1209,7 +1209,7 @@ int l_filter_callback(u_proc *proc, u_filter *flt) {
   return rv;
 }
 
-int l_filter_precheck(u_filter *flt) {
+int l_filter_run_table(u_filter *flt, char *key) {
   gint rv;
   lua_State *L;
   u_proc *nproc;
@@ -1224,7 +1224,7 @@ int l_filter_precheck(u_filter *flt) {
 
   lua_rawgeti (L, LUA_REGISTRYINDEX, lf->lua_func);
   //lua_pushstring(lf->lua_state, "check")
-  lua_getfield (L, -1, "precheck");
+  lua_getfield (L, -1, key);
   if(!lua_isfunction(L, -1)) {
     lua_pop(L, 2);
     return FALSE;
@@ -1240,6 +1240,15 @@ int l_filter_precheck(u_filter *flt) {
   lua_pop(L, 2);
   return rv;
 }
+
+inline int l_filter_precheck(u_filter *flt) {
+  return l_filter_run_table(flt, "precheck");
+}
+
+inline int l_filter_postcheck(u_filter *flt) {
+  return l_filter_run_table(flt, "postcheck");
+}
+
 
 int l_filter_check(u_proc *proc, u_filter *flt) {
   gboolean rv;
@@ -1345,6 +1354,7 @@ static int l_register_filter (lua_State *L) {
   flt->data = lf;
   flt->callback = l_filter_callback;
   flt->precheck = l_filter_precheck;
+  flt->postcheck = l_filter_postcheck;
   filter_register(flt);
 
   return 0;

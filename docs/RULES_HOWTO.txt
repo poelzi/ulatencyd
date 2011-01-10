@@ -9,7 +9,7 @@ MyFilter = {
   min_percent = <decimal>
 
   precheck = function(self)
-    -- executed befor any process. if exits must return
+    -- executed before any process. if exits must return
     -- true for filter to get applyed
   end
 

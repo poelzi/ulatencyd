@@ -129,6 +129,7 @@ typedef struct _filter {
   char *name;
   int (*precheck)(struct _filter *filter);
   int (*check)(u_proc *pr, struct _filter *filter);
+  int (*postcheck)(struct _filter *filter);
   int (*callback)(u_proc *pr, struct _filter *filter);
   void *data;
 } u_filter;

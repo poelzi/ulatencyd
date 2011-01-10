@@ -553,7 +553,7 @@ void filter_run() {
     flt = cur->data;
     blocked_parent = NULL;
     if(flt->precheck)
-      if(flt->precheck(flt)) {
+      if(!flt->precheck(flt)) {
         cur = g_list_next(cur);
         continue;
       }
@@ -562,6 +562,9 @@ void filter_run() {
     g_node_traverse(processes_tree, G_PRE_ORDER,G_TRAVERSE_ALL, -1, 
                     filter_run_for_node, flt);
     cur = g_list_next(cur);
+    if(flt->postcheck) {
+      flt->postcheck(flt);
+    }
   }
   blocked_parent = NULL;
 }
