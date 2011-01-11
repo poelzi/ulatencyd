@@ -22,8 +22,8 @@ function num_or_percent(conf, value, default)
   return conf
 end
 
-pprint(meminfo)
-pprint(vminfo)
+--pprint(meminfo)
+--pprint(vminfo)
 
 function update_caches()
   memory_pressure = false
@@ -93,7 +93,6 @@ ProtectorMemory = {
     return 0
   end,
   postcheck = function(self)
-    print("postcheck")
     pprint(self.targets)
     pprint(self.sure_targets)
     local flag = ulatency.new_flag{name="user.poison", reason="memory", 
