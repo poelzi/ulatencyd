@@ -16,7 +16,31 @@ SCHEDULER_MAPPING_DESKTOP = {
       { 
         name = "poison",
         param = { ["cpu.shares"]="10" },
-        label = { "user.poison" }
+        label = { "user.poison" },
+        cgroups_name = "p_${pid}",
+        check = function(proc)
+                  print("poison detected", proc)
+                  return true
+                end,
+        adjust = function(cgroup, proc)
+                end,
+        adjust_new = function(cgroup, proc)
+                print("adjust_new",cgroup, proc)
+                cgroup:add_task(proc.pid)
+                cgroup:commit()
+                bytes = cgroup:get_value("memory.usage_in_bytes")
+                print("bytes" .. tostring(bytes))
+                if not bytes then
+                  ulatency.log_warning("can't access memory subsystem")
+                  return
+                end
+                bytes = math.floor(bytes-((bytes/100)*5))
+                print("bytes" .. tostring(bytes))
+                cgroup:set_value("memory.soft_limit_in_bytes", bytes)
+                cgroup:commit()
+                --pprint(cgroup)
+                --ulatency.quit_daemon()
+                end
       },
       { 
         name = "bg_high",

@@ -3,6 +3,7 @@
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
+#include <time.h>
 #include "proc/procps.h"
 #include "proc/readproc.h"
 //#include <libcgroup.h>
@@ -145,15 +146,6 @@ typedef struct _filter {
 #define U_MALLOC(SIZE) g_malloc0(gsize n_bytes);
 #define U_FREE(PTR) g_free( PTR );
 
-typedef enum  {
-  REASON_UNSET = 0,
-  REASON_UNKNOWN,
-  REASON_CPU,
-  REASON_MEMORY,
-  REASON_BLOCK_IO,
-  REASON_SWAP_IO
-} FLAG_REASON;
-
 /*typedef enum {
   NONE = 0,
   REPLACE_SOURCE,
@@ -166,8 +158,8 @@ typedef struct _FLAG {
 //  FLAG_BEHAVIOUR age;
   char     *name;         // label name
   int      inherit;      // will apply to all children
-  int      timeout;       // timeout when the flag will disapear
-  FLAG_REASON reason;     // why the flag was set. This makes most sense with emergency flags
+  time_t   timeout;       // timeout when the flag will disapear
+  char     *reason;       // why the flag was set. This makes most sense with emergency flags
   int      priority;      // custom data: priority
   int      value;         // custom data: value
   int      threshold;     // custom data: threshold
@@ -182,6 +174,7 @@ int u_flag_del(u_proc *proc, u_flag *flag);
 int u_flag_clear_source(u_proc *proc, void *source);
 int u_flag_clear_name(u_proc *proc, const char *name);
 int u_flag_clear_all(u_proc *proc);
+int u_flag_clear_timeout(u_proc *proc, time_t timeout);
 
 
 struct u_cgroup {

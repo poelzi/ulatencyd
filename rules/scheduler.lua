@@ -117,7 +117,15 @@ local function create_group(proc, prefix, mapping)
   else
     path = name
   end
-  return CGroup.new(path, mapping.param)
+  rv = CGroup.new(path, mapping.param)
+  if mapping.adjust then
+    rv.adjust[#rv.adjust+1] = mapping.adjust
+  end
+
+  if mapping.adjust_new then
+    mapping.adjust_new(rv, proc)
+  end
+  return rv
 end
 
 local function map_to_group(proc, parts)
@@ -125,6 +133,7 @@ local function map_to_group(proc, parts)
   local path = table.concat(chain, "/")
   local cgr = CGroup.get_group(path)
   if cgr then
+    cgr:run_adjust(proc)
     return cgr
   end
 
@@ -176,8 +185,10 @@ function Scheduler:one(proc)
       return true
     end
     local mappings = run_list(proc, MAPPING)
-    --pprint(res)
+    --pprint(mappings)
     group = map_to_group(proc, mappings)
+    --print(tostring(group))
+    --pprint(mappings)
     --print(tostring(proc.pid) .. " : ".. tostring(group))
     if group then
       if group:is_dirty() then

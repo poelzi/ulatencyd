@@ -53,7 +53,8 @@ end
 
 -- CGroups interface
 
-if ulatency.get_uid() > 0 then
+if ulatency.get_uid() > 0 or 
+   ulatency.get_config("logging", "disable_cgroup") then
   ulatency.log_info("disable cgroups error logging. not running as root")
   function cg_log(...)
   end
@@ -142,7 +143,7 @@ function CGroup.new(name, init, tree)
     cinit = {}
   end
   uncommited=table.merge(cinit, init or {})
-  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}, tree=tree}, CGroupMeta)
+  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}, tree=tree, adjust={}}, CGroupMeta)
   _CGroup_Cache[name] = rv
   return rv
 end
@@ -184,7 +185,7 @@ function CGroup:get_value(key, raw)
   end
   local path = self:path(key)
   if posix.access(path) == 0 then
-    local fp = open(path, "r")
+    local fp = io.open(path, "r")
     return fp:read("*a")
   end
 end
@@ -206,6 +207,17 @@ function CGroup:get_tasks()
   end
   return rv
 end
+
+function CGroup:run_adjust(proc)
+  adjust = rawget(self, "adjust")
+  for i,v in ipairs(adjust) do
+    v(self, proc)
+  end
+end
+
+--function CGroup:adjust()
+--  return rawget(self, "adjust")
+--end
 
 
 function CGroup:add_task(pid, instant)

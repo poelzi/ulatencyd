@@ -10,6 +10,7 @@
 #include <string.h>
 #include <glib.h>
 #include <signal.h>
+#include <time.h>
 #include <bits/signum.h>
 #ifndef __USE_GNU
 #define __USE_GNU
@@ -1006,8 +1007,10 @@ static int u_flag_tostring (lua_State *L)
   }
 
 #define PULL_CHR(name) \
-  if(!strcmp(key, #name )) { \
-    flag->name = luaL_checkstring(L, 3); \
+  if(!strcmp(key, #name)) { \
+    if(flag->name) \
+      free(flag->name); \
+    flag->name = g_strdup(luaL_checkstring(L, 3)); \
     return 0; \
   }
 
@@ -1021,7 +1024,7 @@ static int u_flag_index (lua_State *L)
   PUSH_BOOL(inherit)
   PUSH_INT(priority)
   PUSH_INT(timeout)
-  PUSH_INT(reason)
+  PUSH_CHR(reason)
   PUSH_INT(value)
   PUSH_INT(threshold)
   return 0;
@@ -1032,16 +1035,13 @@ static int u_flag_newindex (lua_State *L)
   u_flag *flag = check_u_flag(L, 1);
   const char *key = luaL_checkstring(L, 2);
 
-  if(!strcmp(key, "name")) {
-    if(flag->name)
-      free(flag->name);
-    flag->name = g_strdup(luaL_checkstring(L, 3));
-    return 0;
-  }
+  PULL_CHR(name)
+  PULL_CHR(reason)
+
   PULL_INT(inherit)
   PULL_INT(priority)
   PULL_INT(timeout)
-  PULL_INT(reason)
+  //PULL_INT(reason)
   PULL_INT(value)
   PULL_INT(threshold)
   return 0;
@@ -1050,7 +1050,7 @@ static int u_flag_newindex (lua_State *L)
 #define CHK_N_SET(name, conv) \
   lua_getfield (L, 1, #name ); \
   if(!lua_isnil (L, -1)) { \
-    flag-> name = conv (L, -1); \
+    flag-> name = conv ; \
   } \
   lua_pop(L, 1);
 
@@ -1072,12 +1072,12 @@ static int l_flag_new (lua_State *L)
 
     flag = push_u_flag(L, NULL, L, name);
 
-    CHK_N_SET(inherit, lua_toboolean)
-    CHK_N_SET(priority, lua_tointeger)
-    CHK_N_SET(timeout, lua_tointeger)
-    CHK_N_SET(reason, lua_tointeger)
-    CHK_N_SET(value, lua_tointeger)
-    CHK_N_SET(threshold, lua_tointeger)
+    CHK_N_SET(inherit, lua_toboolean(L, -1))
+    CHK_N_SET(priority, lua_tointeger(L, -1))
+    CHK_N_SET(timeout, lua_tointeger(L, -1))
+    CHK_N_SET(reason, g_strdup(lua_tostring(L, -1)) )
+    CHK_N_SET(value, lua_tointeger(L, -1))
+    CHK_N_SET(threshold, lua_tointeger(L, -1))
     return 1;
   }
   
@@ -1235,9 +1235,10 @@ int l_filter_run_table(u_filter *flt, char *key) {
     lua_pop(L, 1);
     return FALSE;
   }
-  //stackdump_g(L);
+
   rv = lua_toboolean(L, -1);
   lua_pop(L, 2);
+
   return rv;
 }
 
@@ -1408,6 +1409,17 @@ static int l_get_uid (lua_State *L) {
   return 1;
 }
 
+static int l_get_time (lua_State *L) {
+  time_t t = time(NULL);
+  
+  if(lua_isnumber(L, 1)) {
+    t += lua_tointeger(L, 1);
+  }
+  
+  lua_pushinteger(L, t);
+  return 1;
+}
+
 
 /* object table */
 static const luaL_reg R[] = {
@@ -1442,6 +1454,7 @@ static const luaL_reg R[] = {
   {"list_keys",  l_list_keys},
   {"log",  l_log},
   {"get_uid", l_get_uid},
+  {"get_time", l_get_time},
   {"quit_daemon", l_quit},
 
   {"process_update", l_process_update},
@@ -1491,13 +1504,6 @@ int luaopen_ulatency(lua_State *L) {
   
   PUSH_INT(FILTER_STOP, FILTER_STOP)
   PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)
-
-  PUSH_INT(REASON_UNSET, REASON_UNSET)
-  PUSH_INT(REASON_UNKNOWN, REASON_UNKNOWN)
-  PUSH_INT(REASON_CPU, REASON_CPU)
-  PUSH_INT(REASON_MEMORY, REASON_MEMORY)
-  PUSH_INT(REASON_BLOCK_IO, REASON_BLOCK_IO)
-  PUSH_INT(REASON_SWAP_IO, REASON_SWAP_IO)
 
   PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)

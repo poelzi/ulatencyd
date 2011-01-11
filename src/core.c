@@ -194,6 +194,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
   u_proc *proc;
   u_proc *parent;
+  time_t timeout = time(NULL);
   gboolean full_update = FALSE;
   static int run = 0;
   int removed;
@@ -250,7 +251,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
         g_node_append(processes_tree, proc->node);
       }
     }
-
+    u_flag_clear_timeout(proc, timeout);
     rv++;
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
@@ -358,34 +359,33 @@ static int u_flag_match_name(gconstpointer a, gconstpointer name) {
   return strcmp(flg->name, (char *)name);
 }
 
+static int u_flag_match_timeout(gconstpointer a, gconstpointer time) {
+  u_flag *flg = (u_flag *)a;
+  time_t t = GPOINTER_TO_UINT(time);
 
-int u_flag_clear_source(u_proc *proc, void *source) {
-  GList *item;
-  u_flag *flg;
-  while((item = g_list_find_custom(proc->flags, source, u_flag_match_source)) != NULL) {
-    flg = (u_flag *)item->data;
-    proc->flags = g_list_remove_link (proc->flags, item);
-    DEC_REF(item->data);
-    item->data = NULL;
-    g_list_free(item);
-  }
-  proc->changed = 1;
+  return (flg->timeout > t);
 }
 
 
-int u_flag_clear_name(u_proc *proc, const char *name) {
-  GList *item;
-  u_flag *flg;
-  while((item = g_list_find_custom(proc->flags, name, u_flag_match_name)) != NULL) {
-    flg = (u_flag *)item->data;
-    proc->flags = g_list_remove_link (proc->flags, item);
-    DEC_REF(item->data);
-    item->data = NULL;
-    g_list_free(item);
-  }
-  proc->changed = 1;
-}
+#define CLEAR_BUILD(NAME, ARG, CMP) \
+int NAME (u_proc *proc, ARG ) { \
+  GList *item; \
+  u_flag *flg; \
+  while((item = CMP ) != NULL) { \
+    flg = (u_flag *)item->data; \
+    proc->flags = g_list_remove_link (proc->flags, item); \
+    DEC_REF(item->data); \
+    item->data = NULL; \
+    g_list_free(item); \
+  } \
+  proc->changed = 1; \
+} 
 
+CLEAR_BUILD(u_flag_clear_source, void *var, g_list_find_custom(proc->flags, var, u_flag_match_source))
+
+CLEAR_BUILD(u_flag_clear_name, const char *name, g_list_find_custom(proc->flags, name, u_flag_match_name))
+
+CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc->flags, GUINT_TO_POINTER(tm), u_flag_match_timeout))
 
 
 int u_flag_clear_all(u_proc *proc) {
@@ -401,7 +401,6 @@ int u_flag_clear_all(u_proc *proc) {
   g_list_free(proc->flags);
   proc->changed = 1;
 }
-
 
 
 /*************************************************************
