@@ -50,6 +50,19 @@ function re_from_table(tab)
   return table.concat(tab, "|")
 end
 
+function ulatency.list_processes_group(key)
+  procs = ulatency.list_processes()
+  rv = {}
+  for i, proc in ipairs(procs) do
+    c = rv[proc[key]]
+    if not c then
+      rv[proc[key]] = { proc }
+    else
+      c[#c+1] = proc
+    end
+  end
+  return rv
+end
 
 -- CGroups interface
 
