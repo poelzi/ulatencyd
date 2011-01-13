@@ -13,6 +13,9 @@
 #include <sys/stat.h>
 #include <err.h>
 #include "nls.h"
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
 #include <fcntl.h>
 
 const char *to_prio[] = { "none", "realtime", "best-effort", "idle", };
