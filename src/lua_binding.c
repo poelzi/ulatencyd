@@ -16,6 +16,7 @@
 #define __USE_GNU
 #endif
 #include <sched.h>
+#include <linux/sched.h>
 
 #define UL_META "ulatency"
 #define LUA_TABLE_INT(NAME) \
