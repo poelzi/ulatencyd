@@ -19,6 +19,8 @@ u_scheduler scheduler = {NULL};
 static int iteration;
 static double _last_load;
 static double _last_percent;
+// flag list of system wide flags
+GList *system_flags;
 
 double get_last_load() {
   return _last_load;
@@ -151,7 +153,7 @@ void rebuild_tree() {
       // this should't happen, but under fork stress init may not have
       // collected so the parent does not exist.
       if(!parent) {
-        g_warning("parent missing. attaching to pid 1");
+        g_warning("pid: %d parent %d missing. attaching to pid 1", proc->pid, proc->proc.ppid);
         parent = proc_by_pid(1);
       }
       
@@ -199,6 +201,8 @@ int update_processes_run(PROCTAB *proctab, int full) {
   static int run = 0;
   int removed;
   int rv = 0;
+  int i;
+  GList *updated = NULL;
   
   if(full)
     run++;
@@ -228,6 +232,16 @@ int update_processes_run(PROCTAB *proctab, int full) {
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
 
 
+    u_flag_clear_timeout(proc, timeout);
+    updated = g_list_append(updated, proc);
+    rv++;
+    //g_list_foreach(filter_list, filter_run_for_proc, &buf);
+    //freesupgrp(&buf);
+  }
+
+  // we update the parent links after all processes are updated
+  for(i = 0; i < rv; i++) {
+    proc = g_list_nth_data(updated, i);
     if(!proc->node) {
       proc->node = g_node_new(proc);
     }
@@ -251,11 +265,8 @@ int update_processes_run(PROCTAB *proctab, int full) {
         g_node_append(processes_tree, proc->node);
       }
     }
-    u_flag_clear_timeout(proc, timeout);
-    rv++;
-    //g_list_foreach(filter_list, filter_run_for_proc, &buf);
-    //freesupgrp(&buf);
   }
+  g_list_free(updated);
 
   if(full) {
     removed = g_hash_table_foreach_remove(processes, 
@@ -278,15 +289,25 @@ int process_update_all() {
   return rv;
 }
 
-int process_update_pid(int pid) {
-  pid_t pids [2] = { pid, 0 };
+/* 
+  updates a list of pids.
+  pids must be a array of pid_t values followed by 0
+*/
+int process_update_pids(pid_t pids[]) {
   int rv;
   PROCTAB *proctab;
   proctab = openproc(OPENPROC_FLAGS | PROC_PID, pids);
   rv = update_processes_run(proctab, FALSE);
   closeproc(proctab);
   return rv;
+
 }
+
+int process_update_pid(int pid) {
+  pid_t pids [2] = { pid, 0 };
+  return process_update_pids(pids);
+}
+
 
 int process_new(int pid) {
   u_proc *proc;
@@ -298,6 +319,27 @@ int process_new(int pid) {
     return;
   filter_for_proc(proc);
   scheduler_run_one(proc);
+}
+
+int process_new_list(GArray *list) {
+  u_proc *proc;
+  int i;
+  pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
+  //int pid_t = malloc(sizeof(pid_t)*(list->len+1));
+  for(i=0; i < list->len; i++) {
+    pids[i] = g_array_index(list,pid_t,i);
+  }
+  pids[i] = 0;
+  // if the process is already dead we can exit
+  process_update_pids(pids);
+  for(i=0; i < list->len; i++) {
+    proc = proc_by_pid(g_array_index(list,pid_t,i));
+    if(!proc)
+      continue;
+    filter_for_proc(proc);
+    scheduler_run_one(proc);
+  }
+  free(pids);
 }
 
 
@@ -329,19 +371,33 @@ u_flag *u_flag_new(u_filter *source, const char *name) {
 }
 
 int u_flag_add(u_proc *proc, u_flag *flag) {
-  if(!g_list_find(proc->flags, flag)) {
-    proc->flags = g_list_insert(proc->flags, flag, 0);
-    INC_REF(flag);
+  if(proc) {
+    if(!g_list_find(proc->flags, flag)) {
+      proc->flags = g_list_insert(proc->flags, flag, 0);
+      INC_REF(flag);
     }
-  proc->changed = 1;
+    proc->changed = 1;
+  } else {
+    if(!g_list_find(system_flags, flag)) {
+      system_flags = g_list_insert(system_flags, flag, 0);
+      INC_REF(flag);
+    }
+  }
 }
 
 int u_flag_del(u_proc *proc, u_flag *flag) {
-  if(g_list_index(proc->flags, flag) != -1) {
-    DEC_REF(flag);
+  if(proc) {
+    if(g_list_index(proc->flags, flag) != -1) {
+      DEC_REF(flag);
+    }
+    proc->flags = g_list_remove(proc->flags, flag);
+    proc->changed = 1;
+  } else {
+    if(g_list_index(system_flags, flag) != -1) {
+      DEC_REF(flag);
+    }
+    system_flags = g_list_remove(system_flags, flag);
   }
-  proc->flags = g_list_remove(proc->flags, flag);
-  proc->changed = 1;
 }
 
 static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
@@ -370,36 +426,49 @@ static int u_flag_match_timeout(gconstpointer a, gconstpointer time) {
 #define CLEAR_BUILD(NAME, ARG, CMP) \
 int NAME (u_proc *proc, ARG ) { \
   GList *item; \
-  u_flag *flg; \
   while((item = CMP ) != NULL) { \
-    flg = (u_flag *)item->data; \
-    proc->flags = g_list_remove_link (proc->flags, item); \
-    DEC_REF(item->data); \
-    item->data = NULL; \
-    g_list_free(item); \
+    if(proc) { \
+      proc->flags = g_list_remove_link (proc->flags, item); \
+      DEC_REF(item->data); \
+      item->data = NULL; \
+      g_list_free(item); \
+    } else { \
+      system_flags = g_list_remove_link (system_flags, item); \
+      DEC_REF(item->data); \
+      item->data = NULL; \
+      g_list_free(item); \
+    } \
   } \
-  proc->changed = 1; \
+  if(proc) \
+    proc->changed = 1; \
 } 
 
-CLEAR_BUILD(u_flag_clear_source, void *var, g_list_find_custom(proc->flags, var, u_flag_match_source))
+CLEAR_BUILD(u_flag_clear_source, void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_source))
 
-CLEAR_BUILD(u_flag_clear_name, const char *name, g_list_find_custom(proc->flags, name, u_flag_match_name))
+CLEAR_BUILD(u_flag_clear_name, const char *name, g_list_find_custom(proc ? proc->flags : system_flags, name, u_flag_match_name))
 
-CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc->flags, GUINT_TO_POINTER(tm), u_flag_match_timeout))
-
+CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc ? proc->flags : system_flags, GUINT_TO_POINTER(tm), u_flag_match_timeout))
 
 int u_flag_clear_all(u_proc *proc) {
   GList *item;
-  u_flag *flg;
-  while((item = g_list_first(proc->flags)) != NULL) {
-    flg = (u_flag *)item->data;
-    proc->flags = g_list_remove_link (proc->flags, item);
-    DEC_REF(item->data);
-    item->data = NULL;
-    g_list_free(item);
+  if(proc) {
+    while((item = g_list_first(proc->flags)) != NULL) {
+      proc->flags = g_list_remove_link (proc->flags, item);
+      DEC_REF(item->data);
+      item->data = NULL;
+      g_list_free(item);
+    }
+    g_list_free(proc->flags);
+    proc->changed = 1;
+  } else {
+    while((item = g_list_first(system_flags)) != NULL) {
+      system_flags = g_list_remove_link(system_flags, item);
+      DEC_REF(item->data);
+      item->data = NULL;
+      g_list_free(item);
+    }
+    g_list_free(system_flags);
   }
-  g_list_free(proc->flags);
-  proc->changed = 1;
 }
 
 

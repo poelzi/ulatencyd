@@ -221,6 +221,7 @@ extern GList* active_users;
 extern GHashTable* processes;
 extern GNode* processes_tree;
 extern lua_State *lua_main_state;
+extern GList* system_flags;
 //extern gchar *load_pattern;
 
 // core.c
@@ -255,10 +256,13 @@ int filter_run_for_proc(gpointer data, gpointer user_data);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
 // notify system of a new pids/changed/dead pids
-int process_new(int pid);
+int process_new(pid_t pid);
+int process_new_list(GArray *list);
 int process_remove(u_proc *proc);
-int process_remove_by_pid(int pid);
-int process_update_pid(int pid);
+int process_remove_by_pid(pid_t pid);
+// low level update api
+int process_update_pids(pid_t pids[]);
+int process_update_pid(pid_t pid);
 
 int process_update_all();
 

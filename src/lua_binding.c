@@ -567,7 +567,6 @@ static int u_proc_list_flags (lua_State *L) {
 }
 
 static int u_proc_add_flag (lua_State *L) {
-  int i = 1;
   u_proc *proc = check_u_proc(L, 1);
   u_flag *flag = check_u_flag(L, 2);
 
@@ -577,7 +576,6 @@ static int u_proc_add_flag (lua_State *L) {
 }
 
 static int u_proc_del_flag (lua_State *L) {
-  int i = 1;
   u_proc *proc = check_u_proc(L, 1);
   u_flag *flag = check_u_flag(L, 2);
 
@@ -587,7 +585,6 @@ static int u_proc_del_flag (lua_State *L) {
 }
 
 static int u_proc_clear_flag_name (lua_State *L) {
-  int i = 1;
   u_proc *proc = check_u_proc(L, 1);
   const char *name = luaL_checkstring(L, 2);
 
@@ -597,7 +594,6 @@ static int u_proc_clear_flag_name (lua_State *L) {
 }
 
 static int u_proc_clear_flag_source (lua_State *L) {
-  int i = 1;
   u_proc *proc = check_u_proc(L, 1);
 
   u_flag_clear_source(proc, L);
@@ -606,7 +602,6 @@ static int u_proc_clear_flag_source (lua_State *L) {
 }
 
 static int u_proc_clear_flag_all (lua_State *L) {
-  int i = 1;
   u_proc *proc = check_u_proc(L, 1);
 
   u_flag_clear_all(proc);
@@ -615,13 +610,14 @@ static int u_proc_clear_flag_all (lua_State *L) {
 }
 
 static int u_proc_clear_changed (lua_State *L) {
-  int i = 1;
   u_proc *proc = check_u_proc(L, 1);
 
   proc->changed = 0;
 
   return 0;
 }
+
+
 
 static int u_proc_kill (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
@@ -1120,6 +1116,64 @@ static const luaL_reg u_flag_methods[] = {
 };
 
 
+// system flags
+static int u_sys_list_flags (lua_State *L) {
+  int i = 1;
+  u_flag *fl;
+  GList *cur;
+
+  lua_newtable(L);
+  cur = g_list_first(system_flags);
+  while(cur) {
+    fl = cur->data;
+    lua_pushinteger(L, i);
+    push_u_flag(L, fl, NULL, NULL);
+    lua_settable(L, -3);
+    i++;
+    cur = g_list_next (cur);
+  }
+  return 1;
+}
+
+static int u_sys_add_flag (lua_State *L) {
+  u_flag *flag = check_u_flag(L, 1);
+
+  lua_pushinteger(L, u_flag_add(NULL, flag));
+
+  return 1;
+}
+
+static int u_sys_del_flag (lua_State *L) {
+  u_flag *flag = check_u_flag(L, 1);
+
+  lua_pushinteger(L, u_flag_del(NULL, flag));
+
+  return 1;
+}
+
+static int u_sys_clear_flag_name (lua_State *L) {
+  const char *name = luaL_checkstring(L, 1);
+
+  u_flag_clear_name(NULL, name);
+
+  return 0;
+}
+
+static int u_sys_clear_flag_source (lua_State *L) {
+
+  u_flag_clear_source(NULL, L);
+
+  return 0;
+}
+
+static int u_sys_clear_flag_all (lua_State *L) {
+
+  u_flag_clear_all(NULL);
+
+  return 0;
+}
+
+
 
 int l_scheduler_run(lua_State *L, u_proc *proc) {
   int base = lua_gettop(L);
@@ -1444,6 +1498,14 @@ static const luaL_reg R[] = {
   {"register_filter", l_register_filter},
   // flag code
   {"new_flag", l_flag_new},
+  // system flag manipulation
+  {"list_flags", u_sys_list_flags},
+  {"add_flag", u_sys_add_flag},
+  {"del_flag", u_sys_del_flag},
+  {"clear_flag_name", u_sys_clear_flag_name},
+  {"clear_flag_source", u_sys_clear_flag_source},
+  {"clear_flag_all", u_sys_clear_flag_all},
+    
   // group code
   {"set_active_pid", l_set_active_pid},
   {"get_active_uids", l_get_active_uids},

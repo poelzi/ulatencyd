@@ -88,16 +88,15 @@ function test_new_flag()
   flag.name = "blubb"
   assert_equal("blubb", flag.name)
   assert_equal(false, flag.inherit, "inherit")
-  assert_equal(0, flag.priority)
-  assert_equal(0, flag.timeout)
-  assert_equal(0, flag.reason)
-  assert_equal(0, flag.value)
-  assert_equal(0, flag.threshold)
-  flag.reason = ulatency.REASON_MEMORY
-  assert_equal(ulatency.REASON_MEMORY, flag.reason)
+  assert_equal(0, flag.priority, "priority")
+  assert_equal(0, flag.timeout, "timeout")
+  assert_equal(nil, flag.reason, "reason")
+  assert_equal(0, flag.value, "value")
+  assert_equal(0, flag.threshold, "threshold")
+  flag.reason = "bla"
+  assert_equal("bla", flag.reason, "reason test")
   flag.value = -21823
   assert_equal(-21823, flag.value)
-
   local pid = ulatency.get_pid(1)
   pid:add_flag(flag)
   pid:add_flag(flag)
@@ -113,7 +112,6 @@ function test_new_flag()
   pid:del_flag(flag2)
   pprint(pid:list_flags())
   assert_len(1, pid:list_flags(), "to much flags on proc")
-
   flag2.name = "haha"
   pid:add_flag(flag2)
   pid:clear_flag_name("haha")
@@ -125,6 +123,7 @@ function test_new_flag()
   pid:add_flag(flag2)
   pid:add_flag(flag)
   pid:clear_flag_all()
+
   assert_len(0, pid:list_flags(), "all clear failed")
 
   -- test with table init
@@ -140,7 +139,7 @@ function test_new_flag()
   assert_equal(true, flag3.inherit)
   assert_equal(64, flag3.priority)
   assert_equal(55, flag3.timeout)
-  assert_equal(2, flag3.reason)
+  assert_equal("2", flag3.reason)
   assert_equal(23, flag3.value)
   assert_equal(443, flag3.threshold)
   assert_equal(nil, flag3.nonsense)
