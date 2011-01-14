@@ -63,10 +63,10 @@ SCHEDULER_MAPPING_DESKTOP = {
         name = "media",
         param = { ["cpu.shares"]="2048" },
         label = { "user.media" },
-        check = function(proc)
-                  print("classived, ui.media", proc)
-                  return true
-                end,
+        --check = function(proc)
+        --          print("classived, ui.media", proc)
+        --          return true
+        --        end,
       },
       { 
         name = "ui",
