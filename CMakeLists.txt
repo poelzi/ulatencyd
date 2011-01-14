@@ -10,7 +10,7 @@ option(DEVELOP_MODE "build for development" TRUE)
 option(LIBCGROUPS "add libcgroups support" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
 
-SET(INSTALL_PREFIX CMAKE_INSTALL_PREFIX)
+SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
 
 if(LIBCGROUPS)
