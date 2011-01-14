@@ -17,6 +17,12 @@ TODO:
   before they get run through the pipe should decrease the load on the daemon. the
   processes will exist in the parent group as long as they are not run yet
 
+- optimize src/proc.
+  it is a fork of the libproc that could need some optimizations. currently we use
+  quite many read flags that do unnessery mallocs and reading of values that are
+  not used that much. running in the main loop only a minimal set should be used
+  and in case of new processes a full update should be run.
+
 
 UNLIKLY:
 - maybe: using audit linux system to watch process creation/deletion auditctl or more interessting syscalls

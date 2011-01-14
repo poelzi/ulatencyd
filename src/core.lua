@@ -64,6 +64,42 @@ function ulatency.list_processes_group(key)
   return rv
 end
 
+function ulatency.add_adjust_flag(lst, match, adj)
+   for i, flag in ipairs(lst) do
+     for k, v in pairs(match) do
+       if flag[k] ~= v then
+         flag = nil
+        break
+      end
+    end
+    if flag then
+      for k, v in pairs(adj) do
+        flag[k] = v
+      end
+      return flag, true
+    end
+  end
+  local flag = ulatency.new_flag(match)
+  for k, v in pairs(adj) do
+    flag[k] = v
+  end
+  return flag, false
+end
+
+function ulatency.find_flag(lst, match)
+  for i, flag in ipairs(lst) do
+    for k, v in pairs(match) do
+      if flag[k] ~= v then
+        flag = nil
+        break
+      end
+    end
+    if flag then
+      return flag
+    end
+  end
+end
+
 -- CGroups interface
 
 if ulatency.get_uid() > 0 or 

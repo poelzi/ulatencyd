@@ -162,7 +162,7 @@ typedef struct _FLAG {
   char     *reason;       // why the flag was set. This makes most sense with emergency flags
   int      priority;      // custom data: priority
   int      value;         // custom data: value
-  int      threshold;     // custom data: threshold
+  long long threshold;     // custom data: threshold
 } u_flag;
 
 
@@ -226,7 +226,7 @@ extern GList* system_flags;
 
 // core.c
 int load_modules(char *path);
-int load_rule_directory(char *path, char *load_pattern);
+int load_rule_directory(char *path, char *load_pattern, int fatal);
 int load_rule_file(char *name);
 int load_lua_rule_file(lua_State *L, char *name);
 
@@ -240,7 +240,7 @@ int load_lua_rule_file(lua_State *L, char *name);
 u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 
-static inline u_proc *proc_by_pid(int pid) {
+static inline u_proc *proc_by_pid(pid_t pid) {
   return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
 }
 
@@ -256,8 +256,8 @@ int filter_run_for_proc(gpointer data, gpointer user_data);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
 // notify system of a new pids/changed/dead pids
-int process_new(pid_t pid);
-int process_new_list(GArray *list);
+int process_new(pid_t pid, int noupdate);
+int process_new_list(GArray *list, int noupdate);
 int process_remove(u_proc *proc);
 int process_remove_by_pid(pid_t pid);
 // low level update api

@@ -266,6 +266,8 @@ int update_processes_run(PROCTAB *proctab, int full) {
       }
     }
   }
+  // remove old processes
+
   g_list_free(updated);
 
   if(full) {
@@ -309,9 +311,11 @@ int process_update_pid(int pid) {
 }
 
 
-int process_new(int pid) {
+int process_new(int pid, int noupdate) {
   u_proc *proc;
   // if the process is already dead we can exit
+  if(noupdate && proc_by_pid(pid))
+      return 0;
   if(!process_update_pid(pid))
     return 0;
   proc = proc_by_pid(pid);
@@ -321,15 +325,18 @@ int process_new(int pid) {
   scheduler_run_one(proc);
 }
 
-int process_new_list(GArray *list) {
+int process_new_list(GArray *list, int noupdate) {
   u_proc *proc;
-  int i;
+  int i, j = 0;
   pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
   //int pid_t = malloc(sizeof(pid_t)*(list->len+1));
-  for(i=0; i < list->len; i++) {
-    pids[i] = g_array_index(list,pid_t,i);
+  for(; i < list->len; i++) {
+    if(!proc_by_pid(g_array_index(list,pid_t,i))) {
+      pids[j] = g_array_index(list,pid_t,i);
+      j++;
+    }
   }
-  pids[i] = 0;
+  pids[j] = 0;
   // if the process is already dead we can exit
   process_update_pids(pids);
   for(i=0; i < list->len; i++) {
@@ -617,7 +624,6 @@ void filter_run() {
   //printf("run filter %p, %d\n", filter_list, g_list_length(filter_list));
   GList *cur = g_list_first(filter_list);
   while(cur) {
-    //printf("cur %p\n", cur);
     flt = cur->data;
     blocked_parent = NULL;
     if(flt->precheck)
@@ -647,11 +653,13 @@ static void update_caches() {
 
 
 int iterate(gpointer rv) {
+  time_t timeout = time(NULL);
   GTimer *timer = g_timer_new();
   gdouble last, current;
   gulong dump;
 
   g_timer_start(timer);
+  u_flag_clear_timeout(NULL, timeout);
   iteration += 1;
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "start iteration %d:", iteration);
   update_caches();
@@ -692,7 +700,7 @@ int scheduler_set(u_scheduler *sched) {
  * rules and modules handling
  **************************************************************************/
 
-int load_rule_directory(char *path, char *load_pattern) {
+int load_rule_directory(char *path, char *load_pattern, int fatal) {
   DIR             *dip;
   struct dirent   *dit;
   char rpath[PATH_MAX+1];
@@ -718,7 +726,8 @@ int load_rule_directory(char *path, char *load_pattern) {
     }
 
     snprintf(rpath, PATH_MAX, "%s/%s", path, dit->d_name);
-    load_lua_rule_file(lua_main_state, rpath);
+    if(load_lua_rule_file(lua_main_state, rpath) && fatal)
+      abort();
   }
   free(dip);
 }

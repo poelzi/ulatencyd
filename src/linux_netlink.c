@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: s; c-basic-offset: 4 -*-
  *
  * Copyright (C) 2010 Richard Hughes <richard@hughsie.com>
  *
@@ -34,6 +34,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include "ulatency.h"
+#include <sys/types.h>
+#include <unistd.h>
+
 
 #define SEND_MESSAGE_LEN (NLMSG_LENGTH(sizeof(struct cn_msg) + \
 	sizeof(enum proc_cn_mcast_op)))
@@ -47,25 +50,178 @@
 #define MIN_RECV_SIZE (MIN(SEND_MESSAGE_SIZE, RECV_MESSAGE_SIZE))
 
 
+enum WHAT {
+	WHAT_NEW,
+	WHAT_DEL
+};
+
+struct new_proc {
+	struct timespec when;
+	pid_t  pid;
+	enum WHAT what;
+};
+static long int delay;
+static long int del_delay;
+
+static GPtrArray *stack;
+
+/* remove the pid from the stack if it is scheduled for run.
+   if the process is found and removed the user_data pointer, which
+   is the pid will be set to 0 to mark it as removed
+*/
+static void remove_pid_from_stack(gpointer data, gpointer user_data) {
+	struct new_proc *cur = data;
+	int rv;
+	int *pid = (int *)user_data;
+	if (cur->pid == *pid) {
+		rv = g_ptr_array_remove_fast(stack, data);
+		*pid = 0;
+	}
+}
+
+// calculated the difference between two timespec values
+static struct timespec diff(struct timespec start, struct timespec end)
+{
+	struct timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
+
+static void run_new_pid_from_stack(gpointer data, gpointer user_data) {
+	struct new_proc *cur = data;
+	struct timespec *now = user_data;
+	struct timespec td = diff(cur->when, *now);
+	if((td.tv_sec * 1000000000 + td.tv_nsec) > delay) {
+		g_trace("run new pid %d\n", cur->pid);
+		process_new(cur->pid, TRUE);
+		g_ptr_array_remove_fast(stack, data);
+	} 
+}
+
+// order with oldest first
+static gint order_new_stack(gconstpointer a, gconstpointer b) {
+	const struct new_proc *na = a;
+	const struct new_proc *nb = b;
+	int rv = na->when.tv_sec - nb->when.tv_sec;
+	if(rv) return rv;
+	return na->when.tv_nsec - nb->when.tv_nsec;
+}
+
+/* 
+ *	timeout function that is called periodicy to run the todo stack
+ */
+static int run_new_pid(gpointer ign) {
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	struct new_proc *cur;
+	struct timespec td;
+	int i;
+	char path[32];
+
+	GArray *targets = NULL;
+	
+	if(!stack->len)
+		return TRUE;
+	
+	targets = g_array_new(TRUE, TRUE, sizeof(pid_t));
+	
+	// we have to sort the stack first. the oldest pids to the top so they get 
+	// updated in the correct order and the parents of maybe new clients scheduled
+	// for addition are added first
+	g_ptr_array_sort(stack, order_new_stack);
+
+	/*
+	printf("list: ");
+	for(i = 0; i < stack->len; i++) {
+		cur = g_ptr_array_index(stack, i);
+		printf("%d %d ", cur->pid, cur->what);
+	}
+	*/
+
+	//printf("\nrun_new_pid: ");
+
+	// add new processes first
+	for(i = 0; i < stack->len;) {
+		cur = g_ptr_array_index(stack, i);
+		if(cur->what != WHAT_NEW) {
+			i++;
+			continue;
+		}
+		td = diff(cur->when, now);
+		//printf("%d ", cur->pid);
+		if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
+			//process_new(cur->pid);
+			g_array_append_val(targets, cur->pid);
+			g_ptr_array_remove(stack, cur);
+		} else {
+			i++;
+		}
+	}
+	if(targets->len)
+		process_new_list(targets, FALSE);
+	//printf("\nremove list:");
+	// now we can remove pending remove events
+	for(i = 0; i < stack->len;) {
+		cur = g_ptr_array_index(stack, i);
+		if(cur->what != WHAT_DEL) {
+			i++;
+			continue;
+		}
+		td = diff(cur->when, now);
+		//printf("%d ", cur->pid);
+		if((td.tv_sec * 1000000000 + td.tv_nsec) >= del_delay) {
+			//process_new(cur->pid);
+			snprintf(path, sizeof path, "/proc/%u", cur->pid);
+
+			if(access((const char *)&path, F_OK)) {
+				//process_remove_by_pid(cur->pid);
+				g_ptr_array_remove(stack, cur);
+			}
+		} else {
+			i++;
+		}
+	}
+	
+	//printf("\n");
+
+	g_array_unref(targets);
+	return TRUE;
+}
+
 
 /**
  * Handle a netlink message.  In the event of PROC_EVENT_UID or PROC_EVENT_GID,
- * we pass the event along to cgre_process_event for further processing.  All
+ * we put the new events on the new event stack for processing when they exist a
+ * given time
  * other events are ignored.
  * 	@param cn_hdr The netlink message
  * 	@return 0 on success, > 0 on error
  */
+
 static int nl_handle_msg(struct cn_msg *cn_hdr)
 {
 	/* The event to consider */
 	struct proc_event *ev;
+	struct new_proc *np, *cur;
 
 	/* Return codes */
 	int ret = 0;
+	int i;
+	int what;
+	pid_t pid = 0;
+	struct timespec now = {0};
 
 	/* Get the event data.  We only care about two event types. */
 	ev = (struct proc_event*)cn_hdr->data;
 	switch (ev->what) {
+	// quite seldom events on old processes changing important parameters
 	case PROC_EVENT_UID:
 		g_trace("UID Event: PID = %d, tGID = %d, rUID = %d,"
 				" eUID = %d", ev->event_data.id.process_pid,
@@ -73,7 +229,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 				ev->event_data.id.r.ruid,
 				ev->event_data.id.e.euid);
 		//process_update_pid(ev->event_data.id.process_pid);
-		process_new(ev->event_data.id.process_pid);
+		process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_GID:
 		g_trace("GID Event: PID = %d, tGID = %d, rGID = %d,"
@@ -82,25 +238,55 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 				ev->event_data.id.r.rgid,
 				ev->event_data.id.e.egid);
 		//process_update_pid(ev->event_data.id.process_pid);
-		process_new(ev->event_data.id.process_pid);
-		break;
-	case PROC_EVENT_FORK:
-		g_trace("FORK Event: PARENT = %d PID = %d",
-			ev->event_data.fork.parent_pid, ev->event_data.fork.child_pid);
-		process_new(ev->event_data.fork.child_pid);
+		process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_EXIT:
+		pid = ev->event_data.exit.process_pid;
 		g_trace("EXIT Event: PID = %d",ev->event_data.exit.process_pid);
-		process_remove_by_pid(ev->event_data.exit.process_pid);
+		g_ptr_array_foreach(stack, remove_pid_from_stack, &pid);
+		// if the pid was found in the new stack, pid is set to 0 to indicate
+		// the removal
+		if(pid == 0)
+			return 0;
+		else
+			what = WHAT_DEL;
 		break;
 	case PROC_EVENT_EXEC:
 		g_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
-		process_new(ev->event_data.exec.process_pid);
+		pid = ev->event_data.exec.process_pid;
+		what = WHAT_NEW;
+		break;
+	case PROC_EVENT_FORK:
+		g_trace("FORK Event: PARENT = %d PID = %d",
+			ev->event_data.fork.parent_pid, ev->event_data.fork.child_pid);
+		pid = ev->event_data.fork.child_pid;
+		what = WHAT_NEW;
 		break;
 	default:
-		break;
+		return 0;
+	}
+
+	// in case of new events
+	if(pid) {
+		if(!delay) {
+			process_new(pid, TRUE);
+		} else {
+			for(i=0; i < stack->len; i++) {
+				np = g_ptr_array_index(stack, i);
+				// we can skip pids that already put into the stack
+				// a fork event is often followed by a exec event which would
+				// cause a duplicated entry.
+				if(np->pid == pid && np->what == what)
+					return 0;
+			}
+			np = malloc(sizeof(struct new_proc));
+			np->what = what;
+			np->pid = pid;
+			clock_gettime(CLOCK_MONOTONIC, &(np->when));
+			g_ptr_array_add(stack, np);
+		}
 	}
 
 	return ret;
@@ -134,20 +320,17 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	memcpy(&from_nla, &kern_nla, sizeof(from_nla));
 
 	/* the helper process exited */
+	// this should not happen to netlink
 	if ((condition & G_IO_HUP) > 0) {
 		g_warning ("socket was disconnected");
-		g_main_loop_quit (loop);
 		ret = FALSE;
 		goto out;
 	}
 
 	/* there is data */
 	if ((condition & G_IO_IN) > 0) {
-		//len = g_socket_receive (socket, buffer, 1024, NULL, &error);
 
 		len = g_socket_receive (socket, buff, sizeof(buff), NULL, &error);
-	//recv_len = recvfrom(sk_nl, buff, sizeof(buff), 0,
-	//	(struct sockaddr *)&from_nla, &from_nla_len);
 
 		if (error != NULL) {
 			g_warning ("failed to get data: %s", error->message);
@@ -156,7 +339,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 			goto out;
 		}
 		if (len == ENOBUFS) {
-			g_warning("ERROR: NETLINK BUFFER FULL, MESSAGE DROPPED!");
+			g_warning("NETLINK BUFFER FULL, MESSAGE DROPPED!");
 			return 0;
 		}
 		if (len == 0)
@@ -183,55 +366,6 @@ out:
 }
 
 
-/*
-static int cgre_receive_netlink_msg(int sk_nl)
-{
-	char buff[BUFF_SIZE];
-	size_t recv_len;
-	struct sockaddr_nl from_nla;
-	socklen_t from_nla_len;
-	struct nlmsghdr *nlh;
-	struct sockaddr_nl kern_nla;
-	struct cn_msg *cn_hdr;
-
-	kern_nla.nl_family = AF_NETLINK;
-	kern_nla.nl_groups = CN_IDX_PROC;
-	kern_nla.nl_pid = 1;
-	kern_nla.nl_pad = 0;
-
-	memset(buff, 0, sizeof(buff));
-	from_nla_len = sizeof(from_nla);
-	memcpy(&from_nla, &kern_nla, sizeof(from_nla));
-	recv_len = recvfrom(sk_nl, buff, sizeof(buff), 0,
-		(struct sockaddr *)&from_nla, &from_nla_len);
-	if (recv_len == ENOBUFS) {
-		g_warning("ERROR: NETLINK BUFFER FULL, MESSAGE DROPPED!");
-		return 0;
-	}
-	if (recv_len < 1)
-		return 0;
-
-	nlh = (struct nlmsghdr *)buff;
-	while (NLMSG_OK(nlh, recv_len)) {
-		cn_hdr = NLMSG_DATA(nlh);
-		if (nlh->nlmsg_type == NLMSG_NOOP) {
-			nlh = NLMSG_NEXT(nlh, recv_len);
-			continue;
-		}
-		if ((nlh->nlmsg_type == NLMSG_ERROR) ||
-				(nlh->nlmsg_type == NLMSG_OVERRUN))
-			break;
-		if (nl_connection_handler(cn_hdr) < 0)
-			return 1;
-		if (nlh->nlmsg_type == NLMSG_DONE)
-			break;
-		nlh = NLMSG_NEXT(nlh, recv_len);
-	}
-	return 0;
-}
-
-*/
-
 int init_netlink(GMainLoop *loop) {
 	gboolean ret;
 	GSocket *gsocket = NULL;
@@ -246,8 +380,13 @@ int init_netlink(GMainLoop *loop) {
 	struct cn_msg *cn_hdr;
 	enum proc_cn_mcast_op *mcop_msg;
 
+
+	// the stack holds new pids scheduled for run
+	stack = g_ptr_array_new_with_free_func(free);
+
+	delay = g_key_file_get_integer(config_data, CONFIG_CORE, "delay_new_pid", NULL);
+
 	g_type_init ();
-	loop = g_main_loop_new (NULL, FALSE);
 
 	/* create socket */
 	/*
@@ -257,8 +396,7 @@ int init_netlink(GMainLoop *loop) {
 	 * protocol (NETLINK_CONNECTOR)
 	 */
 	socket_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
-//	socket = g_socket_new (G_SOCKET_FAMILY_UNIX, G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_DEFAULT, &error);
-//	socket = g_socket_new (PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR, &error);
+
 	if (socket == NULL) {
 		g_warning ("failed to create socket: %s", error->message);
 		g_error_free (error);
@@ -270,14 +408,10 @@ int init_netlink(GMainLoop *loop) {
 	my_nla.nl_pid = getpid();
 	my_nla.nl_pad = 0;
 
-//	g_socket_set_blocking (socket, FALSE);
-//	g_socket_set_keepalive (socket, TRUE);
-//	socket_fd = g_socket_get_fd(socket);
 	if (bind(socket_fd, (struct sockaddr *)&my_nla, sizeof(my_nla)) < 0) {
 		g_warning("binding sk_nl error: %s\n", strerror(errno));
 		goto out;
 	}
-
 
 	gsocket = g_socket_new_from_fd(socket_fd, NULL);
 	if(gsocket == NULL) {
@@ -313,31 +447,25 @@ int init_netlink(GMainLoop *loop) {
 	}
 	g_debug("sent\n");
 
-	/* connect to it */
-	
-/*	address = g_unix_socket_address_new_with_type (socket_filename, -1, G_UNIX_SOCKET_ADDRESS_PATH);
-	ret = g_socket_connect (socket, address, NULL, &error);
-	if (!ret) {
-		g_warning ("failed to connect to socket: %s", error->message);
-		g_error_free (error);
-		goto out;
-	}
-*/
 	/* socket has data */
 	source = g_socket_create_source (gsocket, G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL, NULL);
 	g_source_set_callback (source, (GSourceFunc) nl_connection_handler, loop, NULL);
 	g_source_attach (source, NULL);
 
+	// add timeout function
+	if(delay) {
+		g_timeout_add((int)(delay / 3), run_new_pid, NULL);
+		
+		// delay is stored in milli secound
+		delay = delay * 1000000;
+		// the del delay must be higher to prevent failures when parents
+		// die quickly and init did not yet change the parent
+		del_delay = MAX(delay * 10, 2000000000);
+	}
+
 	return 0;
 out:
 	return 1;
-	/* send some data */
-/*	wrote = g_socket_send (socket, buffer, 5, NULL, &error);
-	if (wrote != 5) {
-		g_warning ("failed to write 5 bytes");
-		goto out;
-	}
-*/
 
 }
 

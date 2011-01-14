@@ -19,27 +19,35 @@ SCHEDULER_MAPPING_DESKTOP = {
         label = { "user.poison" },
         cgroups_name = "p_${pid}",
         check = function(proc)
-                  print("poison detected", proc)
                   return true
                 end,
         adjust = function(cgroup, proc)
                 end,
         adjust_new = function(cgroup, proc)
-                print("adjust_new",cgroup, proc)
-                cgroup:add_task(proc.pid)
-                cgroup:commit()
-                bytes = cgroup:get_value("memory.usage_in_bytes")
-                print("bytes" .. tostring(bytes))
-                if not bytes then
-                  ulatency.log_warning("can't access memory subsystem")
-                  return
+                  cgroup:add_task(proc.pid)
+                  cgroup:commit()
+                  bytes = cgroup:get_value("memory.usage_in_bytes")
+                  if not bytes then
+                    ulatency.log_warning("can't access memory subsystem")
+                    return
+                  end
+                  bytes = math.floor(bytes*(tonumber(ulatency.get_config("memory", "process_downsize")) or 0.95))
+                  cgroup:set_value("memory.soft_limit_in_bytes", bytes)
+                  cgroup:commit()
                 end
-                bytes = math.floor(bytes-((bytes/100)*5))
-                print("bytes" .. tostring(bytes))
-                cgroup:set_value("memory.soft_limit_in_bytes", bytes)
-                cgroup:commit()
-                --pprint(cgroup)
-                --ulatency.quit_daemon()
+      },
+      { 
+        name = "poison_session",
+        param = { ["cpu.shares"]="600" },
+        cgroups_name = "ps_${session}",
+        check = function(proc)
+                  return ulatency.find_flag(ulatency.list_flags(), {value = proc.session})
+                end,
+        adjust_new = function(cgroup, proc)
+                  local flag = ulatency.find_flag(ulatency.list_flags(), {value = proc.session})
+                  cgroup:add_task(proc.pid)
+                  cgroup:set_value("memory.soft_limit_in_bytes", flag.threshold)
+                  cgroup:commit()
                 end
       },
       { 
@@ -78,6 +86,18 @@ SCHEDULER_MAPPING_DESKTOP = {
                 end,
       },
     },
+  },
+  {
+    name = "system",
+    cgroups_name = "s_idle",
+    label = { "daemon.idle" },
+    param = { ["cpu.shares"]="1" },
+  },
+  {
+    name = "system",
+    cgroups_name = "s_bg",
+    label = { "daemon.bg" },
+    param = { ["cpu.shares"]="600" },
   },
   {
     name = "system",

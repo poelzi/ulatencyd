@@ -42,7 +42,7 @@ ITER = 1
 -- FIXME: build validator
 
 
-function check_label(labels, proc)
+local function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags()) do
     for k, slabel in pairs(labels) do
       if flag.name == slabel then
@@ -52,7 +52,7 @@ function check_label(labels, proc)
   end
 end
 
-function check(proc, rule)
+local function check(proc, rule)
   assert(proc)
   if rule.label then
     if check_label(rule.label, proc) then
@@ -66,7 +66,7 @@ function check(proc, rule)
   return nil
 end
 
-function run_list(proc, lst)
+local function run_list(proc, lst)
   local rv = {}
   for key, rule in ipairs(lst) do
     match = check(proc, rule)
@@ -90,10 +90,11 @@ end
 local function format_name(proc, map)
   -- generates the final path for the process for the map
   if map.cgroups_name then
+    if type(map.cgroups_name) == "function" then
+      return map.cgroups_name(proc)
+    end
     function get(name)
-      local rv2 = proc[name]
-      rv2 = tostring(rv2)
-      return rv2
+      return tostring(proc[name])
     end
     return string.gsub(map.cgroups_name, "%$\{(%w+)\}", get)
   end
@@ -143,7 +144,7 @@ local function map_to_group(proc, parts)
     cgr = create_group(proc, prefix, parrule)
     prefix = cgr.name
   end
-  print("final prefix", prefix)
+  --print("final prefix", prefix)
   --CGroup.new(mapping.name, )n-ar
   return cgr
 end

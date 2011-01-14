@@ -1,6 +1,7 @@
 local physical_ram = false
 local memory_pressure = false
 
+local pressure_timeout = 500
 
 -- tracker of swapout
 local vminfo = ulatency.get_vminfo()
@@ -26,12 +27,12 @@ end
 --pprint(vminfo)
 
 function update_caches()
-  memory_pressure = false
+  local new_memory_pressure = false
   vminfo = ulatency.get_vminfo()
   meminfo = ulatency.get_meminfo()
   table.insert(swapout_stats, 1, vminfo.vm_pswpout - swapout_stats_last)
   swapout_stats_last = vminfo.vm_pswpout
-  swapout_stats[10] = nil
+  swapout_stats[20] = nil
   local swap_memory_pressure = true
   for i,j in ipairs(swapout_stats) do
     if j == 0 then swap_memory_pressure = false end
@@ -40,13 +41,17 @@ function update_caches()
                                   meminfo.kb_main_total)
 
   if (tonumber(meminfo.kb_main_cached) + tonumber(meminfo.kb_main_free)) <= min_free then
-    memory_pressure = true
+    new_memory_pressure = true
   end
 
-  memory_pressure = swap_memory_pressure or memory_pressure
-  if memory_pressure then
+  --print("pressure", new_memory_pressure, memory_pressure)
+
+  new_memory_pressure = swap_memory_pressure or new_memory_pressure
+  if(memory_pressure ~= new_memory_pressure and new_memory_pressure) then
     ulatency.log_warning("memory pressure detected !")
+    ulatency.run_iteration()
   end
+  memory_pressure = new_memory_pressure
   return true
 end
 
@@ -67,14 +72,34 @@ ProtectorMemory = {
   
   targets = {},
   sure_targets = {},
+  poison_session = {},
   
   precheck = function(self)
-    print("precheck")
     self.targets = {}
     self.sure_targets = {}
-    return memory_pressure
+    self.poison_session = {}
+
+    local flag = nil
+    if not memory_pressure then
+      return false
+    end
+
+    for i, flg in ipairs(ulatency.list_flags()) do
+      if flg.is_source and flg.name == "pressure" and flg.reason == "memory" then
+        flg.timeout = ulatency.get_time(pressure_timeout)
+        flag = flg
+      end
+    end
+    if not flag then
+      flag = ulatency.new_flag{name="pressure", reason="memory", 
+                                   timeout=ulatency.get_time(pressure_timeout)}
+      ulatency.add_flag(flag)
+    end
+
+    return true
   end,
   check = function(self, proc)
+    self.poison_session[proc.session] = (self.poison_session[proc.session] or 0) + proc.vm_rss
     self.targets[#self.targets+1] = proc
     table.sort(self.targets, 
                function(a, b)
@@ -93,11 +118,27 @@ ProtectorMemory = {
     return 0
   end,
   postcheck = function(self)
-    pprint(self.targets)
-    pprint(self.sure_targets)
+    --pprint(self.targets)
+    --pprint(self.sure_targets)
+    --pprint(self.poison_session)
+    local top_targets = {}
+    for sess,size in pairs(self.poison_session) do
+      top_targets[#top_targets+1] = {sess, size}
+    end
+    table.sort(top_targets, function(a,b) return a[2]>b[2] end)
+    for v = 1, tonumber(ulatency.get_config("memory", "min_add_sessions")) do 
+      local flag, added =  ulatency.add_adjust_flag(
+        ulatency.list_flags(), 
+        {name="user.poison.session", reason="memory", value=top_targets[v][1]}, 
+        {timeout=ulatency.get_time(pressure_timeout)}
+      )
+      if not added then
+        ulatency.add_flag(flag)
+        flag.threshold = math.ceil(top_targets[v][2]*(tonumber(ulatency.get_config("memory", "session_downsize")) or 0.95))
+      end
+    end
     local flag = ulatency.new_flag{name="user.poison", reason="memory", 
-                                   timeout=ulatency.get_time(500),}
-    
+                                   timeout=ulatency.get_time(pressure_timeout)}
     local added = 0
     local min_add = tonumber(ulatency.get_config("memory", "min_add_targets"))
     for i,proc in ipairs(self.sure_targets) do

@@ -1023,6 +1023,9 @@ static int u_flag_index (lua_State *L)
   PUSH_CHR(reason)
   PUSH_INT(value)
   PUSH_INT(threshold)
+  if(!strcmp(key, "is_source")) {
+    lua_pushboolean(L, flag->source == L);
+  }
   return 0;
 }
 
@@ -1281,7 +1284,7 @@ int l_filter_run_table(u_filter *flt, char *key) {
   lua_getfield (L, -1, key);
   if(!lua_isfunction(L, -1)) {
     lua_pop(L, 2);
-    return FALSE;
+    return TRUE;
   }
   lua_pushvalue(L, -2);
   if(docall(L, 1, 1)) {

@@ -255,7 +255,7 @@ int main (int argc, char *argv[])
   core_init();
   avoid_oom_killer();
   load_modules(modules_directory);
-  load_rule_directory(rules_directory, load_pattern);
+  load_rule_directory(rules_directory, load_pattern, TRUE);
 
   process_update_all();
   init_netlink(main_loop);
