@@ -199,7 +199,9 @@ function Scheduler:one(proc)
       if group:is_dirty() then
         group:commit()
       end
+      --print("add task", proc.pid, group)
       group:add_task(proc.pid, true)
+      group:commit()
       proc:clear_changed()
     end
     --pprint(build_path_parts(proc, res))
