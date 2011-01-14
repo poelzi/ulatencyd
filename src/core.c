@@ -425,7 +425,8 @@ static int u_flag_match_name(gconstpointer a, gconstpointer name) {
 static int u_flag_match_timeout(gconstpointer a, gconstpointer time) {
   u_flag *flg = (u_flag *)a;
   time_t t = GPOINTER_TO_UINT(time);
-
+  if(flg->timeout == 0)
+    return TRUE;
   return (flg->timeout > t);
 }
 
