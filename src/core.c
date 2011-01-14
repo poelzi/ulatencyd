@@ -1,4 +1,5 @@
 #include "ulatency.h"
+#include "config.h"
 
 #include "proc/procps.h"
 #include "proc/sysinfo.h"
@@ -800,6 +801,11 @@ int load_modules(char *modules_directory) {
 }
 
 int core_init() {
+#ifdef DEVELOP_MODE
+  gchar *lua_core_file = "src/core.lua";
+#else
+  gchar *lua_core_file = QUOTEME(INSTALL_PREFIX) "/lib/ulatency/core.lua";
+#endif
   // load config
   iteration = 1;
   filter_list = NULL;
@@ -820,7 +826,7 @@ int core_init() {
   scheduler_set(&LUA_SCHEDULER);
 
   // FIXME path
-  if(load_lua_rule_file(lua_main_state, "src/core.lua"))
+  if(load_lua_rule_file(lua_main_state, lua_core_file))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
 }
 
