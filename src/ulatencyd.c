@@ -7,6 +7,9 @@
 #include <glib.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
 #include <fcntl.h>
 
 
