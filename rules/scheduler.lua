@@ -56,7 +56,11 @@ local function check(proc, rule)
   assert(proc)
   if rule.label then
     if check_label(rule.label, proc) then
-      return rule
+      if rule.check then
+        return rule.check(proc) and rule or nil
+      else
+        return rule
+      end
     end
   elseif rule.check then
     if rule.check(proc) then
