@@ -1,6 +1,10 @@
 #ifndef UTIL_LINUX_NLS_H
 #define UTIL_LINUX_NLS_H
 
+#ifndef __THROW
+#define __THROW
+#endif
+
 #ifndef LOCALEDIR
 #define LOCALEDIR "/usr/share/locale"
 #endif

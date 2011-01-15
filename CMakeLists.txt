@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(ulatency)
+project(ulatency C)
 
 INCLUDE(FindPkgConfig)
 INCLUDE(FindGettext)
