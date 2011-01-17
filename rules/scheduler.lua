@@ -156,19 +156,24 @@ end
 
 Scheduler = {}
 
-local ALL = false
+local C_FILTER = false
 function Scheduler:all()
   local group
-  ALL = not ulatency.get_flags_changed()
+  C_FILTER = not ulatency.get_flags_changed()
+  for j, flag in pairs(ulatency.list_flags()) do
+    if flag.name == "pressure" or flag.name == "emergency" then
+      C_FILTER = false
+    end
+  end
   -- list only changed processes
-  for k,proc in ipairs(ulatency.list_processes(ALL)) do
+  for k,proc in ipairs(ulatency.list_processes(C_FILTER)) do
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end
   for k, v in pairs(CGroup.get_groups()) do
     v:commit()
   end
-  ALL = true
+  C_FILTER = true
   return true
 end
 
