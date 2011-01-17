@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dlfcn.h>
+#include <fnmatch.h>
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
@@ -27,6 +28,8 @@ static double _last_load;
 static double _last_percent;
 // flag list of system wide flags
 GList *system_flags;
+int    system_flags_changed;
+
 
 double get_last_load() {
   return _last_load;
@@ -198,7 +201,6 @@ int process_remove_by_pid(int pid) {
 }
 
 static void clear_process_changed() {
-  int i = 1;
   GHashTableIter iter;
   gpointer ikey, value;
   u_proc *proc;
@@ -342,9 +344,10 @@ int process_new(int pid, int noupdate) {
     return 0;
   proc = proc_by_pid(pid);
   if(!proc)
-    return;
+    return 0;
   filter_for_proc(proc);
   scheduler_run_one(proc);
+  return 1;
 }
 
 int process_new_list(GArray *list, int noupdate) {
@@ -369,6 +372,7 @@ int process_new_list(GArray *list, int noupdate) {
     scheduler_run_one(proc);
   }
   free(pids);
+  return TRUE;
 }
 
 int process_run_one(u_proc *proc, int update) {
@@ -376,6 +380,7 @@ int process_run_one(u_proc *proc, int update) {
     process_update_pid(proc->pid);
   filter_for_proc(proc);
   scheduler_run_one(proc);
+  return TRUE;
 }
 
 
@@ -419,21 +424,26 @@ int u_flag_add(u_proc *proc, u_flag *flag) {
       INC_REF(flag);
     }
   }
+  return TRUE;
 }
 
 int u_flag_del(u_proc *proc, u_flag *flag) {
+  int rv = 0;
   if(proc) {
     if(g_list_index(proc->flags, flag) != -1) {
       DEC_REF(flag);
     }
     proc->flags = g_list_remove(proc->flags, flag);
     proc->changed = 1;
+    return 1;
   } else {
     if(g_list_index(system_flags, flag) != -1) {
       DEC_REF(flag);
+      rv++;
     }
     system_flags = g_list_remove(system_flags, flag);
   }
+  return rv;
 }
 
 static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
@@ -463,20 +473,25 @@ static int u_flag_match_timeout(gconstpointer a, gconstpointer time) {
 #define CLEAR_BUILD(NAME, ARG, CMP) \
 int NAME (u_proc *proc, ARG ) { \
   GList *item; \
+  int rv = 0; \
   while((item = CMP ) != NULL) { \
     if(proc) { \
       proc->flags = g_list_remove_link (proc->flags, item); \
       DEC_REF(item->data); \
       item->data = NULL; \
       proc->changed = 1; \
+      rv++; \
       g_list_free(item); \
     } else { \
       system_flags = g_list_remove_link (system_flags, item); \
       DEC_REF(item->data); \
       item->data = NULL; \
+      system_flags_changed = 1; \
+      rv ++; \
       g_list_free(item); \
     } \
   } \
+  return rv; \
 } 
 
 CLEAR_BUILD(u_flag_clear_source, void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_source))
@@ -487,12 +502,14 @@ CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc ? proc->fla
 
 int u_flag_clear_all(u_proc *proc) {
   GList *item;
+  int rv = 0;
   if(proc) {
     while((item = g_list_first(proc->flags)) != NULL) {
       proc->flags = g_list_remove_link (proc->flags, item);
       DEC_REF(item->data);
       item->data = NULL;
       proc->changed = 1;
+      rv++;
       g_list_free(item);
     }
     g_list_free(proc->flags);
@@ -502,9 +519,12 @@ int u_flag_clear_all(u_proc *proc) {
       DEC_REF(item->data);
       item->data = NULL;
       g_list_free(item);
+      rv++;
+      system_flags_changed = 1;
     }
     g_list_free(system_flags);
   }
+  return rv;
 }
 
 
@@ -555,7 +575,7 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
   if(flt->check) {
     // if return 0 the real callback will be skipped
     if(!flt->check(proc, flt))
-      return;
+      return 0;
   }
 
   rv = flt->callback(proc, flt);
@@ -590,7 +610,8 @@ static GNode *blocked_parent;
 gboolean filter_run_for_node(GNode *node, gpointer data) {
   GNode *tmp;
   int rv;
-  u_filter *uf = data;
+  
+  //u_filter *uf = data;
   //printf("rfn %s ;", uf->name);
   //printf("run for node\n");
   if(node == processes_tree)
@@ -626,6 +647,7 @@ int scheduler_run() {
   } else {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "no scheduler.all set");
   }
+  return 1;
 }
 
 int scheduler_run_one(u_proc *proc) {
@@ -707,6 +729,7 @@ int iterate(gpointer rv) {
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. complete run %d took %0.2F", (current - last), iteration, current);
   clear_process_changed();
+  system_flags_changed = 0;
   return GPOINTER_TO_INT(rv);
 }
 
@@ -740,7 +763,7 @@ int load_rule_directory(char *path, char *load_pattern, int fatal) {
   if ((dip = opendir(path)) == NULL)
   {
     perror("opendir");
-    return 0;
+    return 1;
   }
 
   if(load_pattern)
@@ -760,6 +783,7 @@ int load_rule_directory(char *path, char *load_pattern, int fatal) {
       abort();
   }
   free(dip);
+  return 0;
 }
 
 
@@ -826,11 +850,12 @@ int load_modules(char *modules_directory) {
   }
   g_free(disabled);
   free(dip);
+  return 1;
 }
 
 #ifdef ENABLE_DBUS
 static int do_core_dbus_init() {
-
+  return 0;
 }
 #endif 
 
@@ -867,6 +892,8 @@ int core_init() {
 
   if(load_lua_rule_file(lua_main_state, lua_core_file))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
+
+  return 1;
 }
 
 void core_unload() {

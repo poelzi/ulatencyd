@@ -348,6 +348,7 @@ static int l_log (lua_State *L) {
   const char *str = luaL_checkstring(L, 2);
 
   g_log(G_LOG_DOMAIN, level, "%s", str);
+  return 0;
 }
 
 static int l_quit (lua_State *L) {
@@ -356,6 +357,7 @@ static int l_quit (lua_State *L) {
     g_main_loop_quit(main_loop);
   else
     exit(0);
+  return 0;
 }
 
 gboolean l_call_function(gpointer data) {
@@ -511,8 +513,6 @@ static int u_proc_get_parent (lua_State *L)
 static int u_proc_get_children (lua_State *L)
 {
   int i = 1, max;
-  GHashTableIter iter;
-  gpointer ikey, value;
   u_proc *child;
   u_proc *proc = check_u_proc(L, 1);
 
@@ -1181,6 +1181,19 @@ static int u_sys_clear_flag_all (lua_State *L) {
   return 0;
 }
 
+static int u_sys_get_flags_changed(lua_State *L) {
+
+  lua_pushboolean(L, system_flags_changed);
+
+  return 1;
+}
+
+static int u_sys_set_flags_changed(lua_State *L) {
+
+  system_flags_changed = luaL_checkint(L, 1);
+
+  return 0;
+}
 
 
 int l_scheduler_run(lua_State *L, u_proc *proc) {
@@ -1207,7 +1220,7 @@ int l_scheduler_run(lua_State *L, u_proc *proc) {
     }
     if(docall(L, args, 1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler failed");
-      return;
+      return 0;
     }
     if(!lua_toboolean(L, -1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler returned false");
@@ -1274,7 +1287,6 @@ int l_filter_callback(u_proc *proc, u_filter *flt) {
 int l_filter_run_table(u_filter *flt, char *key) {
   gint rv;
   lua_State *L;
-  u_proc *nproc;
   struct lua_filter *lf = (struct lua_filter *)flt->data;
 
   g_assert(flt->type == FILTER_LUA);
@@ -1314,7 +1326,6 @@ inline int l_filter_postcheck(u_filter *flt) {
 
 
 int l_filter_check(u_proc *proc, u_filter *flt) {
-  gboolean rv;
   struct lua_filter *lft = (struct lua_filter *)flt->data;
 
   if(lft->regexp_basename && proc->proc.cmd[0]) {
@@ -1513,6 +1524,8 @@ static const luaL_reg R[] = {
   {"clear_flag_name", u_sys_clear_flag_name},
   {"clear_flag_source", u_sys_clear_flag_source},
   {"clear_flag_all", u_sys_clear_flag_all},
+  {"get_flags_changed", u_sys_get_flags_changed},
+  {"set_flags_changed", u_sys_set_flags_changed},
     
   // group code
   {"set_active_pid", l_set_active_pid},

@@ -181,7 +181,6 @@ int u_flag_clear_name(u_proc *proc, const char *name);
 int u_flag_clear_all(u_proc *proc);
 int u_flag_clear_timeout(u_proc *proc, time_t timeout);
 
-
 struct u_cgroup {
   struct cgroup *group;
   char *name;
@@ -227,6 +226,7 @@ extern GHashTable* processes;
 extern GNode* processes_tree;
 extern lua_State *lua_main_state;
 extern GList* system_flags;
+extern int    system_flags_changed;
 #ifdef ENABLE_DBUS
 extern DBusGConnection *U_dbus_connection;
 #endif

@@ -159,7 +159,7 @@ Scheduler = {}
 local ALL = false
 function Scheduler:all()
   local group
-
+  ALL = not ulatency.get_flags_changed()
   -- list only changed processes
   for k,proc in ipairs(ulatency.list_processes(ALL)) do
 --    print("sched", proc, proc.cmdline)
