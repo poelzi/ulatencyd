@@ -47,7 +47,7 @@ pkg_check_modules(GIO gio-2.0 REQUIRED)
 #ENDIF (NOT LIBPROC_FOUND)
 
 # use own libproc copy
-SET(CONFIG_PREFIX "/etc/" CACHE STRING
+SET(CONFIG_PREFIX "/etc" CACHE STRING
       "Config prefix"
       FORCE)
 
@@ -148,6 +148,13 @@ ADD_CUSTOM_COMMAND(
   ARGS    -Rf CMakeTmp ${DISTCLEANED}
   TARGET  distclean
 )
+
+install(FILES ulatencyd.conf 
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd)
+install(DIRECTORY rules 
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd 
+        FILES_MATCHING PATTERN "*.lua" )
+#install(TARGETS mySharedLib DESTINATION /some/full/path)
 
 #
 #

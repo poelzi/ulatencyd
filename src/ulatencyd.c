@@ -30,9 +30,9 @@ static gchar *rules_directory = "rules";
 static gchar *modules_directory = "modules";
 #else
 // FIXME need usage of PREFIX
-static gchar *config_file = QUOTEME(CONFIG_PREFIX) "/ulatency/ulatencyd.conf";
-static gchar *rules_directory = QUOTEME(CONFIG_PREFIX) "/ulatency/rules";
-static gchar *modules_directory = QUOTEME(INSTALL_PREFIX) "/lib/ulatency/modules";
+static gchar *config_file = QUOTEME(CONFIG_PREFIX) "/ulatencyd/ulatencyd.conf";
+static gchar *rules_directory = QUOTEME(CONFIG_PREFIX) "/ulatencyd/rules";
+static gchar *modules_directory = QUOTEME(INSTALL_PREFIX) "/lib/ulatencyd/modules";
 #endif
 static gchar *load_pattern = NULL;
 static gint verbose = 1<<4;

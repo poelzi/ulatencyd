@@ -624,7 +624,10 @@ static gboolean update_all_server(gpointer data) {
 int xwatch_init() {
   localhost = get_localhost();
 #ifndef TEST_XWATCH
-  int interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", NULL) || DEFAULT_INTERVAL;
+  GError *error = NULL;
+  int interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", &error);
+  if(error && error->code)
+    interval = DEFAULT_INTERVAL;
   g_timeout_add(interval, update_all_server, NULL);
   g_timeout_add_seconds(30, update_server_list, NULL);
   g_message("x server observation active. poll interval: %d", interval);

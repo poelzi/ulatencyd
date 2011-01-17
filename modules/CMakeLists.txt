@@ -3,6 +3,9 @@ macro(add_module LNAME)
   add_library(${LNAME} MODULE
               ${ARGV})
   set_target_properties(${LNAME} PROPERTIES PREFIX "")
+  if(NOT "${LNAME}" STREQUAL "test")
+    install(TARGETS ${LNAME} LIBRARY DESTINATION lib/ulatencyd/modules) 
+  endif(NOT "${LNAME}" STREQUAL "test")
 endmacro(add_module)
 
 add_module(test test.c)

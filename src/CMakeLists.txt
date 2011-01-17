@@ -21,7 +21,11 @@ add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
 target_link_libraries (ulatencyd proc lbc dl ${MY_LUA_LIBRARIES} 
                        ${LIBCGROUP_LIBRARIES} ${DBUS_LIBRARIES} ${GLIB2_LIBRARIES} ${GIO_LIBRARIES})
 
-
 SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
-#set_source_files_properties(core.c PROPERTIES COMPILE_FLAGS  "-Wall")
-#set_property(DIRECTORY PROPERTY COMPILE_FLAGS  "-Wall")
+
+install(TARGETS ulatencyd 
+        RUNTIME DESTINATION sbin)
+install(FILES core.lua
+        DESTINATION lib/ulatencyd)
+
+
