@@ -23,10 +23,7 @@ access it in case of nfs for example.
 #include <stdlib.h>
 #include <string.h>
 #include <xcb/xcb.h>
-#include <xcb/xcb_event.h>
-#include <xcb/xcb_atom.h>
 #include <X11/Xauth.h>
-#include <X11/Xdmcp.h>
 #include <errno.h>
 #include <glib.h>
 #include <pwd.h>
