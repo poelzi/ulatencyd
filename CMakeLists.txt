@@ -103,9 +103,9 @@ ELSE(LUA_JIT AND LUAJIT_FOUND)
 ENDIF(LUA_JIT AND LUAJIT_FOUND)
 
 
-if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   set(ADD_COMPILE_FLAGS "-g -pg -Wall")
-endif(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+endif("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
 add_subdirectory(src/bc)
 add_subdirectory(src/proc)
