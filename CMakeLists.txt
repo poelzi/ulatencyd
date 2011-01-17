@@ -6,7 +6,7 @@ INCLUDE(FindGettext)
 
 option(CONFIG_PREFIX "config prefix" "/etc")
 
-option(DEVELOP_MODE "build for development" TRUE)
+option(DEVELOP_MODE "build for development" FALSE)
 option(LIBCGROUPS "add libcgroups support" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
 option(ENABLE_DBUS "enable dbus" TRUE)

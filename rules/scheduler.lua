@@ -181,7 +181,7 @@ function Scheduler:one(proc)
     if not MAPPING or #MAPPING == 0 then
       ulatency.log_error("invalid mapping: "..mapping_name)
     end
-    pprint(MAPPING)
+    ulatency.log_debug("use schduler map \n" .. to_string(MAPPING))
   end
   if proc.block_scheduler == 0 then
     -- we shall not touch us
