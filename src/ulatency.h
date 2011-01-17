@@ -19,7 +19,7 @@
                                G_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
-#define VERSION 0.1
+#define VERSION 0.3
 
 #define OPENPROC_FLAGS PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
