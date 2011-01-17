@@ -1,4 +1,10 @@
+--[[
+    Copyright 2010,2011 ulatencyd developers
 
+    This file is part of ulatencyd.
+
+    License: GNU General Public License 3 or later
+]]--
 
 GnomeUI = {
   name = "GnomeUI",
@@ -14,21 +20,3 @@ GnomeUI = {
 }
 
 ulatency.register_filter(GnomeUI)
---[[
-
-print(ul.get_config("TestFilter", "something"))
-print_table(ul.list_keys("TestFilter"))
-
-function TestFilter:check(proc)
-  print("check process", proc)
-  print(proc.cmdline)
-  if(proc.cmdline == "/sbin/init") then
-    return ul.FILTER_STOP
-  end
-end
-
-
- = {
-  
-}
-]]--

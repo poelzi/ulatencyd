@@ -1,3 +1,11 @@
+--[[
+    Copyright 2010,2011 ulatencyd developers
+
+    This file is part of ulatencyd.
+
+    License: GNU General Public License 3 or later
+]]--
+
 local physical_ram = false
 local memory_pressure = false
 

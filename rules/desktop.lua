@@ -1,4 +1,10 @@
+--[[
+    Copyright 2010,2011 ulatencyd developers
 
+    This file is part of ulatencyd.
+
+    License: GNU General Public License 3 or later
+]]--
 
 DesktopBG = {
   name = "UserBG",
@@ -52,9 +58,6 @@ DesktopEssential = {
     return rv
   end
 }
-
-
-
 
 
 ulatency.register_filter(DesktopBG)
