@@ -69,6 +69,7 @@ SCHEDULER_MAPPING_DESKTOP = {
         name = "active",
         param = { ["cpu.shares"]="2048" },
         check = function(proc)
+            print(proc, proc.is_active)
             return proc.is_active
           end
       },

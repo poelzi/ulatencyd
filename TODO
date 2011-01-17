@@ -23,6 +23,7 @@ TODO:
   not used that much. running in the main loop only a minimal set should be used
   and in case of new processes a full update should be run.
 
+- use signals in xwatch to detect changes in sessions
 
 UNLIKLY:
 - maybe: using audit linux system to watch process creation/deletion auditctl or more interessting syscalls

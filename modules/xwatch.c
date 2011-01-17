@@ -31,6 +31,7 @@ access it in case of nfs for example.
 #include <glib.h>
 #include <pwd.h>
 
+#define DEFAULT_INTERVAL 1000
 
 enum auth_protos {
     AUTH_MC1,
@@ -49,17 +50,17 @@ static int authnameslen[N_AUTH_PROTOS] = {
 };
 
 struct x_server {
-    uid_t uid;
-    char *display;
-    xcb_auth_info_t *auth;
-    xcb_connection_t *connection;
-    xcb_screen_t *screen;
-    xcb_atom_t atom_active;
-    xcb_atom_t atom_pid;
-    xcb_atom_t atom_client;
-    xcb_atom_t window_atom;
-    xcb_atom_t cardinal_atom;
-    xcb_atom_t string_atom;
+  uid_t uid;
+  char *display;
+  xcb_auth_info_t *auth;
+  xcb_connection_t *connection;
+  xcb_screen_t *screen;
+  xcb_atom_t atom_active;
+  xcb_atom_t atom_pid;
+  xcb_atom_t atom_client;
+  xcb_atom_t window_atom;
+  xcb_atom_t cardinal_atom;
+  xcb_atom_t string_atom;
 };
 
 static void free_x_server(struct x_server *xs) {
@@ -313,92 +314,92 @@ xcb_auth_info_t *read_xauth(int uid, char *hostname, int display)
 }
 
 struct x_server *create_connection(uid_t uid, const char *display) {
-    int  screenNum, i, dsp, parsed = 0;
-    char *host;
-    char dispbuf[40];   /* big enough to hold more than 2^64 base 10 */
-    int dispbuflen;
-    xcb_screen_iterator_t iter;
-    const xcb_setup_t *setup;
-    struct x_server *rv;
+  int  screenNum, i, dsp, parsed = 0;
+  char *host;
+  char dispbuf[40];   /* big enough to hold more than 2^64 base 10 */
+  int dispbuflen;
+  xcb_screen_iterator_t iter;
+  const xcb_setup_t *setup;
+  struct x_server *rv;
 
-    parsed = xcb_parse_display(display, &host, &dsp, &screenNum);
+  parsed = xcb_parse_display(display, &host, &dsp, &screenNum);
 
-    if(!parsed) {
-      g_warning("can't parse display: %s", display);
+  if(!parsed) {
+    g_warning("can't parse display: %s", display);
+    return NULL;
+  }
+
+
+  dispbuflen = snprintf(dispbuf, sizeof(dispbuf), "%d", dsp);
+  if(dispbuflen < 0) {
+      printf("cant put display buf\n");
       return NULL;
-    }
+  }
+
+  rv = g_malloc0(sizeof(struct x_server));
+
+  rv->display = g_strdup(display);
+  rv->uid = uid;
+  rv->auth = read_xauth(uid, host, dsp);
+  if(!rv->auth) {
+    g_warning("can't parse auth data for host: %s", host);
+    return NULL;
+  }
+  rv->connection = xcb_connect_to_display_with_auth_info(display, rv->auth, &screenNum);
+  if(!rv->connection) {
+    g_warning("can't connect to host: %s", host);
+    return NULL;
+  }
+
+  setup = xcb_get_setup(rv->connection);
+  
+  if(!setup) {
+    g_warning("can't get setup");
+    free_x_server(rv);
+    return NULL;
+  }
+
+  iter = xcb_setup_roots_iterator(setup);  
+
+  // we want the screen at index screenNum of the iterator
+  for (i = 0; i < screenNum; ++i) {
+      xcb_screen_next (&iter);
+  }
+
+  rv->screen = iter.data;
 
 
-    dispbuflen = snprintf(dispbuf, sizeof(dispbuf), "%d", dsp);
-    if(dispbuflen < 0) {
-        printf("cant put display buf\n");
-        return NULL;
-    }
+  g_debug("connected to X11 host: %s display: %d screen: %d \n", localhost, dsp, screenNum);
 
-    rv = g_malloc0(sizeof(struct x_server));
+  // fillup the x server atoms
+  xcb_intern_atom_cookie_t net_active_ck
+      = intern_string (rv->connection, "_NET_ACTIVE_WINDOW");
 
-    rv->display = g_strdup(display);
-    rv->uid = uid;
-    rv->auth = read_xauth(uid, host, dsp);
-    if(!rv->auth) {
-      g_warning("can't parse auth data for host: %s", host);
-      return NULL;
-    }
-    rv->connection = xcb_connect_to_display_with_auth_info(display, rv->auth, &screenNum);
-    if(!rv->connection) {
-      g_warning("can't connect to host: %s", host);
-      return NULL;
-    }
+  xcb_intern_atom_cookie_t net_pid_ck
+      = intern_string (rv->connection, "_NET_WM_PID");
 
-    setup = xcb_get_setup(rv->connection);
-    
-    if(!setup) {
-      g_warning("can't get setup");
-      free_x_server(rv);
-      return NULL;
-    }
+  xcb_intern_atom_cookie_t net_client_ck
+      = intern_string (rv->connection, "WM_CLIENT_MACHINE");
 
-    iter = xcb_setup_roots_iterator(setup);  
-
-    // we want the screen at index screenNum of the iterator
-    for (i = 0; i < screenNum; ++i) {
-        xcb_screen_next (&iter);
-    }
-
-    rv->screen = iter.data;
+  rv->atom_active = get_atom (rv->connection, net_active_ck);
+  rv->atom_pid = get_atom (rv->connection, net_pid_ck);
+  rv->atom_client = get_atom (rv->connection, net_client_ck);
 
 
-    g_debug("connected to X11 host: %s display: %d screen: %d \n", localhost, dsp, screenNum);
+  xcb_intern_atom_cookie_t window_ck
+          = intern_string (rv->connection, "WINDOW");
 
-    // fillup the x server atoms
-    xcb_intern_atom_cookie_t net_active_ck
-        = intern_string (rv->connection, "_NET_ACTIVE_WINDOW");
+  xcb_intern_atom_cookie_t cardinal_ck
+          = intern_string (rv->connection, "CARDINAL");
 
-    xcb_intern_atom_cookie_t net_pid_ck
-        = intern_string (rv->connection, "_NET_WM_PID");
+  xcb_intern_atom_cookie_t string_ck
+          = intern_string (rv->connection, "STRING");
 
-    xcb_intern_atom_cookie_t net_client_ck
-        = intern_string (rv->connection, "WM_CLIENT_MACHINE");
+  rv->window_atom = get_atom (rv->connection, window_ck);
+  rv->cardinal_atom = get_atom (rv->connection, cardinal_ck);
+  rv->string_atom = get_atom (rv->connection, string_ck);
 
-    rv->atom_active = get_atom (rv->connection, net_active_ck);
-    rv->atom_pid = get_atom (rv->connection, net_pid_ck);
-    rv->atom_client = get_atom (rv->connection, net_client_ck);
-
-
-    xcb_intern_atom_cookie_t window_ck
-            = intern_string (rv->connection, "WINDOW");
-
-    xcb_intern_atom_cookie_t cardinal_ck
-            = intern_string (rv->connection, "CARDINAL");
-
-    xcb_intern_atom_cookie_t string_ck
-            = intern_string (rv->connection, "STRING");
-
-    rv->window_atom = get_atom (rv->connection, window_ck);
-    rv->cardinal_atom = get_atom (rv->connection, cardinal_ck);
-    rv->string_atom = get_atom (rv->connection, string_ck);
-
-    return rv;
+  return rv;
 }
 
 gint match_display(gconstpointer a, gconstpointer b) {
@@ -416,6 +417,10 @@ void del_connection(struct x_server *rm) {
 struct x_server *add_connection(uid_t uid, const char *display) {
   struct x_server *nc;
   GList *cur;
+  uid_t myid = getuid();
+  
+  if(myid && myid != uid)
+    return NULL;
 
   while(TRUE) {
     cur = g_list_find_custom(server_list, display, match_display);
@@ -447,51 +452,50 @@ static int add_all_console_kit(int update) {
 
   error = NULL;
 
-  proxy = dbus_g_proxy_new_for_name           (U_dbus_connection,
-                                               "org.freedesktop.ConsoleKit",
-                                               "/org/freedesktop/ConsoleKit/Manager",
-                                               "org.freedesktop.ConsoleKit.Manager");
+  proxy = dbus_g_proxy_new_for_name(U_dbus_connection,
+                                    "org.freedesktop.ConsoleKit",
+                                    "/org/freedesktop/ConsoleKit/Manager",
+                                    "org.freedesktop.ConsoleKit.Manager");
   error = NULL;
   if (!dbus_g_proxy_call (proxy, "GetSessions", &error, G_TYPE_INVALID,
                           dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
-                          &array, G_TYPE_INVALID))
-    {
-      g_warning("Error: %s\n", error->message);
-      goto error;
-    }
+                          &array, G_TYPE_INVALID)) {
+    g_warning("Error: %s\n", error->message);
+    goto error;
+  }
 
 
   for (i = 0; i < array->len; i++) {
-      error = NULL;
-      cproxy = dbus_g_proxy_new_for_name(U_dbus_connection,
-                                         "org.freedesktop.ConsoleKit",
-                                         g_ptr_array_index(array, i),
-                                         "org.freedesktop.ConsoleKit.Session");
-      if (!dbus_g_proxy_call (cproxy, "GetUser", &error, G_TYPE_INVALID,
-                              G_TYPE_UINT,
-                              &uid, G_TYPE_INVALID)) {
-          g_warning ("Error: %s\n", error->message);
-          goto error;
-      }
-      if (!dbus_g_proxy_call (cproxy, "GetX11Display", &error, G_TYPE_INVALID,
-                              G_TYPE_STRING,
-                              &display, G_TYPE_INVALID)) {
-          g_warning ("Error: %s\n", error->message);
-          goto error;
-      }
+    error = NULL;
+    cproxy = dbus_g_proxy_new_for_name(U_dbus_connection,
+                                       "org.freedesktop.ConsoleKit",
+                                       g_ptr_array_index(array, i),
+                                       "org.freedesktop.ConsoleKit.Session");
+    if (!dbus_g_proxy_call (cproxy, "GetUser", &error, G_TYPE_INVALID,
+                            G_TYPE_UINT,
+                            &uid, G_TYPE_INVALID)) {
+      g_warning ("Error: %s\n", error->message);
+      goto error;
+    }
+    if (!dbus_g_proxy_call (cproxy, "GetX11Display", &error, G_TYPE_INVALID,
+                            G_TYPE_STRING,
+                            &display, G_TYPE_INVALID)) {
+      g_warning ("Error: %s\n", error->message);
+      goto error;
+    }
 
-      if(strcmp(display, "")) {
-        if(!update) {
-            g_debug("found X11 display %s (uid: %d)", display, uid);
-            add_connection(uid, display);
-        } else {
-            cur = g_list_find_custom(server_list, display, match_display);
-            if(!cur)
-                add_connection(uid, display);
-        }
+    if(strcmp(display, "")) {
+      if(!update) {
+        g_debug("found X11 display %s (uid: %d)", display, uid);
+        add_connection(uid, display);
+      } else {
+        cur = g_list_find_custom(server_list, display, match_display);
+        if(!cur)
+          add_connection(uid, display);
       }
-      g_free(display);
-      g_object_unref (cproxy);
+    }
+    g_free(display);
+    g_object_unref (cproxy);
   }
   g_ptr_array_free(array, TRUE);
   g_object_unref (proxy);
@@ -508,100 +512,100 @@ error:
 
 
 pid_t read_pid(struct x_server *conn) {
-    xcb_generic_error_t *error;
+  xcb_generic_error_t *error;
 
-    //printf("conn: %p : %p\n", conn, conn->connection);
+  //printf("conn: %p : %p\n", conn, conn->connection);
 
-    xcb_get_property_cookie_t naw =
-      xcb_get_property (conn->connection,
-                        0,
-                        conn->screen->root,
-                        conn->atom_active,
-                        conn->window_atom,
-                        0,
-                        1);
-    xcb_get_property_reply_t *rep =
-      xcb_get_property_reply (conn->connection,
-                            naw,
-                            &error);
-
-    if(!rep || !xcb_get_property_value_length(rep))
-      return 0;
-
-    //printf("len: %d", xcb_get_property_value_length (rep));
-    uint32_t *win = xcb_get_property_value(rep);
-    //printf("win: %p\n", *win);
-
-    xcb_get_property_cookie_t caw =
-      xcb_get_property (conn->connection,
+  xcb_get_property_cookie_t naw =
+    xcb_get_property (conn->connection,
                       0,
-                      *win,
-                      conn->atom_pid,
-                      conn->cardinal_atom,
+                      conn->screen->root,
+                      conn->atom_active,
+                      conn->window_atom,
                       0,
                       1);
-    xcb_get_property_reply_t *rep2 =
-      xcb_get_property_reply (conn->connection,
-                          caw,
+  xcb_get_property_reply_t *rep =
+    xcb_get_property_reply (conn->connection,
+                          naw,
                           &error);
 
-    if(error && error->response_type == 0)
-      goto error;
+  if(!rep || !xcb_get_property_value_length(rep))
+    return 0;
 
-    if(!rep2 || !xcb_get_property_value_length(rep2))
-      return 0;
+  //printf("len: %d", xcb_get_property_value_length (rep));
+  uint32_t *win = xcb_get_property_value(rep);
+  //printf("win: %p\n", *win);
 
-    //printf("len: %d", xcb_get_property_value_length (rep2));
-    uint32_t *pid = xcb_get_property_value(rep2);
-    //printf("pid: %d\n", *pid);
-
-    xcb_get_property_cookie_t ccaw =
-      xcb_get_property (conn->connection,
+  xcb_get_property_cookie_t caw =
+    xcb_get_property (conn->connection,
                     0,
                     *win,
-                    conn->atom_client,
-                    conn->string_atom,
+                    conn->atom_pid,
+                    conn->cardinal_atom,
                     0,
-                    strlen(localhost));
-    xcb_get_property_reply_t *rep3 =
-      xcb_get_property_reply (conn->connection,
-                          ccaw,
-                          &error);
+                    1);
+  xcb_get_property_reply_t *rep2 =
+    xcb_get_property_reply (conn->connection,
+                        caw,
+                        &error);
 
-    if(error && error->response_type == 0)
-      goto error;
+  if(error && error->response_type == 0)
+    goto error;
 
-    if(!rep3 || !xcb_get_property_value_length(rep3))
-      return 0;
-
-    //printf("%d: %d \n", rep3->value_len, rep3->bytes_after);
-
-    char *client =  xcb_get_property_value(rep3);
-    //printf("client: %d %s\n", xcb_get_property_value_length(rep3), client);
-    if(client && !strcmp(client, localhost)) {
-      return *pid;
-    }
+  if(!rep2 || !xcb_get_property_value_length(rep2))
     return 0;
+
+  //printf("len: %d", xcb_get_property_value_length (rep2));
+  uint32_t *pid = xcb_get_property_value(rep2);
+  //printf("pid: %d\n", *pid);
+
+  xcb_get_property_cookie_t ccaw =
+    xcb_get_property (conn->connection,
+                  0,
+                  *win,
+                  conn->atom_client,
+                  conn->string_atom,
+                  0,
+                  strlen(localhost));
+  xcb_get_property_reply_t *rep3 =
+    xcb_get_property_reply (conn->connection,
+                        ccaw,
+                        &error);
+
+  if(error && error->response_type == 0)
+    goto error;
+
+  if(!rep3 || !xcb_get_property_value_length(rep3))
+    return 0;
+
+  //printf("%d: %d \n", rep3->value_len, rep3->bytes_after);
+
+  char *client =  xcb_get_property_value(rep3);
+  //printf("client: %d %s\n", xcb_get_property_value_length(rep3), client);
+  if(client && !strcmp(client, localhost)) {
+    return *pid;
+  }
+  return 0;
 error:
-    // error in connection. free x_server connection
-    printf("error: %d %d\n", error->response_type, error->error_code);
-    del_connection(conn);
+  // error in connection. free x_server connection
+  if(error->response_type == 0 && error->error_code == 3)
     return 1;
+  printf("error: %d %d\n", error->response_type, error->error_code);
+  del_connection(conn);
+  return 1;
 }
 
-
+#ifndef TEST_XWATCH
+static gboolean update_server_list(gpointer data) {
+  add_all_console_kit(TRUE);
+  return TRUE;
+}
 
 static gboolean update_all_server(gpointer data) {
-#ifndef TEST_XWATCH
-  static int run = 0;
   GList *cur;
   pid_t pid;
   int i;
 
-  if(run == 60) {
-    run = 0;
-    add_all_console_kit(TRUE);
-  }
   // we have to use for loop here, because read_pid removes connection
   // on hard errors
   for(i = 0; i < g_list_length(server_list); i++) {
@@ -613,16 +617,17 @@ static gboolean update_all_server(gpointer data) {
       set_active_pid(xs->uid, pid);
     }
   }
-  run++;
-#endif
   return TRUE;
 }
+#endif
 
 int xwatch_init() {
   localhost = get_localhost();
-  g_message("x server observation active");
 #ifndef TEST_XWATCH
-  g_timeout_add_seconds(1, update_all_server, NULL);
+  int interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", NULL) || DEFAULT_INTERVAL;
+  g_timeout_add(interval, update_all_server, NULL);
+  g_timeout_add_seconds(30, update_server_list, NULL);
+  g_message("x server observation active. poll interval: %d", interval);
 #endif
   add_all_console_kit(FALSE);
   return 0;

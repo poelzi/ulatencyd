@@ -371,6 +371,13 @@ int process_new_list(GArray *list, int noupdate) {
   free(pids);
 }
 
+int process_run_one(u_proc *proc, int update) {
+  if(update)
+    process_update_pid(proc->pid);
+  filter_for_proc(proc);
+  scheduler_run_one(proc);
+}
+
 
 void u_flag_free(void *ptr) {
   u_flag *flag = ptr;

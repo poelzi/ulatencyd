@@ -24,6 +24,7 @@ static gint cmp_pid(gconstpointer a, gconstpointer b) {
 
 struct user_active* get_userlist(guint uid, gboolean create) {
   struct user_active *ua;
+  GError *error = NULL;
 
   GList* gls = g_list_find_custom(active_users, &uid, cmp_user);
   if(gls)
@@ -31,7 +32,10 @@ struct user_active* get_userlist(guint uid, gboolean create) {
   if(create) {
     ua = g_malloc(sizeof(struct user_active));
     ua->uid = uid;
-    ua->max_processes = 5; // FIXME default_active_processes;
+    ua->max_processes = g_key_file_get_integer(config_data, "user", "default_active_list", &error);
+    if(error && error->code) {
+      ua->max_processes = 5;
+    }
     ua->last_change = time(NULL);
     ua->actives = NULL; //g_list_alloc();
     active_users = g_list_append(active_users, ua);
@@ -62,8 +66,10 @@ void set_active_pid(guint uid, guint pid)
     up->pid = pid;
     ua->actives = g_list_prepend(ua->actives, up);
     proc = proc_by_pid(pid);
-    if(proc)
+    if(proc) {
       proc->changed = 1;
+      process_run_one(proc, FALSE);
+    }
   } else {
     up = ups->data;
   }
@@ -75,8 +81,10 @@ void set_active_pid(guint uid, guint pid)
   while(g_list_length(ua->actives) > ua->max_processes) {
       up = g_list_last(ua->actives)->data;
       proc = proc_by_pid(up->pid);
-      if(proc)
+      if(proc) {
         proc->changed = 1;
+        process_run_one(proc, FALSE);
+      }
       ua->actives = g_list_remove(ua->actives, up);
   }
 

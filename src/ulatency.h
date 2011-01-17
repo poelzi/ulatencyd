@@ -273,6 +273,7 @@ int process_remove_by_pid(pid_t pid);
 // low level update api
 int process_update_pids(pid_t pids[]);
 int process_update_pid(pid_t pid);
+int process_run_one(u_proc *proc, int update);
 
 int process_update_all();
 
