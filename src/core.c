@@ -1,5 +1,5 @@
-#include "ulatency.h"
 #include "config.h"
+#include "ulatency.h"
 
 #include "proc/procps.h"
 #include "proc/sysinfo.h"
@@ -11,6 +11,11 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 
+#ifdef ENABLE_DBUS
+#include <dbus/dbus-glib.h>
+
+DBusGConnection *U_dbus_connection;
+#endif
 
 lua_State *lua_main_state;
 GList *filter_list;
@@ -192,6 +197,20 @@ int process_remove_by_pid(int pid) {
   return g_hash_table_remove(processes, GUINT_TO_POINTER(pid));
 }
 
+static void clear_process_changed() {
+  int i = 1;
+  GHashTableIter iter;
+  gpointer ikey, value;
+  u_proc *proc;
+
+  g_hash_table_iter_init (&iter, processes);
+  while (g_hash_table_iter_next (&iter, &ikey, &value)) 
+  {
+    proc = (u_proc *)value;
+    proc->changed = FALSE;
+  }
+  return;
+}
 
 int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
@@ -225,6 +244,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
     }
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
+
     if(full)
       proc->last_update = run;
     // we can simply steal the pointer of the current allocated buffer
@@ -235,6 +255,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
     u_flag_clear_timeout(proc, timeout);
     updated = g_list_append(updated, proc);
+
     rv++;
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
@@ -440,6 +461,7 @@ int NAME (u_proc *proc, ARG ) { \
       proc->flags = g_list_remove_link (proc->flags, item); \
       DEC_REF(item->data); \
       item->data = NULL; \
+      proc->changed = 1; \
       g_list_free(item); \
     } else { \
       system_flags = g_list_remove_link (system_flags, item); \
@@ -448,8 +470,6 @@ int NAME (u_proc *proc, ARG ) { \
       g_list_free(item); \
     } \
   } \
-  if(proc) \
-    proc->changed = 1; \
 } 
 
 CLEAR_BUILD(u_flag_clear_source, void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_source))
@@ -465,10 +485,10 @@ int u_flag_clear_all(u_proc *proc) {
       proc->flags = g_list_remove_link (proc->flags, item);
       DEC_REF(item->data);
       item->data = NULL;
+      proc->changed = 1;
       g_list_free(item);
     }
     g_list_free(proc->flags);
-    proc->changed = 1;
   } else {
     while((item = g_list_first(system_flags)) != NULL) {
       system_flags = g_list_remove_link(system_flags, item);
@@ -679,6 +699,7 @@ int iterate(gpointer rv) {
   g_timer_stop(timer);
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. complete run %d took %0.2F", (current - last), iteration, current);
+  clear_process_changed();
   return GPOINTER_TO_INT(rv);
 }
 
@@ -800,15 +821,22 @@ int load_modules(char *modules_directory) {
   free(dip);
 }
 
+#ifdef ENABLE_DBUS
+static int do_core_dbus_init() {
+
+}
+#endif 
+
 int core_init() {
-#ifdef DEVELOP_MODE
-  gchar *lua_core_file = "src/core.lua";
-#else
-  gchar *lua_core_file = QUOTEME(INSTALL_PREFIX) "/lib/ulatency/core.lua";
-#endif
   // load config
   iteration = 1;
   filter_list = NULL;
+
+#ifdef ENABLE_DBUS
+  do_core_dbus_init();
+#endif
+
+
   processes_tree = g_node_new(NULL);
   processes = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, 
                                     processes_free_value);
@@ -826,7 +854,7 @@ int core_init() {
   scheduler_set(&LUA_SCHEDULER);
 
   // FIXME path
-  if(load_lua_rule_file(lua_main_state, lua_core_file))
+  if(load_lua_rule_file(lua_main_state, "src/core.lua"))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
 }
 

@@ -17,7 +17,7 @@
 
 /* Written by jla; revised by djm */
 
-#include <config.h>
+#include "config.h"
 #include "xalloc.h"
 
 #include "readutmp.h"

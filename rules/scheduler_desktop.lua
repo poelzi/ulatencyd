@@ -54,19 +54,11 @@ SCHEDULER_MAPPING_DESKTOP = {
         name = "bg_high",
         param = { ["cpu.shares"]="1024" },
         label = { "user.bg_high" },
-        check = function(proc)
-                  print("classived, ui.bg_high", proc)
-                  return true
-                end,
       },
       { 
         name = "media",
         param = { ["cpu.shares"]="2048" },
         label = { "user.media" },
-        --check = function(proc)
-        --          print("classived, ui.media", proc)
-        --          return true
-        --        end,
       },
       { 
         name = "ui",
@@ -74,8 +66,15 @@ SCHEDULER_MAPPING_DESKTOP = {
         label = { "user.ui" }
       },
       { 
+        name = "active",
+        param = { ["cpu.shares"]="2048" },
+        check = function(proc)
+            return proc.is_active
+          end
+      },
+      { 
         name = "idle",
-        param = {  },
+        param = { ["cpu.shares"]="200" },
       },
       { 
         name = "session",

@@ -264,8 +264,9 @@ static int l_list_processes (lua_State *L) {
   {
     proc = (u_proc *)value;
     if(changed) {
-      if(!proc->changed)
+      if(!proc->changed) {
         continue;
+      }
     }
     lua_pushinteger(L, i);
     push_u_proc(L, proc);
@@ -809,6 +810,9 @@ static int u_proc_index (lua_State *L)
       return 1;
     }
     return 0;
+  } else if(!strcmp(key, "is_active" )) {
+    lua_pushboolean(L, is_active_pid(proc));
+    return 1;
   }
 
 

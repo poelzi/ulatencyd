@@ -7,11 +7,13 @@
 #include <glib.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef __USE_GNU
-#define __USE_GNU
-#endif
 #include <fcntl.h>
 
+#ifdef ENABLE_DBUS
+#include <dbus/dbus-glib.h>
+
+DBusGConnection *U_dbus_connection;
+#endif
 
 #include <glib.h>
 #include "proc/sysinfo.h"
@@ -53,6 +55,7 @@ static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpoint
     i = atoi(value);
   }
   verbose = verbose << i;
+  return TRUE;
 }
 
 static GOptionEntry entries[] =
@@ -203,6 +206,22 @@ gboolean            g_spawn_sync                        ("/",
 
 */
 
+#ifdef ENABLE_DBUS
+static int do_dbus_init() {
+  GError *error = NULL;
+  U_dbus_connection = dbus_g_bus_get (DBUS_BUS_SYSTEM,
+                               &error);
+  if (U_dbus_connection == NULL)
+    {
+      g_warning("Failed to open connection to bus: %s\n",
+                  error->message);
+      g_error_free (error);
+    }
+  
+}
+#endif
+
+
 int main (int argc, char *argv[])
 {
   GError *error = NULL;
@@ -210,6 +229,10 @@ int main (int argc, char *argv[])
   config_data = g_key_file_new();
 
   g_type_init ();
+
+#ifdef ENABLE_DBUS
+  do_dbus_init();
+#endif 
 
   context = g_option_context_new ("- latency optimizing daemon");
   g_option_context_add_main_entries (context, entries, /*GETTEXT_PACKAGE*/NULL);

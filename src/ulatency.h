@@ -1,4 +1,5 @@
-#ifndef __ulatency__
+#ifndef __ulatency_h__
+#define __ulatency_h__
 #include <glib.h>
 #include <lua.h>
 #include <lualib.h>
@@ -6,6 +7,10 @@
 #include <time.h>
 #include "proc/procps.h"
 #include "proc/readproc.h"
+
+#ifdef ENABLE_DBUS
+#include <dbus/dbus-glib.h>
+#endif
 //#include <libcgroup.h>
 
 
@@ -222,6 +227,11 @@ extern GHashTable* processes;
 extern GNode* processes_tree;
 extern lua_State *lua_main_state;
 extern GList* system_flags;
+#ifdef ENABLE_DBUS
+extern DBusGConnection *U_dbus_connection;
+#endif
+
+
 //extern gchar *load_pattern;
 
 // core.c
@@ -294,6 +304,6 @@ int adj_oom_killer(pid_t pid, int adj);
 // group.c
 void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
-
+int is_active_pid(u_proc *proc);
 
 #endif

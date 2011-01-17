@@ -9,6 +9,7 @@ option(CONFIG_PREFIX "config prefix" "/etc")
 option(DEVELOP_MODE "build for development" TRUE)
 option(LIBCGROUPS "add libcgroups support" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
+option(ENABLE_DBUS "enable dbus" TRUE)
 
 SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
@@ -18,9 +19,15 @@ if(LIBCGROUPS)
 endif(LIBCGROUPS)
 
 pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
-#pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)
 
-pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
+#pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)
+if(ENABLE_DBUS)
+  pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
+  if(DBUS_FOUND)
+    set(ENABLE_DBUS 1)
+  endif(DBUS_FOUND)
+endif(ENABLE_DBUS)
+
 pkg_check_modules(GIO gio-2.0 REQUIRED)
 
 
@@ -84,7 +91,7 @@ configure_file(config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 
 include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LIBCGROUP_INCLUDE_DIRS} 
-                     ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS}
+                     ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
                      ${GIO_INCLUDE_DIRS})
 
 IF(LUA_JIT AND LUAJIT_FOUND)
@@ -96,7 +103,10 @@ ELSE(LUA_JIT AND LUAJIT_FOUND)
 ENDIF(LUA_JIT AND LUAJIT_FOUND)
 
 
-set(CMAKE_CXX_FLAGS "-g -Wall")
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+  set(ADD_COMPILE_FLAGS "-g -pg -Wall")
+endif(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+
 add_subdirectory(src/bc)
 add_subdirectory(src/proc)
 add_subdirectory(src)
@@ -104,7 +114,11 @@ add_subdirectory(modules)
 add_subdirectory(tests)
 
 
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall")
+#SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pg -Wall")
+
+#SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS  "-Wall")
+SET_PROPERTY(GLOBAL APPEND PROPERTY CMAKE_C_FLAGS "-Wall -uiaeiaue")
 
 
 # FIXME make distclean recrusive
