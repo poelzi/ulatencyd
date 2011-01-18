@@ -176,6 +176,15 @@ MNT_PNTS = {
   io="blkio"
 }
 
+-- disable the autogrouping
+local fp = io.open("/proc/sys/kernel/sched_autogroup_enabled", "w")
+if fp then
+  ulatency.log_info("disable sched_autogroup in linux kernel")
+  fp:write("0")
+  fp:close()
+end
+
+
 for n,v in pairs(MNT_PNTS) do
   local path = ROOT_PATH..n
   mkdirp(path)
