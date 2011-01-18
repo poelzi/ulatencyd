@@ -1,5 +1,9 @@
 Welcome to the ulatencyd wiki!
 
+# Package Repositories
+* [Ubuntu](https://launchpad.net/~poelzi/+archive/ulatencyd-stable)
+
+
 # For Admins
 * Adjusting Scheduler and Rules
 
