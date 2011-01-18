@@ -1,9 +1,0 @@
-# Automatically added by dh_installinit
-if [ -e "/etc/init/ulatencyd.conf" ]; then
-	# start fails if already running
-	start ulatencyd || :
-fi
-# End automatically added section
-# Automatically added by dh_installinit
-update-rc.d -f ulatencyd remove >/dev/null || exit $?
-# End automatically added section
