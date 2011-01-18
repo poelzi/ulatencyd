@@ -43,19 +43,21 @@ DBusGConnection *U_dbus_connection;
 #include <sys/mman.h>
 #include <error.h>
 
-#ifdef DEVELOP_MODE
+//#ifdef DEVELOP_MODE
 static gchar *config_file = "ulatencyd.conf";
 static gchar *rules_directory = "rules";
 static gchar *modules_directory = "modules";
-#else
+/*#else
 // FIXME need usage of PREFIX
 static gchar *config_file = QUOTEME(CONFIG_PREFIX) "/ulatencyd/ulatencyd.conf";
 static gchar *rules_directory = QUOTEME(CONFIG_PREFIX) "/ulatencyd/rules";
 static gchar *modules_directory = QUOTEME(INSTALL_PREFIX) "/lib/ulatencyd/modules";
 #endif
+*/
 static gchar *load_pattern = NULL;
 static gint verbose = 1<<4;
 static char *mount_point;
+
 GKeyFile *config_data;
 
 /*
@@ -96,24 +98,12 @@ int filter_interval;
 GMainContext *main_context;
 GMainLoop *main_loop;
 
-int filter_cleanup(gpointer data) {
-  // cleanup the filter lists
-  // we have to remove all skip_filter entries of processes that do not exist
-  // anymore
-  GSequence *pids;
-
-  pids = g_sequence_new(NULL);
-
-
-  g_sequence_free(pids);
-
-}
-
 int timeout_long(gpointer data) {
 
   // try the make current memory non swapalbe
   if(mlockall(MCL_CURRENT))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
+  return TRUE;
 }
 
 
@@ -235,8 +225,9 @@ static int do_dbus_init() {
       g_warning("Failed to open connection to bus: %s\n",
                   error->message);
       g_error_free (error);
+      return FALSE;
     }
-  
+  return TRUE;
 }
 #endif
 
@@ -314,4 +305,5 @@ int main (int argc, char *argv[])
 
   if(g_main_loop_is_running(main_loop));
     g_main_loop_run(main_loop);
+  return 0;
 }

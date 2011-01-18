@@ -177,9 +177,6 @@ function Scheduler:all()
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end
-  for k, v in pairs(CGroup.get_groups()) do
-    v:commit()
-  end
   C_FILTER = true
   return true
 end

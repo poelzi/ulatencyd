@@ -34,6 +34,7 @@ access it in case of nfs for example.
 
 #include "config.h"
 #include "ulatency.h"
+#include <dbus/dbus-glib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <err.h>
@@ -242,8 +243,7 @@ xcb_auth_info_t *read_xauth(int uid, char *hostname, int display)
   
   if((childpid = fork()) == -1)
   {
-    perror("fork");
-    exit(1);
+    return NULL;
   }
 
   if(childpid == 0)

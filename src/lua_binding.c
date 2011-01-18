@@ -17,6 +17,7 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#include "config.h"
 #include "ulatency.h"
 #include <lua.h>
 #include <lualib.h>
@@ -1566,11 +1567,15 @@ static const luaL_reg R[] = {
 
 
 #undef PUSH_INT
+#undef PUSH_STR
 
 #define PUSH_INT(NAME, SYMBOLE)\
 	lua_pushinteger(L, SYMBOLE); \
 	lua_setfield(L, -2, #NAME);
 
+#define PUSH_STR(NAME, SYMBOLE)\
+	lua_pushstring(L, SYMBOLE); \
+	lua_setfield(L, -2, #NAME);
 
 int luaopen_ulatency(lua_State *L) {
 
@@ -1590,7 +1595,8 @@ int luaopen_ulatency(lua_State *L) {
 	lua_setfield(L, -2, "meta_ulatency");
 
 	/* module version */
-  PUSH_INT(version, VERSION)
+  PUSH_STR(version, QUOTEME(VERSION))
+  PUSH_STR(release_agent, QUOTEME(RELEASE_AGENT))
 
   //PUSH_INT(hertz, Hertz)
   PUSH_INT(smp_num_cpus, smp_num_cpus)

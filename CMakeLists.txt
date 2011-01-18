@@ -54,10 +54,6 @@ SET(CONFIG_PREFIX "/etc" CACHE STRING
 set(LIBPROC_INCLUDE_DIRS src)
 #set(LIBPROC_LIBRARY src/proc/libproc.a)
 
-IF(DEVELOP_MODE)
-  add_definitions(-DDEVELOP_MODE)
-ENDIF(DEVELOP_MODE)
-
 IF(LUA_JIT)
   pkg_check_modules(LUAJIT luajit)
 ENDIF(LUA_JIT)

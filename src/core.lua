@@ -177,19 +177,27 @@ MNT_PNTS = {
 }
 
 for n,v in pairs(MNT_PNTS) do
-  mkdirp(ROOT_PATH..n)
-  prog = "/bin/mount -t cgroup -o "..v.." none "..ROOT_PATH..n.."/"
+  local path = ROOT_PATH..n
+  mkdirp(path)
+  prog = "/bin/mount -t cgroup -o "..v.." none "..path.."/"
   ulatency.log_info("mount cgroups: "..prog)
   fd = io.popen(prog, "r")
   print(fd:read("*a"))
+  fp = io.open(path.."/release_agent", "w")
+  if fp then
+    fp:write(ulatency.release_agent)
+    fp:close()
+  end
 end
 
 -- FIXME we need some better solution for that :-/
 -- cpuset, very powerfull, but can't create a group with unset cpus or mems
 CGROUP_DEFAULT = {
   cm={["cpuset.cpus"] = "0-"..tostring(ulatency.smp_num_cpus-1),
-      ["cpuset.mems"] = "0"
+      ["cpuset.mems"] = "0",
+      ["notify_on_release"] = "1",
     },
+  io={["notify_on_release"] = "1",},
 }
 
 
@@ -197,6 +205,31 @@ CGROUP_DEFAULT = {
 
 CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
 
+local function cgroups_cleanup()
+  local to_remove = {}
+  for n, c in pairs(_CGroup_Cache) do
+    if c:can_be_removed() then
+      to_remove[#to_remove + 1] = n
+    end
+  end
+  for i,group in ipairs(to_remove) do
+    local needed = false
+    for i, test in ipairs(to_remove) do
+      if string.sub(test, 1, #group) == group then
+        needed = true
+        break
+      end
+    end
+    if not needed then
+      _CGroup_Cache[group]:remove()
+      _CGroup_Cache[group] = nil
+    end
+  end
+
+  return true
+end
+
+ulatency.add_timeout(cgroups_cleanup, 120000)
 
 function CGroup.new(name, init, tree)
   rv = _CGroup_Cache[name]
@@ -210,7 +243,8 @@ function CGroup.new(name, init, tree)
     cinit = {}
   end
   uncommited=table.merge(cinit, init or {})
-  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={}, tree=tree, adjust={}}, CGroupMeta)
+  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={},
+                      tree=tree, adjust={}, used=false}, CGroupMeta)
   _CGroup_Cache[name] = rv
   return rv
 end
@@ -275,6 +309,20 @@ function CGroup:get_tasks()
   return rv
 end
 
+function CGroup:has_tasks()
+  local rv = false
+  local t_file = self:path("tasks")
+  if posix.access(t_file, posix.R_OK) ~= 0 then
+    return false
+  end
+  for line in io.lines(t_file) do
+      rv = true
+      break
+  end
+  return rv
+end
+
+
 function CGroup:run_adjust(proc)
   adjust = rawget(self, "adjust")
   for i,v in ipairs(adjust) do
@@ -318,6 +366,29 @@ function CGroup:is_dirty()
   end
   return false
 end
+
+function CGroup:exists()
+  if posix.access(self:path()) == 0 then
+    return true
+  end
+  if #rawget(self, "uncommited") > 0 or
+     #rawget(self, "new_tasks") > 0 then
+     return true
+  end
+  return false
+end
+
+function CGroup:can_be_removed()
+  if self:has_tasks() or #rawget(self, "new_tasks") > 0 then
+    return false
+  end
+  return true
+end
+
+function CGroup:remove()
+  posix.rmdir(self:path())
+end
+
 
 function CGroup:commit()
   mkdirp(self:path())

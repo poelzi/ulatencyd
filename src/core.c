@@ -868,7 +868,7 @@ int load_modules(char *modules_directory) {
     free(module_name);
   }
   g_free(disabled);
-  free(dip);
+  closedir(dip);
   return 1;
 }
 
@@ -877,6 +877,9 @@ static int do_core_dbus_init() {
   return 0;
 }
 #endif 
+
+int luaopen_ulatency(lua_State *L);
+int luaopen_bc(lua_State *L);
 
 int core_init() {
   // load config
