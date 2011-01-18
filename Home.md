@@ -1,6 +1,6 @@
 Welcome to the ulatencyd wiki!
 
-* [FAQ (before you ask)](Faq)
+* [FAQ (before you ask)](wiki/Faq)
 
 # Package Repositories
 * [Ubuntu](https://launchpad.net/~poelzi/+archive/ulatencyd-stable)
@@ -15,4 +15,4 @@ Welcome to the ulatencyd wiki!
 * [Ideas to test](Ideas-to-test)
 
 # Specifications
-* [Generic DBUS interface](specs/dbus)
+* [Generic DBUS interface](wiki/specs/dbus)
