@@ -885,11 +885,7 @@ int core_init() {
   // load config
   iteration = 1;
   filter_list = NULL;
-#ifdef DEVELOP_MODE
-  gchar *lua_core_file = "src/core.lua";
-#else
-  gchar *lua_core_file = QUOTEME(INSTALL_PREFIX) "/lib/ulatencyd/core.lua";
-#endif
+
 
 #ifdef ENABLE_DBUS
   do_core_dbus_init();
@@ -912,7 +908,7 @@ int core_init() {
   // FIXME make it configurable
   scheduler_set(&LUA_SCHEDULER);
 
-  if(load_lua_rule_file(lua_main_state, lua_core_file))
+  if(load_lua_rule_file(lua_main_state, QUOTEME(LUA_CORE_FILE)))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
 
   return 1;

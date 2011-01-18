@@ -43,17 +43,9 @@ DBusGConnection *U_dbus_connection;
 #include <sys/mman.h>
 #include <error.h>
 
-//#ifdef DEVELOP_MODE
-static gchar *config_file = "ulatencyd.conf";
-static gchar *rules_directory = "rules";
-static gchar *modules_directory = "modules";
-/*#else
-// FIXME need usage of PREFIX
-static gchar *config_file = QUOTEME(CONFIG_PREFIX) "/ulatencyd/ulatencyd.conf";
-static gchar *rules_directory = QUOTEME(CONFIG_PREFIX) "/ulatencyd/rules";
-static gchar *modules_directory = QUOTEME(INSTALL_PREFIX) "/lib/ulatencyd/modules";
-#endif
-*/
+static gchar *config_file = QUOTEME(CONFIG_FILE);
+static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);
+static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
 static gint verbose = 1<<4;
 static char *mount_point;
