@@ -14,7 +14,7 @@ Package: ulatencyd
 Section: admin
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, liblua5.1-0, libglib2.0-0, 
-         lua5.1, libdbus-glib-1-2, libxcb1, libxau6
+         lua5.1, libdbus-glib-1-2, libxcb1, libxau6, liblua5.1-posix1
 Description: dynamic system optimizer for linux
  ulatencyd optimizes the linux scheduler with modern techniques like cgroups
  to result in a better user experience. Lower latency and protection against
