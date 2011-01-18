@@ -446,13 +446,14 @@ function CGroup:add_children(proc, fnc)
   add_childs(proc.children)
 end
 
-
 function CGroup.create_isolation_group(proc, children)
   ng = CGroup.new("iso_"..tostring(pid))
   ng.commit()
   ng.add_task(proc.pid)
   proc:set_block_scheduler(1)
-
+  if children then
+    ng:add_children(proc, true)
+  end
 end
 
 function CGroup:starve(what)
