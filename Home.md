@@ -1,5 +1,7 @@
 Welcome to the ulatencyd wiki!
 
+* [FAQ (before you ask)](Faq)
+
 # Package Repositories
 * [Ubuntu](https://launchpad.net/~poelzi/+archive/ulatencyd-stable)
 
