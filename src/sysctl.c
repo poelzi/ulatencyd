@@ -16,9 +16,8 @@
     You should have received a copy of the GNU General Public License 
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
-
-#include "ulatency.h"
 #include "config.h"
+#include "ulatency.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

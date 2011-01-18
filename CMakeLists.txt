@@ -3,6 +3,8 @@ project(ulatency C)
 
 INCLUDE(FindPkgConfig)
 INCLUDE(FindGettext)
+INCLUDE (CheckIncludeFiles)
+
 
 option(CONFIG_PREFIX "config prefix" "/etc")
 
@@ -77,7 +79,7 @@ ENDIF(NOT LUAJIT_FOUND)
 
 #FIXME check this
 
-
+CHECK_INCLUDE_FILES (locale.h HAVE_LOCALE_H)
 
 if(GETTEXT_FOUND)
   set(ENABLE_NLS 1)
