@@ -14,8 +14,9 @@
 #include "bconfig.h"
 #include "number.h"
 
-#include "lua.h"
-#include "lauxlib.h"
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
 
 #define lua_boxpointer(L,u) \
 	(*(void **)(lua_newuserdata(L, sizeof(void *))) = (u))
