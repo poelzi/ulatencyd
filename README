@@ -36,7 +36,7 @@ Build Requirements:
   libglib2.0-dev
   libdbus-glib-1-dev
   liblua5.1-0-dev | libluajit-5.1-dev
-  liblua5.1-posix1
+  liblua5.1-posix1 (sometimes called luaposix)
 
 Compiling:
 
@@ -52,7 +52,7 @@ Install:
 
 Running:
 
- # sudo /usr/local/sbin/ulatencyd -v 3
+ # sudo /usr/local/sbin/ulatencyd -v 2
 
 
 == Architecture ==

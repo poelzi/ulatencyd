@@ -9,7 +9,7 @@ INCLUDE (CheckIncludeFiles)
 option(CONFIG_PREFIX "config prefix" "/etc")
 
 option(DEVELOP_MODE "build for development" FALSE)
-option(LIBCGROUPS "add libcgroups support" FALSE)
+option(LIBCGROUPS "add libcgroups support (BROKEN)" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
 option(ENABLE_DBUS "enable dbus" TRUE)
 
