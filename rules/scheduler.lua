@@ -164,6 +164,7 @@ end
 Scheduler = {}
 
 local C_FILTER = false
+local ITERATION = 1
 function Scheduler:all()
   local group
   C_FILTER = not ulatency.get_flags_changed()
@@ -172,12 +173,17 @@ function Scheduler:all()
       C_FILTER = false
     end
   end
+  if ITERATION > (tonumber(ulatency.get_config("scheduler", "mapping")) or 15) then
+    C_FILTER = false
+    ITERATION = 1
+  end
   -- list only changed processes
   for k,proc in ipairs(ulatency.list_processes(C_FILTER)) do
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end
   C_FILTER = true
+  ITERATION = ITERATION + 1
   return true
 end
 

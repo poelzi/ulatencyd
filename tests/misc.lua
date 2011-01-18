@@ -49,6 +49,23 @@ function test_sysflags()
   assert_len(0, ulatency.list_flags(), "len of system flags not right")
 end
 
+function test_find_flags()
+  flag = ulatency.new_flag{name="hello"}
+  flag2 = ulatency.new_flag{name="hello2"}
+  flag3 = ulatency.new_flag{name="bla", value=3}
+  flag4 = ulatency.new_flag{name="bla", threshold=4}
+
+  all = {flag4, flag3, flag2, flag}
+  assert_equal(nil, ulatency.find_flag(all, {name = "user.poison.session"}), "user.poision not in list")
+  assert_equal(flag, ulatency.find_flag(all, {name = "hello"}), "hello in list")
+  assert_equal(flag2, ulatency.find_flag(all, {name = "hello2"}), "hello in list")
+  assert_equal(nil, ulatency.find_flag(all, {name = "hello2", value = 32}), "hello2 value not in list")
+  assert_equal(flag3, ulatency.find_flag(all, {name = "bla", value = 3}), "bla value in list")
+  assert_equal(nil, ulatency.find_flag(all, {name = "bla", value = 4}), "bla value 4 not in list")
+  assert_equal(flag4, ulatency.find_flag(all, {name = "bla", threshold = 4}), "bla value 4 in list")
+
+end
+
 function test_done()
   return test_active_done
 end

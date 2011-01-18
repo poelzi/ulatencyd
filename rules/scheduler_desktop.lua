@@ -49,7 +49,9 @@ SCHEDULER_MAPPING_DESKTOP = {
         param = { ["cpu.shares"]="600" },
         cgroups_name = "ps_${session}",
         check = function(proc)
-                  return ulatency.find_flag(ulatency.list_flags(), {value = proc.session})
+                  local rv = ulatency.find_flag(ulatency.list_flags(), {name = "user.poison.session",
+                                                                    value = proc.session})
+                  return rv ~= nil
                 end,
         adjust_new = function(cgroup, proc)
                   local flag = ulatency.find_flag(ulatency.list_flags(), {value = proc.session})
@@ -87,7 +89,7 @@ SCHEDULER_MAPPING_DESKTOP = {
       { 
         name = "session",
         param = { ["cpu.shares"]="600" },
-        cgroups_name = "${session}",
+        cgroups_name = "g_${session}",
         check = function(proc)
                   return true
                 end,
