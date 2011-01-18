@@ -12,7 +12,7 @@ Welcome to the ulatencyd wiki!
 # Developers Corner
 * Writing Rules
 * Writing Modules
-* [Ideas to test](Ideas-to-test)
+* [Ideas to test](wiki/Ideas-to-test)
 
 # Specifications
 * [Generic DBUS interface](wiki/specs/dbus)
