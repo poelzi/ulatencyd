@@ -1,8 +1,8 @@
 Source: ulatencyd
-Section: unknown
+Section: admin
 Priority: extra
 Maintainer: Daniel Poelzleithner <poelzi@poelzi.org>
-Build-Depends: debhelper (>= 7.0.50~), cmake, build-essential, libc6-dev, 
+Build-Depends: debhelper (>= 7.0.50~), cmake, 
                libdbus-1-dev, liblua5.1-0-dev, libdbus-glib-1-dev,
                libxcb1-dev, libxau-dev
 Standards-Version: 3.8.4
@@ -11,8 +11,9 @@ Homepage: https://github.com/poelzi/ulatencyd/
 #Vcs-Browser: http://git.debian.org/?p=collab-maint/ulatencyd.git;a=summary
 
 Package: ulatencyd
+Section: admin
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libc6, liblua5.1-0, libglib2.0-0, 
+Depends: ${shlibs:Depends}, ${misc:Depends}, liblua5.1-0, libglib2.0-0, 
          lua5.1, libdbus-glib-1-2, libxcb1, libxau6
 Description: dynamic system optimizer for linux
  ulatencyd optimizes the linux scheduler with modern techniques like cgroups

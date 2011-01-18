@@ -1,3 +1,5 @@
-CMakeLists.txt
 README
 TODO
+docs/RULES_HOWTO.txt
+docs/architecture.dia
+docs/architecture.svg
