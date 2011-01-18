@@ -1,0 +1,27 @@
+Source: ulatencyd
+Section: unknown
+Priority: extra
+Maintainer: Daniel Poelzleithner <poelzi@poelzi.org>
+Build-Depends: debhelper (>= 7.0.50~), cmake, build-essential, libc6-dev, 
+               libdbus-1-dev, liblua5.1-0-dev, libdbus-glib-1-dev,
+               libxcb1-dev, libxau-dev
+Standards-Version: 3.8.4
+Homepage: https://github.com/poelzi/ulatencyd/
+#Vcs-Git: git://git.debian.org/collab-maint/ulatencyd.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/ulatencyd.git;a=summary
+
+Package: ulatencyd
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libc6, liblua5.1-0, libglib2.0-0, 
+         lua5.1, libdbus-glib-1-2, libxcb1, libxau6
+Description: dynamic system optimizer for linux
+ ulatencyd optimizes the linux scheduler with modern techniques like cgroups
+ to result in a better user experience. Lower latency and protection against
+ common cases of memory shortage, also known as swap of death are one of the
+ primary focuses.
+ The rules and scheduler is written in lua for easly adjustment but can also 
+ be enhanced with binary modules.
+ .
+ Modules include:
+  - xwatch : observes the local X-Server and markes the window in focus in focus
+             as active.

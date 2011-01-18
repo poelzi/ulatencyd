@@ -1,0 +1,2 @@
+misc:Depends=upstart-job
+shlibs:Depends=libc6 (>= 2.7), libdbus-1-3 (>= 1.0.2), libdbus-glib-1-2 (>= 0.78), libglib2.0-0 (>= 2.22.0), liblua5.1-0, libxcb1
