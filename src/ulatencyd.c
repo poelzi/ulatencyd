@@ -28,6 +28,11 @@
 #include <string.h>
 #include <fcntl.h>
 
+#ifndef O_NOFOLLOW
+// not important here to have NOFOLLOW. very unlikly attack
+#define O_NOFOLLOW 0
+#endif
+
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
 
