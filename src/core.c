@@ -911,6 +911,7 @@ int core_init() {
   if(load_lua_rule_file(lua_main_state, QUOTEME(LUA_CORE_FILE)))
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
 
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "core initialized");
   return 1;
 }
 

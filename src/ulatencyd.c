@@ -47,7 +47,7 @@ static gchar *config_file = QUOTEME(CONFIG_FILE);
 static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);
 static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
-static gint verbose = 1<<4;
+static gint verbose = 1<<5;
 static char *mount_point;
 
 GKeyFile *config_data;
@@ -71,16 +71,22 @@ static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpoint
   return TRUE;
 }
 
+static gboolean opt_quiet(const gchar *option_name, const gchar *value, gpointer data, GError **error) {
+  int i = 1;
+  if(value) {
+    i = atoi(value);
+  }
+  verbose = verbose >> i;
+  return TRUE;
+}
+
 static GOptionEntry entries[] =
 {
   { "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_file, "Use config file", NULL},
   { "rules-directory", 'r', 0, G_OPTION_ARG_FILENAME, &rules_directory, "Path with ", NULL},
   { "rule-pattern", 0, 0, G_OPTION_ARG_STRING, &load_pattern, "Load only rules matching the pattern", NULL},
   { "verbose", 'v', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
-
-//  { "max-size", 'm', 0, G_OPTION_ARG_INT, &max_size, "Test up to 2^M items", "M" },
-//  { "beep", 'b', 0, G_OPTION_ARG_NONE, &beep, "Beep when done", NULL },
-//  { "rand", 0, 0, G_OPTION_ARG_NONE, &rand, "Randomize the data", NULL },
+  { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
   { NULL }
 };
 
@@ -295,6 +301,7 @@ int main (int argc, char *argv[])
 
   g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
 
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "ulatencyd started successfull");
   if(g_main_loop_is_running(main_loop));
     g_main_loop_run(main_loop);
   return 0;
