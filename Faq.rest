@@ -1,0 +1,30 @@
+.. sectnum::
+
+.. contents:: Table of Contents
+   :depth: 2
+
+
+Does ulatencyd support my cgroups mount points
+----------------------------------------------
+
+   The problem with the custom mountpoints is, that not each subsystem supports 
+   hierarchies. For example, the blkio subsystem only allows flag groups, 
+   while the cpu and memory do. As cpu and memory are the most important 
+   systems and using different mount points would be possible but not that 
+   useful, ulatenyd uses a default schema:
+   
+     */dev/cgroup/[MOUNTPOINT]/*
+   
+   Where the current subsys are:
+   
+   +------------+--------------------+
+   | Mountpoint | Subsystems         | 
+   +============+====================+
+   |  cm        | cpu and memory     |
+   +------------+--------------------+
+   |  io        | block io           |
+   +------------+--------------------+ 
+   
+   Changing the layout is possible but requires adjustments to the
+   scheduler config in rules/scheduler_[MAPPING].lua and is not advised.
+   When you only want to change the mount point you can do that in ulatencyd.conf
