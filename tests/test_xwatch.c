@@ -17,6 +17,9 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#define G_LOG_DOMAIN "test_xwatch"
+
+
 #include "config.h"
 #include "ulatency.h"
 

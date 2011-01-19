@@ -54,6 +54,8 @@ static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
 static gint verbose = 1<<5;
 static char *mount_point;
+static char *log_file = NULL;
+int          log_fd = -1;
 
 GKeyFile *config_data;
 
@@ -92,6 +94,7 @@ static GOptionEntry entries[] =
   { "rule-pattern", 0, 0, G_OPTION_ARG_STRING, &load_pattern, "Load only rules matching the pattern", NULL},
   { "verbose", 'v', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
   { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
+  { "log-file", 'f', 0, G_OPTION_ARG_FILENAME, &log_file, "Log to file", NULL},
   { NULL }
 };
 
@@ -119,17 +122,6 @@ void cleanup() {
   core_unload();
 }
 
-static void
-cleanup_on_signal (int signal)
-{
-  // we have to make sure cgroup_unload_cgroups is called
-  printf("abort cleanup\n");
-#ifdef LIBCGROUP
-  cgroup_unload_cgroups();
-#endif
-  exit(1);
-}
-
 static void avoid_oom_killer(void)
 {
   int oomfd;
@@ -140,7 +132,163 @@ static void avoid_oom_killer(void)
     close(oomfd);
     return;
   }
-  // Old style kernel...perform another action here
+}
+
+#define FORMAT_UNSIGNED_BUFSIZE ((GLIB_SIZEOF_LONG * 3) + 3)
+#define	STRING_BUFFER_SIZE	(FORMAT_UNSIGNED_BUFSIZE + 32)
+
+#define CHAR_IS_SAFE(wc) (!((wc < 0x20 && wc != '\t' && wc != '\n' && wc != '\r') || \
+			    (wc == 0x7f) || \
+			    (wc >= 0x80 && wc < 0xa0)))
+
+static void
+escape_string (GString *string)
+{
+  const char *p = string->str;
+  gunichar wc;
+
+  while (p < string->str + string->len) {
+    gboolean safe;
+    wc = g_utf8_get_char_validated (p, -1);
+    if (wc == (gunichar)-1 || wc == (gunichar)-2) {
+      gchar *tmp;
+      guint pos;
+
+      pos = p - string->str;
+
+      /* Emit invalid UTF-8 as hex escapes 
+             */
+      tmp = g_strdup_printf ("\\x%02x", (guint)(guchar)*p);
+      g_string_erase (string, pos, 1);
+      g_string_insert (string, pos, tmp);
+
+      p = string->str + (pos + 4); /* Skip over escape sequence */
+
+      g_free (tmp);
+      continue;
+    }
+    if (wc == '\r')
+      safe = *(p + 1) == '\n';
+    else
+      safe = CHAR_IS_SAFE (wc);
+
+    if (!safe) {
+      gchar *tmp;
+      guint pos;
+
+      pos = p - string->str;
+
+      /* Largest char we escape is 0x0a, so we don't have to worry
+       * about 8-digit \Uxxxxyyyy
+       */
+      tmp = g_strdup_printf ("\\u%04x", wc); 
+      g_string_erase (string, pos, g_utf8_next_char (p) - p);
+      g_string_insert (string, pos, tmp);
+      g_free (tmp);
+
+      p = string->str + (pos + 6); /* Skip over escape sequence */
+
+    } else
+      p = g_utf8_next_char (p);
+  }
+}
+
+
+static void log_file_handler (const gchar    *log_domain,
+                              GLogLevelFlags  log_level,
+                              const gchar    *message,
+                              gpointer        unused_data)
+{
+  gboolean is_fatal = (log_level & G_LOG_FLAG_FATAL) != 0;
+  gchar level_prefix[STRING_BUFFER_SIZE], *string;
+  GString *gstring;
+
+  if (log_level & G_LOG_FLAG_RECURSION) {
+      return;
+  }
+
+  gstring = g_string_new (NULL);
+
+  if (log_domain) {
+    g_string_append (gstring, log_domain);
+    g_string_append_c (gstring, '-');
+  }
+
+  switch (log_level & G_LOG_LEVEL_MASK) {
+    case G_LOG_LEVEL_ERROR:
+      strcpy (level_prefix, "ERROR");
+      break;
+    case G_LOG_LEVEL_CRITICAL:
+      strcpy (level_prefix, "CRITICAL");
+      break;
+    case G_LOG_LEVEL_WARNING:
+      strcpy (level_prefix, "WARNING");
+      break;
+    case G_LOG_LEVEL_MESSAGE:
+      strcpy (level_prefix, "Message");
+      break;
+    case G_LOG_LEVEL_INFO:
+      strcpy (level_prefix, "INFO");
+      break;
+    case G_LOG_LEVEL_DEBUG:
+      strcpy (level_prefix, "DEBUG");
+      break;
+    case G_LOG_LEVEL_TRACE:
+      strcpy (level_prefix, "TRACE");
+      break;
+    default:
+      strcpy (level_prefix, "LOG-");
+  }
+
+  g_string_append (gstring, level_prefix);
+
+  g_string_append (gstring, ": ");
+
+  if (!message) {
+
+    g_string_append (gstring, "(NULL) message");
+
+  } else {
+
+    GString *msg;
+
+    msg = g_string_new (message);
+    escape_string (msg);
+
+    g_string_append (gstring, msg->str);	/* charset is UTF-8 already */
+
+    g_string_free (msg, TRUE);
+
+  }
+
+  if (is_fatal)
+    g_string_append (gstring, "\naborting...\n");
+  else
+    g_string_append (gstring, "\n");
+
+  string = g_string_free (gstring, FALSE);
+
+  write (log_fd, string, strlen (string));
+  g_free (string);
+}
+
+static void close_logfile() {
+  if(log_fd >= 0)
+    close(log_fd);
+  log_fd = -1;
+}
+
+static int open_logfile(char *file) {
+  if(file == NULL)
+    file = log_file;
+  if(file == NULL)
+    return FALSE;
+  if(log_fd)
+    close_logfile();
+  log_fd = open(file, O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  if(log_fd == -1)
+    g_warning("can't write to log file %s", file);
+  return TRUE;
 }
 
 
@@ -148,6 +296,9 @@ static void filter_log_handler(const gchar *log_domain, GLogLevelFlags log_level
                         const gchar *message, gpointer unused_data) {
 
   if(log_level <= verbose) {
+    if(log_fd != -1)
+      log_file_handler(log_domain, log_level, message, unused_data);
+    else
       g_log_default_handler(log_domain, log_level, message, unused_data);
   }
 }
@@ -179,11 +330,11 @@ int mount_cgroups() {
   gint    result;
   GError  *error = NULL;
   char    *sub = g_key_file_get_string(config_data, CONFIG_CORE, "cgroup_subsys", NULL);
-  
+
   if (!sub) {
     sub = DEFAULT_CGROUPS;
   }
-  
+
   argv[i=0] = "/bin/mount";
   argv[++i] = "-t";
   argv[++i] = "cgroup";
@@ -234,6 +385,31 @@ static int do_dbus_init() {
 }
 #endif
 
+static void
+signal_reload (int signal)
+{
+  g_warning("FIXME: reload config");
+}
+
+
+static void
+signal_cleanup (int signal)
+{
+  // we have to make sure cgroup_unload_cgroups is called
+  printf("abort cleanup\n");
+#ifdef LIBCGROUP
+  cgroup_unload_cgroups();
+#endif
+  exit(1);
+}
+
+static void
+signal_logrotate (int signal)
+{
+  close_logfile();
+  open_logfile(log_file);
+}
+
 
 int main (int argc, char *argv[])
 {
@@ -258,6 +434,9 @@ int main (int argc, char *argv[])
   load_config();
 
   g_log_set_default_handler(filter_log_handler, NULL);
+  if(log_file) {
+    open_logfile(log_file);
+  }
 
   main_context = g_main_context_default();
   main_loop = g_main_loop_new(main_context, FALSE);
@@ -281,12 +460,17 @@ int main (int argc, char *argv[])
 
   g_atexit(cleanup);
   
-  if (signal (SIGABRT, cleanup_on_signal) == SIG_IGN)
+  if (signal (SIGABRT, signal_cleanup) == SIG_IGN)
     signal (SIGABRT, SIG_IGN);
-  if (signal (SIGINT, cleanup_on_signal) == SIG_IGN)
+  if (signal (SIGINT, signal_cleanup) == SIG_IGN)
     signal (SIGINT, SIG_IGN);
-  if (signal (SIGTERM, cleanup_on_signal) == SIG_IGN)
+  if (signal (SIGTERM, signal_cleanup) == SIG_IGN)
     signal (SIGTERM, SIG_IGN);
+  if (signal (SIGUSR1, signal_reload) == SIG_IGN)
+    signal (SIGUSR1, SIG_IGN);
+  if (signal (SIGUSR2, signal_logrotate) == SIG_IGN)
+    signal (SIGUSR2, SIG_IGN);
+
 
 
   

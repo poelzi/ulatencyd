@@ -32,6 +32,10 @@ access it in case of nfs for example.
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#ifndef G_LOG_DOMAIN
+#define G_LOG_DOMAIN "xwatch"
+#endif
+
 #include "config.h"
 #include "ulatency.h"
 #include <dbus/dbus-glib.h>
