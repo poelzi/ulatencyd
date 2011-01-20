@@ -5,6 +5,8 @@ FAQ
 
 .. contents:: Table of Contents
    :depth: 2
+   :backlinks: entry
+
 
 
 How can I see if it's working ?
@@ -28,6 +30,40 @@ How can I see if it's working ?
 
    As you can see in the last row, these are the groups the process was placed in.
    To test if the X11 plugin (xwatch) is working, then there should be processes in the active group.
+
+What causes conflicts ?
+-----------------------
+
+   You will not be able to run a different cgroups agent in parallel.
+
+     * cgrulesengd (from libcgroup/cgroup-bin)
+
+Does it work with systemd
+-------------------------
+
+   Please someone test.
+   There are some implications:
+    * if systemd relays of a process does not leave a cgroup, the default scheduler config will not work.
+      This could be done by adjusting scheduler_desktop.lua in the rules directory.
+
+What kernel options are required ?
+----------------------------------
+
+   At least those are very useful:
+   
+   ::
+
+     CONFIG_CGROUPS=y
+     CONFIG_CGROUP_FREEZER=y
+     CONFIG_CGROUP_DEVICE=y
+     CONFIG_CGROUP_MEM_RES_CTLR=y
+     CONFIG_CGROUP_MEM_RES_CTLR_SWAP=y
+     CONFIG_CGROUP_MEM_RES_CTLR_SWAP_ENABLED=y
+     CONFIG_CGROUP_SCHED=y
+     CONFIG_FAIR_GROUP_SCHED=y
+     CONFIG_RT_GROUP_SCHED=y
+     CONFIG_BLK_CGROUP=y
+     CONFIG_CFQ_GROUP_IOSCHED=y
 
 Does ulatencyd support my cgroups mount points
 ----------------------------------------------
