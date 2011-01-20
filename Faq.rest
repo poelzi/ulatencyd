@@ -28,7 +28,7 @@ How can I see if it's working ?
       8133  8133  \_ /usr/bin/fish            \_  3:memory,cpu,cpuset:/u_1000/g_8133?2:blkio:/ps_8133 
       9843  9843  \_ /usr/bin/fish            \_  3:memory,cpu,cpuset:/u_1000/g_9843?2:blkio:/ps_9843 
 
-   As you can see in the last row, these are the groups the process was placed in.
+   As you can see in the last column, these are the groups the process was placed in.
    To test if the X11 plugin (xwatch) is working, then there should be processes in the active group.
 
 What causes conflicts ?
