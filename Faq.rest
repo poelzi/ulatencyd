@@ -7,6 +7,28 @@ FAQ
    :depth: 2
 
 
+How can I see if it's working ?
+-------------------------------
+
+   On the Terminal type:
+
+   ::
+
+      ps xaf -eo pid,session,args,cgroup
+
+   
+   You should get an output like this:
+
+   ::
+
+      8127  2824 /usr/bin/python /usr/lib/ub  3:memory,cpu,cpuset:/u_1000/g_2824?2:blkio:/ps_2824 
+      8131  3171 /usr/bin/konsole             3:memory,cpu,cpuset:/u_1000/active?2:blkio:/active 
+      8133  8133  \_ /usr/bin/fish            \_  3:memory,cpu,cpuset:/u_1000/g_8133?2:blkio:/ps_8133 
+      9843  9843  \_ /usr/bin/fish            \_  3:memory,cpu,cpuset:/u_1000/g_9843?2:blkio:/ps_9843 
+
+   As you can see in the last row, these are the groups the process was placed in.
+   To test if the X11 plugin (xwatch) is working, then there should be processes in the active group.
+
 Does ulatencyd support my cgroups mount points
 ----------------------------------------------
 
