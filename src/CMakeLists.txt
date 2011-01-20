@@ -29,7 +29,7 @@ install(TARGETS ulatencyd
         RUNTIME DESTINATION sbin)
 install(FILES core.lua
         DESTINATION lib/ulatencyd)
-install(FILES ulatencyd_cleanup.lua
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ulatencyd_cleanup.lua
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
         DESTINATION lib/ulatencyd)
