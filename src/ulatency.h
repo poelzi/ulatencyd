@@ -146,6 +146,9 @@ typedef struct _u_proc {
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
   int           lua_data;
+  // fake pgid because it can't be changed.
+  pid_t         fake_pgrp;
+  pid_t         fake_pgrp_old;
 } u_proc;
 
 typedef struct _filter {

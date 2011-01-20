@@ -32,11 +32,13 @@
 #include <signal.h>
 #include <time.h>
 #include <bits/signum.h>
+//#include <errno.h>
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif
 #include <sched.h>
 #include <linux/sched.h>
+//#include <sys/ptrace.h>
 
 #define UL_META "ulatency"
 #define LUA_TABLE_INT(NAME) \
@@ -711,17 +713,57 @@ static int u_proc_set_rtprio (lua_State *L) {
   
   return 1;
 }
+/*
+
+disabled due bug (or at least i think it's one):
+
+https://bugzilla.kernel.org/show_bug.cgi?id=27092
+
 
 static int u_proc_set_pgid (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
+  long pt;
+  int rv;
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+  pt = ptrace (PTRACE_ATTACH, proc->pid, NULL, NULL);
+  printf("ptrace: %d %ld\n", proc->pid, pt);
+  wait();
+  rv = setpgid(proc->pid, 0);
+  if (rv != 0)
+    perror("setpgid() error");
+
+  lua_pushinteger(L, rv);
+  lua_pushinteger(L, errno);
+
+  if(!pt)
+    pt = ptrace (PTRACE_DETACH, proc->pid, NULL, NULL);
+  printf("ptrace2: %ld\n", pt);
+
+  return 2;
+}
+
+*/
+
+static int u_proc_set_pgid (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  int value = luaL_checkint(L, 2);
+  long pt;
+  int rv;
 
   if(U_PROC_IS_INVALID(proc))
     return 0;
 
-  lua_pushinteger(L, setpgid(proc->pid, value));
+  proc->fake_pgrp_old = proc->proc.pgrp;
+  proc->fake_pgrp = value;
+  proc->changed = 1;
 
-  return 1;
+  lua_pushinteger(L, 0);
+  lua_pushinteger(L, 0);
+
+  return 2;
 }
 
 #define PUSH_INT(name) \
@@ -732,7 +774,7 @@ static int u_proc_set_pgid (lua_State *L) {
 
 #define PUSH_STR(name) \
   if(!strcmp(key, #name )) { \
-    lua_pushlstring(L, proc->proc.name, sizeof(proc->proc.name)); \
+    lua_pushstring(L, proc->proc.name); \
     return 1; \
   }
 
@@ -962,7 +1004,11 @@ static int u_proc_index (lua_State *L)
 // 	*ring,		// n/a             thread group ring
 // 	*next;		// n/a             various library uses
 
-  PUSH_INT(pgrp)
+  //PUSH_INT(pgrp)
+  if(!strcmp(key, "pgrp" )) {
+    lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc.pgrp);
+    return 1;
+  }
   PUSH_INT(session)
   PUSH_INT(nlwp)
   PUSH_INT(tgid)

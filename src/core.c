@@ -197,7 +197,7 @@ void rebuild_tree() {
 static int detect_changed(proc_t *old, proc_t *new) {
   // detects changes of main paramenters
   if(old->euid != new->euid || old->session != new->session ||
-     old->egid != new->egid)
+     old->egid != new->egid || old->pgrp != new->pgrp)
      return 1;
   return 0;
 }
@@ -231,6 +231,22 @@ static void clear_process_changed() {
     proc->changed = FALSE;
   }
   return;
+}
+
+void process_workarrounds(u_proc *proc, u_proc *parent) {
+  // do various workaround jobs here...
+  if(proc->fake_pgrp && (proc->fake_pgrp_old != proc->proc.pgrp)) {
+    // when pgid was set, the fake value disapears.
+    proc->fake_pgrp = 0;
+    proc->fake_pgrp_old = 0;
+    proc->changed = 1;
+  } else if(parent->fake_pgrp && 
+            parent->proc.pgrp == proc->proc.pgrp &&
+            parent->fake_pgrp != proc->fake_pgrp) {
+    proc->fake_pgrp = parent->fake_pgrp;
+    proc->fake_pgrp_old = proc->proc.pgrp;
+    proc->changed = 1;
+  }
 }
 
 int update_processes_run(PROCTAB *proctab, int full) {
@@ -293,15 +309,17 @@ int update_processes_run(PROCTAB *proctab, int full) {
       // the parent should exist. in case it is missing we have to run a full
       // tree rebuild then
       if(parent && parent->node) {
+        // current parent is not what it should be
         if(proc->node->parent != parent->node) {
           g_node_unlink(proc->node);
           g_node_append(parent->node, proc->node);
         }
+        process_workarrounds(proc, parent);
       } else {
         full_update = TRUE;
       }
     } else {
-      // this is kinda bad. 
+      // this is kinda bad. it is ok for kernel processes and init
       if(proc->node->parent != processes_tree) {
         if(!G_NODE_IS_ROOT(proc->node))
           g_node_unlink(proc->node);
