@@ -712,6 +712,18 @@ static int u_proc_set_rtprio (lua_State *L) {
   return 1;
 }
 
+static int u_proc_set_pgid (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  int value = luaL_checkint(L, 2);
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  lua_pushinteger(L, setpgid(proc->pid, value));
+
+  return 1;
+}
+
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
     lua_pushinteger(L, (lua_Integer)proc->proc.name); \
@@ -803,7 +815,12 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "set_rtprio" )) {
     lua_pushcfunction(L, u_proc_set_rtprio);
     return 1;
+  } else if(!strcmp(key, "set_pgid" )) {
+    lua_pushcfunction(L, u_proc_set_pgid);
+    return 1;
   }
+  
+  
 
   if(!strcmp(key, "is_valid" )) { \
     lua_pushboolean(L, U_PROC_IS_VALID(proc));

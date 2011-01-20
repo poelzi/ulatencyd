@@ -80,12 +80,12 @@ ProtectorMemory = {
   
   targets = {},
   sure_targets = {},
-  poison_session = {},
+  poison_group = {},
   
   precheck = function(self)
     self.targets = {}
     self.sure_targets = {}
-    self.poison_session = {}
+    self.poison_group = {}
 
     local flag = nil
     if not memory_pressure then
@@ -107,7 +107,7 @@ ProtectorMemory = {
     return true
   end,
   check = function(self, proc)
-    self.poison_session[proc.session] = (self.poison_session[proc.session] or 0) + proc.vm_rss
+    self.poison_group[proc.pgrp] = (self.poison_group[proc.pgrp] or 0) + proc.vm_rss
     self.targets[#self.targets+1] = proc
     table.sort(self.targets, 
                function(a, b)
@@ -128,21 +128,21 @@ ProtectorMemory = {
   postcheck = function(self)
     --pprint(self.targets)
     --pprint(self.sure_targets)
-    --pprint(self.poison_session)
+    --pprint(self.poison_group)
     local top_targets = {}
-    for sess,size in pairs(self.poison_session) do
+    for sess,size in pairs(self.poison_groups) do
       top_targets[#top_targets+1] = {sess, size}
     end
     table.sort(top_targets, function(a,b) return a[2]>b[2] end)
-    for v = 1, tonumber(ulatency.get_config("memory", "min_add_sessions")) do 
+    for v = 1, tonumber(ulatency.get_config("memory", "min_add_groups")) do 
       local flag, added =  ulatency.add_adjust_flag(
         ulatency.list_flags(), 
-        {name="user.poison.session", reason="memory", value=top_targets[v][1]}, 
+        {name="user.poison.group", reason="memory", value=top_targets[v][1]}, 
         {timeout=ulatency.get_time(pressure_timeout)}
       )
       if not added then
         ulatency.add_flag(flag)
-        flag.threshold = math.ceil(top_targets[v][2]*(tonumber(ulatency.get_config("memory", "session_downsize")) or 0.95))
+        flag.threshold = math.ceil(top_targets[v][2]*(tonumber(ulatency.get_config("memory", "group_downsize")) or 0.95))
       end
     end
     local flag = ulatency.new_flag{name="user.poison", reason="memory", 

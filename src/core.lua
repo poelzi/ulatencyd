@@ -230,6 +230,7 @@ local function is_mounted(mnt_pnt)
   return false
 end
 
+local __found_one_group = false
 for n,v in pairs(CGROUP_MOUNTPOINTS) do
   local path = CGROUP_ROOT..n
   local mnt_opts = false
@@ -247,6 +248,7 @@ for n,v in pairs(CGROUP_MOUNTPOINTS) do
     if is_mounted(path) then
       ulatency.log_info("mount point "..path.." is already mounted")
       __CGROUP_LOADED[n] = true
+      __found_one_group = true
     else
       prog = "/bin/mount -t cgroup -o "..mnt_opts.." none "..path.."/"
       ulatency.log_info("mount cgroups: "..prog)
@@ -261,6 +263,7 @@ for n,v in pairs(CGROUP_MOUNTPOINTS) do
           fp:close()
         end
         __CGROUP_LOADED[n] = true
+        __found_one_group = true
       end
     end
   else
@@ -268,6 +271,10 @@ for n,v in pairs(CGROUP_MOUNTPOINTS) do
   end
 end
 
+if not __found_one_group then
+  ulatency.log_error("could not found one cgroup to mount.")
+end
+__found_one_group = nil
 
 CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
 

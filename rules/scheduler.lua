@@ -137,6 +137,7 @@ local function create_group(proc, prefix, mapping, subsys)
   if mapping.adjust_new then
     mapping.adjust_new(rv, proc)
   end
+  rv:commit()
   return rv
 end
 
