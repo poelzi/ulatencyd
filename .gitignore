@@ -2,7 +2,10 @@ config.h
 *.patch
 *.[oa]
 *.so
+.kdbgrc.*
 src/ulatencyd
+src/ulatencyd_cleanup.lua
+tests/test_xwatch
 *~
 Makefile
 # globals
@@ -16,3 +19,6 @@ tests/memleak
 cmake_install.cmake
 CMakeFiles
 CMakeCache.txt
+CTestTestfile.cmake
+Testing
+install_manifest.txt

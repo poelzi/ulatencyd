@@ -48,6 +48,7 @@
 //static proc_t *push_proc_t (lua_State *L);
 static u_proc *push_u_proc (lua_State *L, u_proc *proc);
 static int docall (lua_State *L, int narg, int nresults);
+int load_lua_rule_file(lua_State *L, const char *name);
 
 void stackdump_g(lua_State* l)
 {
@@ -1514,6 +1515,24 @@ static int l_get_time (lua_State *L) {
 }
 
 
+static int user_load_lua_rule_file(lua_State *L) {
+  char *full;
+  const char *name = luaL_checkstring(L, 1);
+  int abs = lua_toboolean(L, 2);
+
+  if(!abs) {
+    full = g_strconcat(QUOTEME(RULES_DIRECTORY), "/", name, NULL);
+    lua_pushboolean(L, !load_lua_rule_file(L, full));
+    g_free(full);
+  } else {
+    lua_pushboolean(L, !load_lua_rule_file(L, name));
+  }
+  return 1;
+}
+
+
+
+
 /* object table */
 static const luaL_reg R[] = {
   // system load
@@ -1546,20 +1565,21 @@ static const luaL_reg R[] = {
   {"clear_flag_all", u_sys_clear_flag_all},
   {"get_flags_changed", u_sys_get_flags_changed},
   {"set_flags_changed", u_sys_set_flags_changed},
-    
+
   // group code
   {"set_active_pid", l_set_active_pid},
   {"get_active_uids", l_get_active_uids},
   {"get_active_pids", l_get_active_pids},
-  // misc
-  {"filter_rv",  l_filter_rv},
+  // config
   {"get_config",  l_get_config},
   {"list_keys",  l_list_keys},
+  // misc
+  {"filter_rv",  l_filter_rv},
   {"log",  l_log},
   {"get_uid", l_get_uid},
   {"get_time", l_get_time},
   {"quit_daemon", l_quit},
-
+  {"load_rule", user_load_lua_rule_file},
   {"process_update", l_process_update},
   {"run_iteration", l_run_interation},
 	{NULL,        NULL}
@@ -1731,7 +1751,7 @@ static int docall (lua_State *L, int narg, int nresults) {
 
 
 
-int load_lua_rule_file(lua_State *L, char *name) {
+int load_lua_rule_file(lua_State *L, const char *name) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "load %s", name);
   if(luaL_loadfile(L, name)) {
     report(L, 1);

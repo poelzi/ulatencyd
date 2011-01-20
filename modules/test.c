@@ -21,6 +21,6 @@
 #include <stdio.h>
 
 int test_init() {
-  printf("jo\n");
+  printf("test module loaded\n");
   return 0;
 }

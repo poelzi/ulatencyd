@@ -55,6 +55,13 @@ SET(CONFIG_PREFIX "/etc" CACHE STRING
 
 set(LIBPROC_INCLUDE_DIRS src)
 #set(LIBPROC_LIBRARY src/proc/libproc.a)
+if(DEVELOP_MODE)
+  SET(CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/conf")
+else(DEVELOP_MODE)
+  SET(CONFIG_DIR "${CONFIG_PREFIX}/ulatencyd")
+endif(DEVELOP_MODE)
+
+
 
 IF(LUA_JIT)
   pkg_check_modules(LUAJIT luajit)
@@ -147,7 +154,9 @@ ADD_CUSTOM_COMMAND(
   TARGET  distclean
 )
 
-install(FILES ulatencyd.conf 
+install(FILES conf/ulatencyd.conf 
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd)
+install(FILES conf/cgroups.conf 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd)
 install(DIRECTORY rules 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd 

@@ -23,6 +23,8 @@ target_link_libraries (ulatencyd proc lbc dl ${MY_LUA_LIBRARIES}
 
 SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 
+configure_file(ulatencyd_cleanup.lua.tmpl ulatencyd_cleanup.lua)
+
 install(TARGETS ulatencyd 
         RUNTIME DESTINATION sbin)
 install(FILES core.lua

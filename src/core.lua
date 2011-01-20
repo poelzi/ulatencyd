@@ -118,10 +118,48 @@ function ulatency.find_flag(lst, match)
   end
 end
 
+-- load defaults.conf
+if(not ulatency.load_rule("../cgroups.conf")) then
+  if(not ulatency.load_rule("../conf/cgroups.conf")) then
+    ulatency.log_error("can't load defaults.conf")
+  end
+end
+
+
+local __CGROUP_HAS = false
+local __CGROUP_AVAIL = false
+local __CGROUP_LOADED = {}
+
+function ulatency.tree_loaded(name)
+  return __CGROUP_LOADED[name]
+end
+
+
+function ulatency.has_cgroup_subsystem(name)
+  if not __CGROUP_HAS then
+    ulatency.get_cgroup_subsystems()
+  end
+  return (__CGROUP_HAS[name] == true)
+end
+
+
+function ulatency.get_cgroup_subsystems()
+  __CGROUP_AVAIL = {}
+  __CGROUP_HAS = {}
+  for line in io.lines("/proc/cgroups") do 
+    if string.sub(line, 1, 2) ~= "#" then
+      local var = string.gmatch(line, "(%w+)%s+.+")()
+      __CGROUP_AVAIL[#__CGROUP_AVAIL+1] = var
+      __CGROUP_HAS[var] = true
+    end
+  end
+  return __CGROUP_AVAIL
+end
+
 -- CGroups interface
 
 if ulatency.get_uid() > 0 or 
-   ulatency.get_config("logging", "disable_cgroup") then
+   ulatency.get_config("logging", "disable_cgroup") == "true" then
   ulatency.log_info("disable cgroups error logging. not running as root")
   function cg_log(...)
   end
@@ -161,20 +199,13 @@ function CGroup_index(data, key)
 
 end
 
-ROOT_PATH = ulatency.get_config("core", "mount_point")
-if string.sub(ROOT_PATH, -1) ~= "/" then
-  ROOT_PATH = ROOT_PATH .. "/"
+
+if string.sub(CGROUP_ROOT, -1) ~= "/" then
+  CGROUP_ROOT = CGROUP_ROOT .. "/"
 end
 
 -- try mounting the mountpoints
-mkdirp(ROOT_PATH)
-
--- FIXME move to config file
-
-MNT_PNTS = {
-  cm="cpu,memory,cpuset",
-  io="blkio"
-}
+mkdirp(CGROUP_ROOT)
 
 -- disable the autogrouping
 local fp = io.open("/proc/sys/kernel/sched_autogroup_enabled", "w")
@@ -184,32 +215,58 @@ if fp then
   fp:close()
 end
 
+ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
 
-for n,v in pairs(MNT_PNTS) do
-  local path = ROOT_PATH..n
-  mkdirp(path)
-  prog = "/bin/mount -t cgroup -o "..v.." none "..path.."/"
-  ulatency.log_info("mount cgroups: "..prog)
-  fd = io.popen(prog, "r")
-  print(fd:read("*a"))
-  fp = io.open(path.."/release_agent", "w")
-  if fp then
-    fp:write(ulatency.release_agent)
-    fp:close()
+-- test if a cgroups is mounted
+local function is_mounted(mnt_pnt)
+  if string.sub(mnt_pnt, #mnt_pnt) == "/" then
+    mnt_pnt = string.sub(mnt_pnt, 1, #mnt_pnt-1)
   end
+  for line in io.lines("/proc/mounts") do
+    if string.find(line, mnt_pnt) then
+      return true
+    end
+  end
+  return false
 end
 
--- FIXME we need some better solution for that :-/
--- cpuset, very powerfull, but can't create a group with unset cpus or mems
-CGROUP_DEFAULT = {
-  cm={["cpuset.cpus"] = "0-"..tostring(ulatency.smp_num_cpus-1),
-      ["cpuset.mems"] = "0",
-      ["notify_on_release"] = "1",
-    },
-  io={["notify_on_release"] = "1",},
-}
-
-
+for n,v in pairs(CGROUP_MOUNTPOINTS) do
+  local path = CGROUP_ROOT..n
+  local mnt_opts = false
+  mkdirp(path)
+  for i, subsys in ipairs(v) do
+    if ulatency.has_cgroup_subsystem(subsys) then
+      if mnt_opts then
+        mnt_opts = mnt_opts .. ","..subsys
+      else
+        mnt_opts = subsys
+      end
+    end
+  end
+  if mnt_opts then
+    if is_mounted(path) then
+      ulatency.log_info("mount point "..path.." is already mounted")
+      __CGROUP_LOADED[n] = true
+    else
+      prog = "/bin/mount -t cgroup -o "..mnt_opts.." none "..path.."/"
+      ulatency.log_info("mount cgroups: "..prog)
+      fd = io.popen(prog, "r")
+      print(fd:read("*a"))
+      if not is_mounted(path) then
+        ulatency.log_error("can't mount: "..path)
+      else
+        fp = io.open(path.."/release_agent", "w")
+        if fp then
+          fp:write(ulatency.release_agent)
+          fp:close()
+        end
+        __CGROUP_LOADED[n] = true
+      end
+    end
+  else
+    ulatency.log_info("no cgroups subsystem found for group "..n..". disable group")
+  end
+end
 
 
 CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
@@ -269,9 +326,9 @@ end
 
 function CGroup:path(file)
   if file then
-    return ROOT_PATH .. self.tree .. "/".. self.name .. "/" .. tostring(file)
+    return CGROUP_ROOT .. self.tree .. "/".. self.name .. "/" .. tostring(file)
   else
-   return ROOT_PATH .. self.tree .. "/" .. self.name
+   return CGROUP_ROOT .. self.tree .. "/" .. self.name
   end
 end
 

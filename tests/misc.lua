@@ -1,5 +1,7 @@
 module(..., package.seeall)
 
+require("posix")
+
 test_active_done = false
 
 function test_active()
@@ -47,6 +49,13 @@ function test_sysflags()
   ulatency.add_flag(flag)
   ulatency.clear_flag_name("hello")
   assert_len(0, ulatency.list_flags(), "len of system flags not right")
+end
+
+function test_cgroups_list()
+  if posix.access("/proc/cgroups") == 0 then
+    grps = ulatency.get_cgroup_subsystems()
+    assert_true(#grps > 0, "cgroups subsystems empty")
+  end
 end
 
 function test_find_flags()

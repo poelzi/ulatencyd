@@ -6,7 +6,10 @@
     License: GNU General Public License 3 or later
 ]]--
 
-SCHEDULER_MAPPING_DESKTOP = { 
+SCHEDULER_MAPPING_DESKTOP = {}
+-- cpu & memory configuration
+SCHEDULER_MAPPING_DESKTOP["cm"] =
+{
   {
     name = "system_essential",
     cgroups_name = "s_essential",
@@ -116,5 +119,25 @@ SCHEDULER_MAPPING_DESKTOP = {
               return (proc.ppid ~= 0 or proc.pid == 1)
             end,
     param = { ["cpu.shares"]="800" },
+  },
+}
+
+-- io configuration. blkio does not support hirarchies
+SCHEDULER_MAPPING_DESKTOP["io"] =
+{
+  { 
+    name = "active",
+    param = { ["blkio.weight"]="1000" },
+    check = function(proc)
+        return proc.is_active
+      end
+  },
+  { 
+    name = "session",
+    param = { ["blkio.weight"]="300" },
+    cgroups_name = "ps_${session}",
+    check = function(proc)
+              return true
+            end,
   },
 }

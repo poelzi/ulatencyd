@@ -54,6 +54,12 @@ Running:
 
  # sudo /usr/local/sbin/ulatencyd -v 2
 
+== Links ==
+
+       Website  -  https://github.com/poelzi/ulatencyd
+         Infos  -  https://github.com/poelzi/ulatencyd/wiki
+           FAQ  -  https://github.com/poelzi/ulatencyd/wiki/Faq
+Reporting Bugs  -  https://github.com/poelzi/ulatencyd/issues
 
 == Architecture ==
 

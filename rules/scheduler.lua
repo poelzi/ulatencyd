@@ -10,7 +10,7 @@ require("posix")
 
 u_groups = {}
 
-local MAPPING = {}
+local MAPPING = false
 
 
 --[[
@@ -122,14 +122,14 @@ local function build_path_parts(proc, res)
   return rv
 end
 
-local function create_group(proc, prefix, mapping)
+local function create_group(proc, prefix, mapping, subsys)
   name = format_name(proc, mapping)
   if #prefix > 0 then
     path = prefix .. "/" .. name
   else
     path = name
   end
-  rv = CGroup.new(path, mapping.param)
+  rv = CGroup.new(path, mapping.param, subsys)
   if mapping.adjust then
     rv.adjust[#rv.adjust+1] = mapping.adjust
   end
@@ -140,9 +140,9 @@ local function create_group(proc, prefix, mapping)
   return rv
 end
 
-local function map_to_group(proc, parts)
+local function map_to_group(proc, parts, subsys)
   local chain = build_path_parts(proc, parts)
-  local path = table.concat(chain, "/")
+  local path = subsys .. table.concat(chain, "/")
   local cgr = CGroup.get_group(path)
   if cgr then
     cgr:run_adjust(proc)
@@ -152,7 +152,7 @@ local function map_to_group(proc, parts)
   local prefix = ""
   for i, parrule in ipairs(parts) do
     --local parent = create_group(proc, prefix, 
-    cgr = create_group(proc, prefix, parrule)
+    cgr = create_group(proc, prefix, parrule, subsys)
     prefix = cgr.name
   end
   --print("final prefix", prefix)
@@ -188,12 +188,12 @@ function Scheduler:all()
 end
 
 function Scheduler:one(proc)
-  if #MAPPING == 0 then
+  if not MAPPING then
     local scheduler_config = ulatency.get_config("scheduler", "mapping")
     ulatency.log_info("Scheduler use mapping: "..scheduler_config)
     local mapping_name = "SCHEDULER_MAPPING_"..string.upper(scheduler_config)
     MAPPING = getfenv()[mapping_name]
-    if not MAPPING or #MAPPING == 0 then
+    if not MAPPING then
       ulatency.log_error("invalid mapping: "..mapping_name)
     end
     ulatency.log_debug("use schduler map \n" .. to_string(MAPPING))
@@ -204,20 +204,26 @@ function Scheduler:one(proc)
       proc:clear_changed()
       return true
     end
-    local mappings = run_list(proc, MAPPING)
-    --pprint(mappings)
-    group = map_to_group(proc, mappings)
-    --print(tostring(group))
-    --pprint(mappings)
-    --print(tostring(proc.pid) .. " : ".. tostring(group))
-    if group then
-      if group:is_dirty() then
-        group:commit()
+    for subsys,map in pairs(MAPPING) do
+      if ulatency.tree_loaded(subsys) then
+        local mappings = run_list(proc, map)
+        --pprint(mappings)
+        group = map_to_group(proc, mappings, subsys)
+        --print(tostring(group))
+        --pprint(mappings)
+        --print(tostring(proc.pid) .. " : ".. tostring(group))
+        if group then
+          if group:is_dirty() then
+            group:commit()
+          end
+          --print("add task", proc.pid, group)
+          group:add_task(proc.pid, true)
+          group:commit()
+          proc:clear_changed()
+        else
+          ulatency.log_debug("no group found for: "..tostring(proc))
+        end
       end
-      --print("add task", proc.pid, group)
-      group:add_task(proc.pid, true)
-      group:commit()
-      proc:clear_changed()
     end
     --pprint(build_path_parts(proc, res))
   end
