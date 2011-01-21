@@ -3,7 +3,7 @@
 
     This file is part of ulatencyd.
 
-    ulatenyd is free software: you can redistribute it and/or modify it under 
+    ulatencyd is free software: you can redistribute it and/or modify it under 
     the terms of the GNU General Public License as published by the 
     Free Software Foundation, either version 3 of the License, 
     or (at your option) any later version.
@@ -154,6 +154,31 @@ function ulatency.get_cgroup_subsystems()
     end
   end
   return __CGROUP_AVAIL
+end
+
+-- reading / writing to /proc/sys
+
+function ulatency.get_sysctl(name)
+  local pname = string.gsub(name, "%.", "/")
+  print("open".."/proc/sys/" .. pname)
+  local fp = io.open("/proc/sys/" .. pname)
+  if not fp then
+    return nil
+  end
+  local data = fp:read("*a")
+  fp:close()
+  return data
+end
+
+function ulatency.set_sysctl(name, value)
+  local pname = string.gsub(name, "%.", "/")
+  local fp = io.open("/proc/sys/" .. pname, "w")
+  if not fp then
+    return false
+  end
+  fp:write(value)
+  fp:close()
+  return true
 end
 
 -- CGroups interface
