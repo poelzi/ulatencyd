@@ -88,3 +88,13 @@ Does ulatencyd support my cgroups mount points
    Changing the layout is possible but requires adjustments to the
    scheduler config in rules/scheduler_[MAPPING].lua and is not advised.
    When you only want to change the mount point you can do that in ulatencyd.conf
+
+Building a Debian package without upstart
+-----------------------------------------
+
+   You can simply delete the upstart file before building the Debian package.
+
+   ::
+
+     rm debian/ulatencyd.upstart
+     dpkg-buildpackage
