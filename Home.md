@@ -1,6 +1,6 @@
 Welcome to the ulatencyd wiki!
 
-* [How does it work](wiki/HowDoesItWork)
+* [How does it work](wiki/How-does-it-work)
 * [FAQ (before you ask)](wiki/Faq)
 
 # Package Repositories
