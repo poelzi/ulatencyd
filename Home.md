@@ -11,7 +11,7 @@ Welcome to the ulatencyd wiki!
 * Adjusting Scheduler and Rules
 
 # Developers Corner
-* Writing Rules
+* [Writing Rules](wiki/Writing-Rules)
 * Writing Modules
 * [Ideas to test](wiki/Ideas-to-test)
 
