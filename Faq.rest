@@ -30,6 +30,20 @@ How can I see if it's working ?
    As you can see in the last column, these are the groups the process was placed in.
    To test if the X11 plugin (xwatch) is working, then there should be processes in the active group.
 
+   If your ps does not support cgroup output, you can type:
+
+   ::
+
+     cat /proc/self/cgroup
+
+   And should get an output like this:
+
+   ::
+     
+     2:memory,cpu,cpuset:/usr_1000/grp_26561
+     1:blkio:/ps_26561
+
+
 What causes conflicts ?
 -----------------------
 
