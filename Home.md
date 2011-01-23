@@ -5,6 +5,7 @@ Welcome to the ulatencyd wiki!
 
 # Package Repositories
 * [Ubuntu](https://launchpad.net/~poelzi/+archive/ulatencyd-stable)
+* [Arch](http://aur.archlinux.org/packages.php)
 
 
 # For Admins
