@@ -9,7 +9,7 @@ Welcome to the ulatencyd wiki!
 
 
 # For Admins
-* Adjusting Scheduler and Rules
+* [Adjusting-default-scheduler](Adjusting the default scheduler)
 
 # Developers Corner
 * [Writing Rules](wiki/Writing-Rules)
