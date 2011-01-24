@@ -79,6 +79,11 @@ void u_proc_free(void *ptr) {
 
   g_assert(proc->ref == 0);
 
+  g_free(proc->cmd);
+  g_free(proc->cmdline_match);
+  g_ptr_array_unref(proc->environ);
+  g_ptr_array_unref(proc->cmdline);
+
   if(proc->lua_data) {
     luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
   }
@@ -118,9 +123,9 @@ void u_proc_free(void *ptr) {
 
 u_proc* u_proc_new(proc_t *proc) {
   u_proc *rv;
-  
+
   rv = g_new0(u_proc, 1);
-  
+
   rv->free_fnk = u_proc_free;
   rv->ref = 1;
   rv->skip_filter = g_hash_table_new_full(g_direct_hash, g_direct_equal,
@@ -128,6 +133,9 @@ u_proc* u_proc_new(proc_t *proc) {
 
   rv->flags = NULL;
   rv->changed = TRUE;
+  rv->node = g_node_new(proc);
+  rv->environ = g_ptr_array_new();
+  rv->cmdline = g_ptr_array_new();
 
   if(proc) {
     rv->pid = proc->tgid;
@@ -233,21 +241,27 @@ static void clear_process_changed() {
   return;
 }
 
+#define fake_var_fix(FAKE, ORG) \
+  if(proc->FAKE && (proc-> FAKE##_old != proc->proc.ORG)) { \
+    /* when pgid was set, the fake value disapears. */ \
+    proc-> FAKE = 0; \
+    proc->FAKE##_old = 0; \
+    proc->changed = 1; \
+  } else if(parent-> FAKE && \
+            parent->proc.ORG == proc->proc.ORG && \
+            parent-> FAKE != proc->FAKE) { \
+    proc-> FAKE = parent->FAKE; \
+    proc->FAKE##_old = proc->proc.ORG; \
+    proc->changed = 1; \
+  }
+
 void process_workarrounds(u_proc *proc, u_proc *parent) {
   // do various workaround jobs here...
-  if(proc->fake_pgrp && (proc->fake_pgrp_old != proc->proc.pgrp)) {
-    // when pgid was set, the fake value disapears.
-    proc->fake_pgrp = 0;
-    proc->fake_pgrp_old = 0;
-    proc->changed = 1;
-  } else if(parent->fake_pgrp && 
-            parent->proc.pgrp == proc->proc.pgrp &&
-            parent->fake_pgrp != proc->fake_pgrp) {
-    proc->fake_pgrp = parent->fake_pgrp;
-    proc->fake_pgrp_old = proc->proc.pgrp;
-    proc->changed = 1;
-  }
+  fake_var_fix(fake_pgrp, pgrp);
+  fake_var_fix(fake_session, session);
 }
+
+#undef fake_var_fix
 
 int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
@@ -301,9 +315,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
   // we update the parent links after all processes are updated
   for(i = 0; i < rv; i++) {
     proc = g_list_nth_data(updated, i);
-    if(!proc->node) {
-      proc->node = g_node_new(proc);
-    }
     if(proc->proc.ppid) {
       parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
       // the parent should exist. in case it is missing we have to run a full
