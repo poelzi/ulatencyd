@@ -2,6 +2,7 @@ Welcome to the ulatencyd wiki!
 
 * [How does it work](wiki/How-does-it-work)
 * [FAQ (before you ask)](wiki/Faq)
+* [Mailinglist](http://groups.google.com/group/ulatencyd)
 
 # Package Repositories
 * [Ubuntu](https://launchpad.net/~poelzi/+archive/ulatencyd-stable)
