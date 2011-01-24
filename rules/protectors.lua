@@ -80,12 +80,12 @@ ProtectorMemory = {
   
   targets = {},
   sure_targets = {},
-  poison_group = {},
+  poison_groups = {},
   
   precheck = function(self)
     self.targets = {}
     self.sure_targets = {}
-    self.poison_group = {}
+    self.poison_groups = {}
 
     local flag = nil
     if not memory_pressure then
@@ -107,7 +107,7 @@ ProtectorMemory = {
     return true
   end,
   check = function(self, proc)
-    self.poison_group[proc.pgrp] = (self.poison_group[proc.pgrp] or 0) + proc.vm_rss
+    self.poison_groups[proc.pgrp] = (self.poison_groups[proc.pgrp] or 0) + proc.vm_rss
     self.targets[#self.targets+1] = proc
     table.sort(self.targets, 
                function(a, b)
@@ -128,7 +128,7 @@ ProtectorMemory = {
   postcheck = function(self)
     --pprint(self.targets)
     --pprint(self.sure_targets)
-    --pprint(self.poison_group)
+    --pprint(self.poison_groups)
     local top_targets = {}
     for sess,size in pairs(self.poison_groups) do
       top_targets[#top_targets+1] = {sess, size}
