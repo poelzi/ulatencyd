@@ -184,7 +184,7 @@ void rebuild_tree() {
   while (g_hash_table_iter_next (&iter, &key, &value)) 
   {
     proc = (u_proc *)value;
-    if(proc->proc.ppid) {
+    if(proc->proc.ppid && proc->proc.ppid != proc->pid) {
       parent = proc_by_pid(proc->proc.ppid);
       // this should't happen, but under fork stress init may not have
       // collected so the parent does not exist.
@@ -315,7 +315,8 @@ int update_processes_run(PROCTAB *proctab, int full) {
   // we update the parent links after all processes are updated
   for(i = 0; i < rv; i++) {
     proc = g_list_nth_data(updated, i);
-    if(proc->proc.ppid) {
+
+    if(proc->proc.ppid && proc->proc.ppid != proc->pid) {
       parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
       // the parent should exist. in case it is missing we have to run a full
       // tree rebuild then
