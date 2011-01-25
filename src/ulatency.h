@@ -133,6 +133,11 @@ struct filter_block {
   gboolean skip;
 };
 
+struct u_proc_env {
+  char *key;
+  char *value;
+};
+
 typedef struct _u_proc {
   U_HEAD;
   int           pid; // duplicate of proc.tgid
@@ -146,9 +151,18 @@ typedef struct _u_proc {
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
   int           lua_data;
+  // we don't use the libproc parsers here as we do not update these values
+  // that often
+  char          *cmd;
+  char          *cmdline_match;
+  GPtrArray     *environ;
+  GPtrArray     *cmdline;
+
   // fake pgid because it can't be changed.
   pid_t         fake_pgrp;
   pid_t         fake_pgrp_old;
+  pid_t         fake_session;
+  pid_t         fake_session_old;
 } u_proc;
 
 typedef struct _filter {
@@ -229,6 +243,13 @@ struct user_process {
   time_t last_change;
 };
 
+
+struct user_session {
+  uid_t uid;
+};
+
+
+
 typedef struct {
   int (*all)(void);    // make scheduler run over all processes
   int (*one)(u_proc *);  // schedule for one (new) process
@@ -275,6 +296,13 @@ void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 static inline u_proc *proc_by_pid(pid_t pid) {
   return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
 }
+
+enum ENSURE_WHAT {
+  ENVIRONMENT,
+  CMDLINE,
+};
+
+int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);
 
 
 u_filter *filter_new();
