@@ -194,11 +194,14 @@ void rebuild_tree() {
         g_warning("pid: %d parent %d missing. attaching to pid 1", proc->pid, proc->proc.ppid);
         parent = proc_by_pid(1);
       }
-      
+
       g_assert(parent != proc);
       g_assert(parent && parent->node);
       g_node_unlink(proc->node);
       g_node_append(parent->node, proc->node);
+    } else {
+      g_node_unlink(proc->node);
+      g_node_append(processes_tree, proc->node);
     }
   }
 
