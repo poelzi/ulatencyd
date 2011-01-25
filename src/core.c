@@ -107,6 +107,7 @@ void u_proc_free(void *ptr) {
         nparent = processes_tree;
       }
     }
+    g_assert(nparent != proc->node);
     g_node_unlink(proc->node);
     while((cur = g_node_first_child(proc->node)) != NULL) {
       g_node_unlink(cur);
@@ -133,7 +134,7 @@ u_proc* u_proc_new(proc_t *proc) {
 
   rv->flags = NULL;
   rv->changed = TRUE;
-  rv->node = g_node_new(proc);
+  rv->node = g_node_new(rv);
   rv->environ = g_ptr_array_new();
   rv->cmdline = g_ptr_array_new();
 
@@ -184,7 +185,8 @@ void rebuild_tree() {
   while (g_hash_table_iter_next (&iter, &key, &value)) 
   {
     proc = (u_proc *)value;
-    if(proc->proc.ppid && proc->proc.ppid != proc->pid) {
+    g_assert(proc->proc.ppid != proc->pid);
+    if(proc->proc.ppid) {
       parent = proc_by_pid(proc->proc.ppid);
       // this should't happen, but under fork stress init may not have
       // collected so the parent does not exist.
@@ -193,6 +195,7 @@ void rebuild_tree() {
         parent = proc_by_pid(1);
       }
       
+      g_assert(parent != proc);
       g_assert(parent && parent->node);
       g_node_unlink(proc->node);
       g_node_append(parent->node, proc->node);
