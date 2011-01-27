@@ -67,6 +67,7 @@ static gboolean beep = FALSE;
 */
 //static gboolean rand = FALSE;
 
+static gboolean opt_daemon = FALSE;
 
 int init_netlink(GMainLoop *loop);
 
@@ -96,6 +97,7 @@ static GOptionEntry entries[] =
   { "verbose", 'v', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
   { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
   { "log-file", 'f', 0, G_OPTION_ARG_FILENAME, &log_file, "Log to file", NULL},
+  { "daemonize", 'd', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
   { NULL }
 };
 
@@ -431,6 +433,29 @@ int main (int argc, char *argv[])
       g_print ("option parsing failed: %s\n", error->message);
       exit (1);
     }
+
+  pid_t pid, sid;
+  if (opt_daemon) {
+    pid = fork();
+    if (pid < 0) {
+      exit (1);
+    }
+    if (pid > 0) {
+      exit (0);
+    }
+
+    umask (0);
+
+    sid = setsid();
+
+    if (sid < 0) {
+      exit (1);
+    }
+
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+  }
 
   load_config();
 
