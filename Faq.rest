@@ -112,3 +112,8 @@ Building a Debian package without upstart
 
      rm debian/ulatencyd.upstart
      dpkg-buildpackage
+
+Doesn't build on Mandriva
+-------------------------
+
+   I looks like the lua package of Mandriva is heavily broken. Install lua5.1 from hand and try again.
