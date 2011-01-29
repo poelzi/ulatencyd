@@ -60,7 +60,7 @@ local function cleanup_kde_mess()
   local init = ulatency.get_pid(1)
   local remap = {}
   for i,proc in ipairs(procs) do
-    if proc.cmd == "kdeinit4" then
+    if proc.cmd == "kdeinit4" or proc.cmd == "krunner" then
       remap[#remap+1] = proc.pgrp
       for i,child in ipairs(proc:get_children()) do
         child:set_pgid(child.pid)
@@ -69,7 +69,7 @@ local function cleanup_kde_mess()
   end
   for i,proc in ipairs(init:get_children()) do
     for i,map in ipairs(remap) do
-      if proc.cmd ~= "kdeinit4" then
+      if proc.cmd ~= "kdeinit4" and proc.cmd ~= "krunner" then
         if proc.pgrp == map then
           proc:set_pgid(proc.pid)
         end
