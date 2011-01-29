@@ -36,8 +36,11 @@
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
+#include <dbus/dbus.h>
+#include <dbus/dbus-glib-lowlevel.h>
 
 DBusGConnection *U_dbus_connection;
+DBusGConnection *U_dbus_connection_system;
 #endif
 
 #include <glib.h>
@@ -106,14 +109,6 @@ int filter_interval;
 
 GMainContext *main_context;
 GMainLoop *main_loop;
-
-int timeout_long(gpointer data) {
-
-  // try the make current memory non swapalbe
-  if(mlockall(MCL_CURRENT))
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
-  return TRUE;
-}
 
 
 void cleanup() {
@@ -375,8 +370,18 @@ gboolean            g_spawn_sync                        ("/",
 #ifdef ENABLE_DBUS
 static int do_dbus_init() {
   GError *error = NULL;
+  DBusConnection *con;
+#ifdef DEVELOP_MODE
+  U_dbus_connection = dbus_g_bus_get (DBUS_BUS_SESSION,
+                               &error);
+  U_dbus_connection_system = dbus_g_bus_get (DBUS_BUS_SYSTEM,
+                               &error);
+  g_warning("DEVELOP_MODE ON: using session dbus");
+#else
   U_dbus_connection = dbus_g_bus_get (DBUS_BUS_SYSTEM,
                                &error);
+  U_dbus_connection_system = U_dbus_connection;
+#endif
   if (U_dbus_connection == NULL)
     {
       g_warning("Failed to open connection to bus: %s\n",
@@ -384,6 +389,10 @@ static int do_dbus_init() {
       g_error_free (error);
       return FALSE;
     }
+  con = dbus_g_connection_get_connection(U_dbus_connection);
+#ifndef DEVELOP_MODE
+  dbus_connection_set_exit_on_disconnect (con, FALSE);
+#endif
   return TRUE;
 }
 #endif
@@ -413,16 +422,45 @@ signal_logrotate (int signal)
   open_logfile(log_file);
 }
 
+int timeout_long(gpointer data) {
+
+  // check if dbus connection is still alive
+#ifdef ENABLE_DBUS
+  if(U_dbus_connection) {
+    DBusConnection *con = dbus_g_connection_get_connection(U_dbus_connection);
+    if(!dbus_connection_get_is_connected(con)) {
+      g_warning("got disconnected from dbus system bus. reconnecting...");
+      dbus_g_connection_unref(U_dbus_connection);
+      do_dbus_init();
+    }
+  } else {
+    do_dbus_init();
+  }
+#endif
+
+  // try the make current memory non swapalbe
+  if(mlockall(MCL_CURRENT) && getuid() == 0)
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
+
+  return TRUE;
+}
+
+
 
 int main (int argc, char *argv[])
 {
   GError *error = NULL;
   GOptionContext *context;
-  config_data = g_key_file_new();
 
+  // required for dbus
   g_type_init ();
 
+  config_data = g_key_file_new();
+
 #ifdef ENABLE_DBUS
+  g_thread_init(NULL);
+  dbus_g_thread_init();
+
   do_dbus_init();
 #endif 
 
@@ -512,7 +550,7 @@ int main (int argc, char *argv[])
   // small hack
   timeout_long(NULL);
   iterate(GUINT_TO_POINTER(0));
-  g_timeout_add_seconds(60*5, timeout_long, GUINT_TO_POINTER(1));
+  g_timeout_add_seconds(60, timeout_long, GUINT_TO_POINTER(1));
 
   g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
 

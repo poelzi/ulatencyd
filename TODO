@@ -28,6 +28,8 @@ TODO:
 - implement rtkit interface and combine it with cgroups. add filter for detecting
   abusive rt processes.
 
+- optionally drop priviliges
+
 UNLIKLY:
 - maybe: using audit linux system to watch process creation/deletion auditctl or more interessting syscalls
 - having a copy of libproc is very ugly, but currently it does not export enough symbols

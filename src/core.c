@@ -58,6 +58,11 @@ double get_last_percent() {
   return _last_percent;
 }
 
+guint get_plugin_id() {
+  static guint last = USER_ACTIVE_AGENT_MODULE;
+  return ++last;
+}
+
 
 /*************************************************************
  * u_proc code
@@ -802,6 +807,10 @@ int scheduler_set(u_scheduler *sched) {
   return 0;
 }
 
+u_scheduler *scheduler_get() {
+  return &scheduler;
+}
+
 
 
 /***************************************************************************
@@ -908,14 +917,11 @@ int load_modules(char *modules_directory) {
   return 1;
 }
 
-#ifdef ENABLE_DBUS
-static int do_core_dbus_init() {
-  return 0;
-}
-#endif 
-
 int luaopen_ulatency(lua_State *L);
 int luaopen_bc(lua_State *L);
+
+int u_dbus_setup();
+
 
 int core_init() {
   // load config
@@ -924,7 +930,8 @@ int core_init() {
 
 
 #ifdef ENABLE_DBUS
-  do_core_dbus_init();
+  if(!u_dbus_setup())
+    g_warning("failed to setup dbus");
 #endif
 
 

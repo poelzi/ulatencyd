@@ -35,7 +35,7 @@ static gint cmp_user(gconstpointer a,gconstpointer b) {
 
 static gint cmp_pid(gconstpointer a, gconstpointer b) {
   const guint pid = *(guint *)b;
-  const struct user_process *up = a;
+  const struct user_active_process *up = a;
 
   return (up->pid - pid);
 }
@@ -68,20 +68,20 @@ struct user_active* get_userlist(guint uid, gboolean create) {
 */
 
 static gint cmp_last_change(gconstpointer a,gconstpointer b) {
-  const struct user_process *u1 = a;
-  const struct user_process *u2 = b;
+  const struct user_active_process *u1 = a;
+  const struct user_active_process *u2 = b;
   return (u2->last_change - u1->last_change);
 }
 
 void set_active_pid(guint uid, guint pid) 
 {
   u_proc *proc;
-  struct user_process *up;
+  struct user_active_process *up;
   struct user_active *ua = get_userlist(uid, TRUE);
   GList* ups = g_list_find_custom(ua->actives, &pid, cmp_pid);
 
   if(!ups) {
-    up = g_malloc(sizeof(struct user_process));
+    up = g_malloc(sizeof(struct user_active_process));
     up->pid = pid;
     ua->actives = g_list_prepend(ua->actives, up);
     proc = proc_by_pid(pid);

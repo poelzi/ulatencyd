@@ -339,7 +339,7 @@ static int l_get_active_uids(lua_State *L) {
 static int l_get_active_pids(lua_State *L) {
   lua_Integer uid = luaL_checkinteger (L, 1);
   struct user_active *ua = get_userlist((guint)uid, FALSE);
-  struct user_process *up;
+  struct user_active_process *up;
   GList *cur;
   int i = 1;
 
@@ -750,8 +750,6 @@ static int u_proc_set_pgid (lua_State *L) {
 static int u_proc_set_pgid (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
-  long pt;
-  int rv;
 
   if(U_PROC_IS_INVALID(proc))
     return 0;
@@ -1304,7 +1302,7 @@ int l_scheduler_run(lua_State *L, u_proc *proc) {
     }
     if(docall(L, args, 1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler failed");
-      return 0;
+      goto error;
     }
     if(!lua_toboolean(L, -1)) {
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler returned false");
@@ -1319,18 +1317,123 @@ error:
   //stackdump_g(L);
 }
 
-int wrap_l_scheduler_run() {
+static int wrap_l_scheduler_run() {
   return l_scheduler_run(lua_main_state, NULL);
 }
 
-int wrap_l_scheduler_run_one(u_proc *proc) {
+static int wrap_l_scheduler_run_one(u_proc *proc) {
   return l_scheduler_run(lua_main_state, proc);
+}
+
+static int l_scheduler_set_config(char *name) {
+  lua_State *L = lua_main_state;
+  int base = lua_gettop(lua_main_state);
+  int rv = FALSE;
+
+  lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
+  lua_getfield(L, -1, "scheduler");
+  lua_remove(L, 1);
+
+  if(lua_istable(L, 1) && name) {
+    lua_getfield(L, 1, "set_config");
+    if(!lua_isfunction(L, 2)) {
+      goto out;
+    }
+    lua_pushvalue(L, 1);
+    lua_pushstring(L, name);
+    if(docall(L, 2, 1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.set_config failed");
+      goto out;
+    }
+    if(!lua_toboolean(L, -1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.set_config returned false");
+    } else {
+      rv = TRUE;
+    }
+  }
+
+out:
+  lua_pop(L, lua_gettop(L)-base);
+  return rv;
+}
+
+static GPtrArray *l_scheduler_list_configs() {
+  lua_State *L = lua_main_state;
+  int base = lua_gettop(lua_main_state);
+  GPtrArray *rv = NULL;
+  int len, i;
+
+  lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
+  lua_getfield(L, -1, "scheduler");
+  lua_remove(L, 1);
+
+  if(lua_istable(L, 1)) {
+    lua_getfield(L, 1, "list_configs");
+    if(!lua_isfunction(L, 2)) {
+      goto out;
+    }
+    lua_pushvalue(L, 1);
+    lua_pushstring(L, "list_configs");
+    if(docall(L, 2, 1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.list_configs failed");
+      goto out;
+    }
+    if(!lua_istable(L, -1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.list_configs did't return a table");
+    } else {
+      len = lua_objlen (L, -1);
+      if(len)
+        rv = g_ptr_array_new();
+      for(i = 1; i <= len; i++) {
+        lua_pushinteger(L, i);
+        lua_gettable(L, -2);
+        g_ptr_array_add(rv, g_strdup(lua_tostring(L, -1)));
+        lua_pop(L, 1);
+      }
+    }
+  }
+
+out:
+  lua_pop(L, lua_gettop(L)-base);
+  return rv;
+}
+
+char *l_scheduler_get_description(char *name) {
+  lua_State *L = lua_main_state;
+  int base = lua_gettop(lua_main_state);
+  char *rv = NULL;
+
+  lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
+  lua_getfield(L, -1, "scheduler");
+  lua_remove(L, 1);
+
+  if(lua_istable(L, 1) && name) {
+    lua_getfield(L, 1, "get_config_description");
+    if(!lua_isfunction(L, 2)) {
+      goto out;
+    }
+    lua_pushvalue(L, 1);
+    lua_pushstring(L, name);
+    if(docall(L, 2, 1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.get_description failed");
+      goto out;
+    }
+    if(!lua_isnil(L, -1))
+      rv = g_strdup(lua_tostring(L, -1));
+  }
+
+out:
+  lua_pop(L, lua_gettop(L)-base);
+  return rv;
 }
 
 
 u_scheduler LUA_SCHEDULER = {
   .all=wrap_l_scheduler_run,
-  .one=wrap_l_scheduler_run_one
+  .one=wrap_l_scheduler_run_one,
+  .list_configs = l_scheduler_list_configs,
+  .set_config = l_scheduler_set_config,
+  .get_config_description = l_scheduler_get_description,
 };
 
 

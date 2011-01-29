@@ -12,14 +12,21 @@ add_definitions(-DHAVE_INLINE)
 
 
 IF(LIBCGROUPS)
-  list(APPEND, EXTRA_C, "lua_cgroups.c")
+  list(APPEND EXTRA_C "lua_cgroups.c")
 ENDIF(LIBCGROUPS)
+
+IF(DBUS_FOUND)
+  list(APPEND EXTRA_C "dbus.c")
+ENDIF(DBUS_FOUND)
 
 add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
                coreutils/readutmp.c coreutils/xalloc-die.c linux_netlink.c
                ${EXTRA_C} lua_binding.c)
+
 target_link_libraries (ulatencyd proc lbc dl ${MY_LUA_LIBRARIES} 
-                       ${LIBCGROUP_LIBRARIES} ${DBUS_LIBRARIES} ${GLIB2_LIBRARIES} ${GIO_LIBRARIES})
+                       ${LIBCGROUP_LIBRARIES} ${DBUS_LIBRARIES}
+                       ${GLIB2_LIBRARIES} ${GIO_LIBRARIES} ${GTHREAD_LIBRARIES})
+
 
 SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 

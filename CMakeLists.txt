@@ -27,6 +27,7 @@ if(ENABLE_DBUS)
   pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
   if(DBUS_FOUND)
     set(ENABLE_DBUS 1)
+    pkg_check_modules(GTHREAD gthread-2.0 REQUIRED)
   endif(DBUS_FOUND)
 endif(ENABLE_DBUS)
 
@@ -56,6 +57,7 @@ SET(CONFIG_PREFIX "/etc" CACHE STRING
 set(LIBPROC_INCLUDE_DIRS src)
 #set(LIBPROC_LIBRARY src/proc/libproc.a)
 if(DEVELOP_MODE)
+  message("don't forget to copy conf/org.quamquam.ulatencyd.conf to /etc/dbus-1/system.d and reload dbus")
   SET(CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/conf")
 else(DEVELOP_MODE)
   SET(CONFIG_DIR "${CONFIG_PREFIX}/ulatencyd")
@@ -160,7 +162,13 @@ install(FILES conf/cgroups.conf
         DESTINATION ${CONFIG_PREFIX}/ulatencyd)
 install(DIRECTORY rules 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd 
-        FILES_MATCHING PATTERN "*.lua" )
+        FILES_MATCHING PATTERN "*.lua"
+        PATTERN "test.lua" EXCLUDE)
+
+# FIXME how to find out where to put it ???
+install(FILES conf/org.quamquam.ulatencyd.conf
+        DESTINATION /etc/dbus-1/system.d)
+
 #install(TARGETS mySharedLib DESTINATION /some/full/path)
 
 #
@@ -173,3 +181,6 @@ enable_testing()
 set(CMAKE_CTEST_COMMAND "ctest -V")
 
 add_test(lua_tests src/ulatencyd -r tests --rule-pattern test.lua -v -v -v)
+# dbus dtd is outdated :-(
+#add_test(dbus_config CONFIGURATIONS Debug 
+#         COMMAND xmllint --loaddtd --valid conf/org.quamquam.ulatencyd.conf)

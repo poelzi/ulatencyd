@@ -7,6 +7,9 @@
 ]]--
 
 SCHEDULER_MAPPING_DESKTOP = {}
+
+SCHEDULER_MAPPING_DESKTOP.description = "a good default desktop configuration"
+
 -- cpu & memory configuration
 SCHEDULER_MAPPING_DESKTOP["cm"] =
 {

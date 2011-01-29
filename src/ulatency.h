@@ -24,6 +24,7 @@
 #include <lualib.h>
 #include <lauxlib.h>
 #include <time.h>
+#include <stdint.h>
 #include "proc/procps.h"
 #include "proc/readproc.h"
 
@@ -195,15 +196,15 @@ typedef struct _filter {
 */
 typedef struct _FLAG {
   U_HEAD;
-  void     *source;       // pointer to a data structure that is the "owner"
+  void          *source;       // pointer to a data structure that is the "owner"
 //  FLAG_BEHAVIOUR age;
-  char     *name;         // label name
-  int      inherit;      // will apply to all children
-  time_t   timeout;       // timeout when the flag will disapear
-  char     *reason;       // why the flag was set. This makes most sense with emergency flags
-  int      priority;      // custom data: priority
-  int      value;         // custom data: value
-  long long threshold;     // custom data: threshold
+  char          *name;         // label name
+  char          *reason;       // why the flag was set. This makes most sense with emergency flags
+  time_t         timeout;       // timeout when the flag will disapear
+  int32_t        priority;      // custom data: priority
+  int64_t        value;         // custom data: value
+  int64_t        threshold;     // custom data: threshold
+  uint32_t       inherit : 1;      // will apply to all children
 } u_flag;
 
 
@@ -230,29 +231,35 @@ struct u_cgroup_controller {
 };
 
 
-struct user_active {
-  guint uid;
-  guint max_processes;
-  // FIXME: last change time
-  time_t last_change;
-  GList *actives;
-};
-
-struct user_process {
+struct user_active_process {
   guint pid;
   time_t last_change;
 };
 
-
-struct user_session {
-  uid_t uid;
+enum USER_ACTIVE_AGENT {
+  USER_ACTIVE_AGENT_NONE = 0,
+  USER_ACTIVE_AGENT_DBUS,
+  USER_ACTIVE_AGENT_MODULE=1000,
 };
 
+
+struct user_active {
+  guint uid;
+  guint max_processes;
+  guint active_agent;
+  gchar *xserver;
+  // FIXME: last change time
+  time_t last_change;   // time when the last change happend
+  GList *actives;       // list of user_active_process
+};
 
 
 typedef struct {
   int (*all)(void);    // make scheduler run over all processes
   int (*one)(u_proc *);  // schedule for one (new) process
+  int (*set_config)(char *name);  // configure the scheduler for using a different configuration
+  GPtrArray *(*list_configs)(void);  // returns a list of valid configs
+  char *(*get_config_description)(char *name);
 } u_scheduler;
 
 
@@ -271,7 +278,8 @@ extern lua_State *lua_main_state;
 extern GList* system_flags;
 extern int    system_flags_changed;
 #ifdef ENABLE_DBUS
-extern DBusGConnection *U_dbus_connection;
+extern DBusGConnection *U_dbus_connection; // usully the system bus, but may differ on develop mode
+extern DBusGConnection *U_dbus_connection_system; // always the system bus
 #endif
 
 
@@ -327,8 +335,12 @@ int process_run_one(u_proc *proc, int update);
 
 int process_update_all();
 
+
 int scheduler_run_one(u_proc *proc);
 int scheduler_run();
+u_scheduler *scheduler_get();
+int scheduler_set(u_scheduler *scheduler);
+
 int iterate(void *);
 
 int core_init();
@@ -338,7 +350,8 @@ void core_unload();
 double get_last_load();
 double get_last_percent();
 
-
+// misc stuff
+guint get_plugin_id();
 
 
 // lua_binding
@@ -353,8 +366,19 @@ int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
 int adj_oom_killer(pid_t pid, int adj);
 
 // group.c
+
+
+
 void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
 int is_active_pid(u_proc *proc);
+
+
+// dbus consts
+#define U_DBUS_SERVICE_NAME     "org.quamquam.ulatencyd"
+#define U_DBUS_USER_PATH        "/org/quamquam/ulatencyd/User"
+#define U_DBUS_USER_INTERFACE   "org.quamquam.ulatencyd.User"
+#define U_DBUS_SYSTEM_PATH      "/org/quamquam/ulatencyd/System"
+#define U_DBUS_SYSTEM_INTERFACE "org.quamquam.ulatencyd.System"
 
 #endif

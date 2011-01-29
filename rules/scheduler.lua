@@ -10,8 +10,6 @@ require("posix")
 
 u_groups = {}
 
-local MAPPING = false
-
 
 --[[
 
@@ -188,24 +186,39 @@ function Scheduler:all()
   return true
 end
 
-function Scheduler:one(proc)
-  if not MAPPING then
-    local scheduler_config = ulatency.get_config("scheduler", "mapping")
-    ulatency.log_info("Scheduler use mapping: "..scheduler_config)
-    local mapping_name = "SCHEDULER_MAPPING_"..string.upper(scheduler_config)
-    MAPPING = getfenv()[mapping_name]
-    if not MAPPING then
-      ulatency.log_error("invalid mapping: "..mapping_name)
-    end
-    ulatency.log_debug("use schduler map \n" .. to_string(MAPPING))
+
+function Scheduler:load_config(name)
+  if not name then
+    name = ulatency.get_config("scheduler", "mapping")
   end
+  ulatency.log_info("Scheduler use mapping: "..name)
+  local mapping_name = "SCHEDULER_MAPPING_"..string.upper(name)
+  MAPPING = getfenv()[mapping_name]
+  if not MAPPING then
+    if not self.MAPPING then
+      ulatency.log_error("invalid mapping: "..mapping_name)
+    else
+      ulatency.log_warning("invalid mapping: "..mapping_name)
+    end
+    return false
+  end
+  ulatency.log_debug("use schduler map \n" .. to_string(MAPPING))
+  self.MAPPING = MAPPING
+  return true
+end
+
+function Scheduler:one(proc)
+  if not self.MAPPING then
+    self:load_config()
+  end
+
   if proc.block_scheduler == 0 then
     -- we shall not touch us
     if proc.pid == UL_PID then
       proc:clear_changed()
       return true
     end
-    for subsys,map in pairs(MAPPING) do
+    for subsys,map in pairs(self.MAPPING) do
       if ulatency.tree_loaded(subsys) then
         local mappings = run_list(proc, map)
         --pprint(mappings)
@@ -231,6 +244,32 @@ function Scheduler:one(proc)
   return true
 end
 
+function Scheduler:list_configs()
+  rv = {}
+  for k,v in pairs(getfenv()) do
+    if string.sub(k, 1, 18 ) == "SCHEDULER_MAPPING_" then
+      name = string.lower(string.sub(k, 19))
+      rv[#rv+1] = name
+    end
+  end
+  return rv
+end
+
+function Scheduler:get_config_description(name)
+  name = string.upper(name)
+  local mapping = getfenv()["SCHEDULER_MAPPING_" .. name]
+  if mapping then
+    return mapping.description
+  end
+end
+
+function Scheduler:set_config(config)
+  if ulatency.get_config("scheduler", "allow_reconfigure") ~= 'true' then
+    ulatencyd.log_info("requested scheduler reconfiguration denied")
+    return false
+  end
+  return self:load_config(config)
+end
 
 
 function byby()
@@ -248,7 +287,7 @@ ulatency.scheduler = Scheduler
 
 --[[
 
--- OLD libcgroup cra
+-- OLD libcgroup crap
 
 function mk_group(name)
   grp = cgroups.new_cgroup("/"..name)
