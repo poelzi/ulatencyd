@@ -94,17 +94,6 @@ static struct timespec diff(struct timespec start, struct timespec end)
 }
 
 
-static void run_new_pid_from_stack(gpointer data, gpointer user_data) {
-	struct new_proc *cur = data;
-	struct timespec *now = user_data;
-	struct timespec td = diff(cur->when, *now);
-	if((td.tv_sec * 1000000000 + td.tv_nsec) > delay) {
-		g_trace("run new pid %d\n", cur->pid);
-		process_new(cur->pid, TRUE);
-		g_ptr_array_remove_fast(stack, data);
-	} 
-}
-
 // order with oldest first
 static gint order_new_stack(gconstpointer a, gconstpointer b) {
 	const struct new_proc *na = a;
@@ -209,14 +198,13 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 {
 	/* The event to consider */
 	struct proc_event *ev;
-	struct new_proc *np, *cur;
+	struct new_proc *np;
 
 	/* Return codes */
 	int ret = 0;
 	int i;
 	int what;
 	pid_t pid = 0;
-	struct timespec now = {0};
 
 	/* Get the event data.  We only care about two event types. */
 	ev = (struct proc_event*)cn_hdr->data;
@@ -298,9 +286,8 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 {
 	GError *error = NULL;
 	gsize len;
-	gchar buffer[1024];
 	gboolean ret = TRUE;
-	GMainLoop *loop = (GMainLoop *) user_data;
+
 	char buff[BUFF_SIZE];
 	size_t recv_len;
 	struct sockaddr_nl from_nla;
@@ -308,7 +295,6 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	struct nlmsghdr *nlh;
 	struct sockaddr_nl kern_nla;
 	struct cn_msg *cn_hdr;
-	int socket_fd;
 
 	kern_nla.nl_family = AF_NETLINK;
 	kern_nla.nl_groups = CN_IDX_PROC;
@@ -367,12 +353,9 @@ out:
 
 
 int init_netlink(GMainLoop *loop) {
-	gboolean ret;
 	GSocket *gsocket = NULL;
 	int socket_fd = 0;
-	GSocketAddress *address = NULL;
 	GError *error = NULL;
-	gsize wrote;
 	GSource *source;
 	struct sockaddr_nl my_nla;
 	struct nlmsghdr *nl_hdr;
