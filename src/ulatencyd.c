@@ -372,8 +372,22 @@ static int do_dbus_init() {
   GError *error = NULL;
   DBusConnection *con;
 #ifdef DEVELOP_MODE
-  U_dbus_connection = dbus_g_bus_get (DBUS_BUS_SESSION,
+  char *env_uid;
+  uid_t target = 0;
+  if(getuid() == 0) {
+    env_uid = getenv("SUDO_UID");
+    if(!env_uid)
+      g_error("please set SUDO_UID env");
+    target = atoi(env_uid);
+    seteuid(target);
+    U_dbus_connection = dbus_g_bus_get (DBUS_BUS_SESSION,
                                &error);
+    seteuid(0);
+  
+  } else {
+    U_dbus_connection = dbus_g_bus_get (DBUS_BUS_SESSION,
+                               &error);
+  }
   U_dbus_connection_system = dbus_g_bus_get (DBUS_BUS_SYSTEM,
                                &error);
   g_warning("DEVELOP_MODE ON: using session dbus");

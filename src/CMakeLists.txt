@@ -15,9 +15,9 @@ IF(LIBCGROUPS)
   list(APPEND EXTRA_C "lua_cgroups.c")
 ENDIF(LIBCGROUPS)
 
-IF(DBUS_FOUND)
+IF(DBUS_FOUND AND ENABLE_DBUS)
   list(APPEND EXTRA_C "dbus.c")
-ENDIF(DBUS_FOUND)
+ENDIF(DBUS_FOUND AND ENABLE_DBUS)
 
 add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
                coreutils/readutmp.c coreutils/xalloc-die.c linux_netlink.c

@@ -64,6 +64,13 @@ guint get_plugin_id() {
 }
 
 
+void u_char_tuple_free(void *ptr) {
+  u_char_tuple *tuple = (u_char_tuple *)ptr;
+  g_free(tuple->key);
+  g_free(tuple->value);
+  g_free(tuple);
+}
+
 /*************************************************************
  * u_proc code
  ************************************************************/
@@ -140,8 +147,8 @@ u_proc* u_proc_new(proc_t *proc) {
   rv->flags = NULL;
   rv->changed = TRUE;
   rv->node = g_node_new(rv);
-  rv->environ = g_ptr_array_new();
-  rv->cmdline = g_ptr_array_new();
+  rv->environ = g_ptr_array_new_with_free_func(u_char_tuple_free);
+  rv->cmdline = g_ptr_array_new_with_free_func(g_free);
 
   if(proc) {
     rv->pid = proc->tgid;
@@ -152,6 +159,12 @@ u_proc* u_proc_new(proc_t *proc) {
   }
 
   return rv;
+}
+
+
+int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
+  // FIXME
+  return FALSE;
 }
 
 void processes_free_value(gpointer data) {
@@ -252,9 +265,11 @@ static void clear_process_changed() {
   return;
 }
 
+// copy the fake value of a parent pid to the child until the real value
+// of the child changes from the parent
 #define fake_var_fix(FAKE, ORG) \
   if(proc->FAKE && (proc-> FAKE##_old != proc->proc.ORG)) { \
-    /* when pgid was set, the fake value disapears. */ \
+    /* when real value was set, the fake value disapears. */ \
     proc-> FAKE = 0; \
     proc->FAKE##_old = 0; \
     proc->changed = 1; \

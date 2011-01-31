@@ -1696,9 +1696,35 @@ static int user_load_lua_rule_file(lua_State *L) {
   return 1;
 }
 
-
-
-
+static int l_get_sessions(lua_State *L) {
+    GList *cur = U_session_list;
+    u_session *sess;
+    lua_newtable(L);
+    int i = 1;
+    while(cur) {
+        sess = cur->data;
+        lua_pushinteger(L, i);
+        lua_newtable(L);
+        lua_pushstring(L, sess->name);
+        lua_setfield (L, -2, "name");
+        lua_pushstring(L, sess->X11Display);
+        lua_setfield (L, -2, "X11Display");
+        lua_pushstring(L, sess->X11Device);
+        lua_setfield (L, -2, "X11Device");
+        lua_pushstring(L, sess->dbus_session);
+        lua_setfield (L, -2, "dbus_session");
+        lua_pushinteger(L, sess->uid);
+        lua_setfield (L, -2, "uid");
+        lua_pushboolean(L, sess->idle);
+        lua_setfield (L, -2, "idle");
+        lua_pushboolean(L, sess->active);
+        lua_setfield (L, -2, "active");
+        lua_settable(L, -3);
+        i++;
+        cur = g_list_next(cur);
+    }
+    return 1;
+}
 /* object table */
 static const luaL_reg R[] = {
   // system load
@@ -1740,6 +1766,7 @@ static const luaL_reg R[] = {
   {"get_config",  l_get_config},
   {"list_keys",  l_list_keys},
   // misc
+  {"get_sessions", l_get_sessions},
   {"filter_rv",  l_filter_rv},
   {"log",  l_log},
   {"get_uid", l_get_uid},

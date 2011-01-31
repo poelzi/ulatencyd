@@ -39,7 +39,7 @@
                                G_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
-#define VERSION 0.3.5
+#define VERSION 0.3.9
 
 #define OPENPROC_FLAGS PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
@@ -134,10 +134,12 @@ struct filter_block {
   gboolean skip;
 };
 
-struct u_proc_env {
+typedef struct {
   char *key;
   char *value;
-};
+} u_char_tuple;
+
+void u_char_tuple_free(void *tuple);
 
 typedef struct _u_proc {
   U_HEAD;
@@ -156,7 +158,7 @@ typedef struct _u_proc {
   // that often
   char          *cmd;
   char          *cmdline_match;
-  GPtrArray     *environ;
+  GPtrArray     *environ; // list of u_char_tuple
   GPtrArray     *cmdline;
 
   // fake pgid because it can't be changed.
@@ -242,12 +244,32 @@ enum USER_ACTIVE_AGENT {
   USER_ACTIVE_AGENT_MODULE=1000,
 };
 
+// tracking for user sessions
+typedef struct {
+  gchar     *name;
+  gchar     *X11Display;
+  gchar     *X11Device;
+  // X11 auth data
+  gchar     *X11Cookie_name;
+  gchar     *X11Cookie_value;
+  size_t     X11Cookie_value_len;
+  // most likely dbus session
+  gchar     *dbus_session;
+  uid_t     uid;
+  uint32_t  idle;
+  uint32_t  active;
+#ifdef ENABLE_DBUS
+  DBusGProxy *proxy;
+#endif
+} u_session;
+
+// list of active sessions
+extern GList *U_session_list;
 
 struct user_active {
-  guint uid;
+  uid_t uid;
   guint max_processes;
-  guint active_agent;
-  gchar *xserver;
+  guint active_agent;    // tracker of the active list
   // FIXME: last change time
   time_t last_change;   // time when the last change happend
   GList *actives;       // list of user_active_process
