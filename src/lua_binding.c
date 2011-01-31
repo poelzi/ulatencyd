@@ -1696,6 +1696,27 @@ static int user_load_lua_rule_file(lua_State *L) {
   return 1;
 }
 
+static int l_uid_stats(lua_State *L) {
+    GList *cur = U_session_list;
+    u_session *sess;
+    uid_t uid = luaL_checkinteger(L, 1);
+    int act = 0;
+    int idle = 1;
+    while(cur) {
+        sess = cur->data;
+        if(sess->uid == uid) {
+            if(sess->active)
+                act = 1;
+            if(!sess->idle)
+                idle = 0;
+        }
+        cur = g_list_next(cur);
+    }
+    lua_pushboolean(L, act);
+    lua_pushboolean(L, idle);
+    return 2;
+}
+
 static int l_get_sessions(lua_State *L) {
     GList *cur = U_session_list;
     u_session *sess;
@@ -1767,6 +1788,7 @@ static const luaL_reg R[] = {
   {"list_keys",  l_list_keys},
   // misc
   {"get_sessions", l_get_sessions},
+  {"get_uid_stats", l_uid_stats},
   {"filter_rv",  l_filter_rv},
   {"log",  l_log},
   {"get_uid", l_get_uid},
