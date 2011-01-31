@@ -13,6 +13,7 @@ Welcome to the ulatencyd wiki!
 * [Adjusting the default scheduler](wiki/Adjusting-default-scheduler)
 
 # Developers Corner
+* [Start Hacking](wiki/Start-Hacking)
 * [Writing Rules](wiki/Writing-Rules)
 * Writing Modules
 * [Ideas to test](wiki/Ideas-to-test)
