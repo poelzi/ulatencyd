@@ -81,6 +81,41 @@ void stackdump_g(lua_State* l)
     printf("\n");  /* end the listing */
 }
 
+static void l_hash_to_table(lua_State *L, GHashTable *table) {
+    GHashTableIter iter;
+    gpointer key, value;
+    lua_newtable(L);
+
+    g_hash_table_iter_init (&iter, table);
+    while (g_hash_table_iter_next (&iter, &key, &value)) 
+    {
+      lua_pushstring(L, (char *)key);
+      lua_pushstring(L, (char *)value);
+      lua_settable(L, -3);
+    }
+}
+
+static void l_ptrarray_to_table(lua_State *L, GPtrArray *array) {
+    int i = 0;
+    lua_newtable(L);
+
+    for (; i < array->len; i++) 
+    {
+      lua_pushinteger(L, i+1);
+      lua_pushstring(L, (char *)g_ptr_array_index(array, i));
+      lua_settable(L, -3);
+    }
+}
+
+static void l_vstr_to_table(lua_State *L, char **vec, int len) {
+    int i = 0;
+    lua_newtable(L);
+    for(i = 0; i < len; i++) {
+        lua_pushinteger(L, i+1);
+        lua_pushstring(L, (char *)vec[i]);
+        lua_settable(L, -3);
+    }
+}
 
 static int get_load (lua_State *L) {
   double av1, av5, av15;
@@ -964,27 +999,45 @@ static int u_proc_index (lua_State *L)
 // 	**cmdline;	// (special)       command line string vector (/proc/#/cmdline)
   if(!strcmp(key, "environ" )) {
     // lazy read
-    if(!proc->proc.environ) {
-        sprintf(path, "/proc/%d", proc->proc.tgid);
-      	proc->proc.environ = file2strvec(path, "environ"); /* often permission denied */
-    }
-    if(!proc->proc.environ)
-      return 0;
-    lua_pushstring(L, *proc->proc.environ);
-    return 1;
-  }
-  if(!strcmp(key, "cmdline" )) {
-    if(!proc->proc.cmdline) {
-        sprintf(path, "/proc/%d", proc->proc.tgid);
-        proc->proc.cmdline = file2strvec(path, "cmdline");
-    }
-    if(proc->proc.cmdline) {
-      lua_pushstring(L, *proc->proc.cmdline);
+    u_proc_ensure(proc, ENVIRONMENT, TRUE);
+    if(proc->environ) {
+      l_hash_to_table(L, proc->environ);
       return 1;
     }
     return 0;
   }
-
+  if(!strcmp(key, "cmdline" )) {
+    if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline) {
+      l_ptrarray_to_table(L, proc->cmdline);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+  if(!strcmp(key, "cmdline_match" )) {
+    if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline_match) {
+      lua_pushstring(L, proc->cmdline_match);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+  if(!strcmp(key, "cmdfile" )) {
+    if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) {
+      lua_pushstring(L, proc->cmdfile);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+  if(!strcmp(key, "exe" )) {
+    if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) {
+      lua_pushstring(L, proc->exe);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
 
   PUSH_STR(euser)
   PUSH_STR(ruser)
@@ -996,6 +1049,14 @@ static int u_proc_index (lua_State *L)
   PUSH_STR(fgroup)
 
 //     	**supgrp, // status        supplementary groups
+  if(!strcmp(key, "groups")) {
+      if(proc->proc.supgrp) {
+          l_vstr_to_table(L, proc->proc.supgrp, proc->proc.nsupgid);
+          return 1;
+      } else {
+          return 0;
+      }
+  }
   PUSH_STR(cmd)
 
 //     struct proc_t
@@ -1519,9 +1580,12 @@ int l_filter_check(u_proc *proc, u_filter *flt) {
     if(g_regex_match(lft->regexp_basename, &proc->proc.cmd[0], 0, NULL))
       return TRUE;
   }
-  if(lft->regexp_cmdline && proc->proc.cmdline) {
-    if(g_regex_match(lft->regexp_cmdline, *proc->proc.cmdline, 0, NULL))
-      return TRUE;
+  if(lft->regexp_cmdline) {
+    u_proc_ensure(proc, CMDLINE, FALSE);
+    if(proc->cmdline_match) {
+      if(g_regex_match(lft->regexp_cmdline, proc->cmdline_match, 0, NULL))
+        return TRUE;
+    }
   }
  
 /*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
@@ -1717,6 +1781,22 @@ static int l_uid_stats(lua_State *L) {
     return 2;
 }
 
+static int l_search_uid_env(lua_State *L) {
+    uid_t uid = luaL_checkinteger(L, 1);
+    const char *key = luaL_checkstring(L, 2);
+    int update = FALSE;
+    GPtrArray* data;
+    
+    if(lua_isnumber(L, 3))
+        update = lua_tointeger(L, 3);
+    
+    data = search_user_env(uid, key, update);
+    l_ptrarray_to_table(L, data);
+    
+    g_ptr_array_unref(data);
+    return 1;
+}
+
 static int l_get_sessions(lua_State *L) {
     GList *cur = U_session_list;
     u_session *sess;
@@ -1786,9 +1866,11 @@ static const luaL_reg R[] = {
   // config
   {"get_config",  l_get_config},
   {"list_keys",  l_list_keys},
-  // misc
+  // system & user querying
   {"get_sessions", l_get_sessions},
   {"get_uid_stats", l_uid_stats},
+  {"search_uid_env", l_search_uid_env},
+  // misc
   {"filter_rv",  l_filter_rv},
   {"log",  l_log},
   {"get_uid", l_get_uid},

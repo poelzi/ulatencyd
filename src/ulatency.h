@@ -43,7 +43,7 @@
 
 #define OPENPROC_FLAGS PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP | PROC_FILLCOM
+  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP
 
 #define CONFIG_CORE "core"
 
@@ -134,12 +134,6 @@ struct filter_block {
   gboolean skip;
 };
 
-typedef struct {
-  char *key;
-  char *value;
-} u_char_tuple;
-
-void u_char_tuple_free(void *tuple);
 
 typedef struct _u_proc {
   U_HEAD;
@@ -156,10 +150,11 @@ typedef struct _u_proc {
   int           lua_data;
   // we don't use the libproc parsers here as we do not update these values
   // that often
-  char          *cmd;
+  char          *cmdfile;
   char          *cmdline_match;
-  GPtrArray     *environ; // list of u_char_tuple
+  GHashTable    *environ; // str:str hash table
   GPtrArray     *cmdline;
+  char          *exe;
 
   // fake pgid because it can't be changed.
   pid_t         fake_pgrp;
@@ -330,6 +325,7 @@ static inline u_proc *proc_by_pid(pid_t pid) {
 enum ENSURE_WHAT {
   ENVIRONMENT,
   CMDLINE,
+  EXE,
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);
@@ -388,12 +384,15 @@ int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
 int adj_oom_killer(pid_t pid, int adj);
 
 // group.c
-
-
-
 void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
 int is_active_pid(u_proc *proc);
+
+// sysinfo.c
+GHashTable * u_read_env_hash (pid_t pid);
+char *       u_pid_get_env (pid_t pid, const char *var);
+GPtrArray *  search_user_env(uid_t uid, const char *name, int update);
+GPtrArray *  u_read_0file (pid_t pid, const char *what);
 
 
 // dbus consts

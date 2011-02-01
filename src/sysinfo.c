@@ -19,49 +19,217 @@
 
 #include "config.h"
 #include "ulatency.h"
+#include <glib.h>
+#include <string.h>
+
 
 GList *U_session_list;
 
 
+/* adapted from consolekit */
+GHashTable *
+u_read_env_hash (pid_t pid)
+{
+    char       *path;
+    gboolean    res;
+    char       *contents;
+    gsize       length;
+    GError     *error;
+    GHashTable *hash;
+    int         i;
+    gboolean    last_was_null;
 
-GPtrArray* search_user_env(uid_t uid, const char *name) {
-  GPtrArray* rv = g_ptr_array_new_with_free_func(g_free);
-  u_proc *proc = NULL;
-  GHashTableIter iter;
-  u_char_tuple *cur;
-  int i, j, found;
+    contents = NULL;
+    hash = NULL;
 
-  gpointer ikey, value;
+    path = g_strdup_printf ("/proc/%u/environ", (guint)pid);
 
-  g_hash_table_iter_init (&iter, processes);
-  while (g_hash_table_iter_next (&iter, &ikey, &value)) 
-  {
-      proc = (u_proc *)value;
-      if(proc->proc.euid != uid)
-          continue;
+    error = NULL;
+    res = g_file_get_contents (path,
+                               &contents,
+                               &length,
+                               &error);
+    if (! res) {
+        //g_debug("Couldn't read %s: %s", path, error->message);
+        g_error_free (error);
+        goto out;
+    }
 
-      u_proc_ensure(proc, ENVIRONMENT, TRUE);
+    hash = g_hash_table_new_full (g_str_hash,
+                                  g_str_equal,
+                                  g_free,
+                                  g_free);
 
-      for(i = 0; i < proc->environ->len; i++) {
-          cur = (u_char_tuple *)g_ptr_array_index(proc->environ, i);
-          if(g_strcmp0(cur->key, name) == 0) {
-              // test if the value is already in the return list
-              found = FALSE;
-              for(j = 0; i < rv->len; j++) {
-                  if(g_strcmp0((char *)g_ptr_array_index(rv, i), cur->value) == 0) {
-                      found = TRUE;
-                      break;
-                  }
-              }
-              if(!found)
-                  g_ptr_array_add(rv, g_strdup(cur->key));
-          }
-      } 
+    last_was_null = TRUE;
+    for (i = 0; i < length; i++) {
+        if (contents[i] == '\0') {
+            last_was_null = TRUE;
+            continue;
+        }
+        if (last_was_null) {
+            char **vals;
+            vals = g_strsplit (contents + i, "=", 2);
+            if (vals != NULL) {
+                g_hash_table_insert (hash,
+                                     g_strdup (vals[0]),
+                                     g_strdup (vals[1]));
+                g_strfreev (vals);
+            }
+        }
+        last_was_null = FALSE;
+    }
 
-  }
-  return rv;
+out:
+    g_free (contents);
+    g_free (path);
+
+    return hash;
+}
+
+char *
+u_pid_get_env (pid_t       pid,
+               const char *var)
+{
+    char      *path;
+    gboolean   res;
+    char      *contents;
+    char      *val;
+    gsize      length;
+    GError    *error;
+    int        i;
+    char      *prefix;
+    int        prefix_len;
+    gboolean   last_was_null;
+
+    val = NULL;
+    contents = NULL;
+    prefix = NULL;
+
+    path = g_strdup_printf ("/proc/%u/environ", (guint)pid);
+
+    error = NULL;
+    res = g_file_get_contents (path,
+                               &contents,
+                               &length,
+                               &error);
+    if (! res) {
+        //g_debug ("Couldn't read %s: %s", path, error->message);
+        g_error_free (error);
+        goto out;
+    }
 
 
+    prefix = g_strdup_printf ("%s=", var);
+    prefix_len = strlen(prefix);
+
+    /* FIXME: make more robust */
+    last_was_null = TRUE;
+    for (i = 0; i < length; i++) {
+        if (contents[i] == '\0') {
+                last_was_null = TRUE;
+                continue;
+        }
+        if (last_was_null && g_str_has_prefix (contents + i, prefix)) {
+                val = g_strdup (contents + i + prefix_len);
+                break;
+        }
+        last_was_null = FALSE;
+    }
+
+out:
+    g_free (prefix);
+    g_free (contents);
+    g_free (path);
+
+    return val;
+}
+
+
+
+GPtrArray *
+u_read_0file (pid_t pid, const char *what)
+{
+    char       *path;
+    gboolean    res;
+    char       *contents;
+    gsize       length;
+    GError     *error;
+    GPtrArray  *rv = NULL;
+    int         i;
+    gboolean    last_was_null;
+
+    contents = NULL;
+
+    path = g_strdup_printf ("/proc/%u/%s", (guint)pid, what);
+
+    error = NULL;
+    res = g_file_get_contents (path,
+                               &contents,
+                               &length,
+                               &error);
+    if (! res) {
+        //g_debug ("Couldn't read %s: %s", path, error->message);
+        g_error_free (error);
+        goto out;
+    }
+
+    rv = g_ptr_array_new_with_free_func(g_free);
+
+    last_was_null = TRUE;
+    for (i = 0; i < length; i++) {
+        if (contents[i] == '\0') {
+            last_was_null = TRUE;
+            continue;
+        }
+        if (last_was_null) {
+            g_ptr_array_add(rv, g_strdup(contents + i));
+        }
+        last_was_null = FALSE;
+    }
+
+out:
+    g_free (contents);
+    g_free (path);
+
+    return rv;
+}
+
+GPtrArray* search_user_env(uid_t uid, const char *name, int update) {
+    GPtrArray* rv = g_ptr_array_new_with_free_func(g_free);
+    u_proc *proc = NULL;
+    GHashTableIter iter;
+    char *val;
+    int i, found;
+
+    gpointer ikey, value;
+
+    g_hash_table_iter_init (&iter, processes);
+    while (g_hash_table_iter_next (&iter, &ikey, &value)) 
+    {
+        proc = (u_proc *)value;
+        if(proc->proc.euid != uid)
+            continue;
+
+        u_proc_ensure(proc, ENVIRONMENT, update);
+
+        if(!proc->environ)
+            continue;
+
+        val = g_hash_table_lookup(proc->environ, name);
+        if(val) {
+            found = FALSE;
+            for(i = 0; i < rv->len; i++) {
+                if(g_strcmp0((char *)g_ptr_array_index(rv, i), val) == 0) {
+                    found = TRUE;
+                    break;
+                }
+            }
+            if(!found)
+                 g_ptr_array_add(rv, g_strdup(val));
+
+        }
+    }
+    return rv;
 }
 
 #ifdef ENABLE_DBUS

@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <fnmatch.h>
+#include <unistd.h>
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
@@ -64,13 +65,6 @@ guint get_plugin_id() {
 }
 
 
-void u_char_tuple_free(void *ptr) {
-  u_char_tuple *tuple = (u_char_tuple *)ptr;
-  g_free(tuple->key);
-  g_free(tuple->value);
-  g_free(tuple);
-}
-
 /*************************************************************
  * u_proc code
  ************************************************************/
@@ -91,10 +85,13 @@ void u_proc_free(void *ptr) {
 
   g_assert(proc->ref == 0);
 
-  g_free(proc->cmd);
+  g_free(proc->cmdfile);
+  g_free(proc->exe);
   g_free(proc->cmdline_match);
-  g_ptr_array_unref(proc->environ);
-  g_ptr_array_unref(proc->cmdline);
+  if(proc->environ)
+      g_hash_table_unref(proc->environ);
+  if(proc->cmdline)
+      g_ptr_array_unref(proc->cmdline);
 
   if(proc->lua_data) {
     luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
@@ -147,8 +144,6 @@ u_proc* u_proc_new(proc_t *proc) {
   rv->flags = NULL;
   rv->changed = TRUE;
   rv->node = g_node_new(rv);
-  rv->environ = g_ptr_array_new_with_free_func(u_char_tuple_free);
-  rv->cmdline = g_ptr_array_new_with_free_func(g_free);
 
   if(proc) {
     rv->pid = proc->tgid;
@@ -161,9 +156,89 @@ u_proc* u_proc_new(proc_t *proc) {
   return rv;
 }
 
-
+/**
+ * u_proc_ensure:
+ * @proc: a #u_proc
+ * @what: what variable should exist
+ * @update: force update
+ *
+ * Ensures a varible is filled. If update is true, the variable is updated
+ * to recent values for sure
+ *
+ * Returns: @success
+ */
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
-  // FIXME
+  if(what == ENVIRONMENT) {
+      if(update && proc->environ) {
+          g_hash_table_unref(proc->environ);
+          proc->environ = NULL;
+      }
+      if(!proc->environ)
+          proc->environ = u_read_env_hash (proc->pid);
+      return (proc->environ != NULL);
+  } else if(what == CMDLINE) {
+      if(update && proc->cmdline) {
+          g_ptr_array_unref(proc->cmdline);
+          proc->cmdline = NULL;
+      }
+      if(!proc->cmdline) {
+          int i;
+          gchar *tmp, *tmp2;
+
+          g_free(proc->cmdline_match);
+          proc->cmdline_match = NULL;
+
+          GString *match = g_string_new("");
+          proc->cmdline = u_read_0file (proc->pid, "cmdline");
+          // update cmd
+          if(proc->cmdline) {
+              for(i = 0; i < proc->cmdline->len; i++) {
+                  if(i)
+                      match = g_string_append_c(match, ' ');
+                  match = g_string_append(match, g_ptr_array_index(proc->cmdline, i));
+              }
+              proc->cmdline_match = g_string_free(match, FALSE);
+              // empty command line, for kernel threads for example
+              if(!proc->cmdline->len)
+                return TRUE;
+              if(proc->cmdfile) {
+                g_free(proc->cmdfile);
+                proc->cmdfile = NULL;
+              }
+              tmp = g_ptr_array_index(proc->cmdline, 0);
+              if(tmp) {
+                  tmp2 = g_strrstr_len(tmp, -1, "/");
+                  printf("lastp: %s %s\n", tmp2, tmp);
+                  if(tmp2 == NULL) {
+                    proc->cmdfile = g_strdup(tmp);
+                  } else if((tmp2+1-tmp) < strlen(tmp)) {
+                    proc->cmdfile = g_strdup(tmp2+1);
+                  }
+              }
+              return TRUE;
+          } else {
+              return FALSE;
+          }
+      }
+      return (proc->cmdline != NULL);
+  } else if(what == EXE) {
+      char buf[PATH_MAX+1];
+      ssize_t out;
+      char *path;
+      if(update && proc->exe) {
+          g_free(proc->exe);
+          proc->exe = NULL;
+      }
+      if(!proc->exe) {
+        path = g_strdup_printf ("/proc/%u/exe", (guint)proc->pid);
+        out = readlink(path, (char *)&buf, PATH_MAX);
+        if(out > 0) {
+            proc->exe = g_strndup((char *)&buf, out);
+        }
+        g_free(path);
+      }
+      return TRUE;
+  }
   return FALSE;
 }
 
@@ -328,7 +403,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
-
 
     u_flag_clear_timeout(proc, timeout);
     updated = g_list_append(updated, proc);
