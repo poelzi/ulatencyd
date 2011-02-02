@@ -88,6 +88,7 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "    <method name=\"listSystemFlags\">\n"
 "      <arg type=\"aa{sv}\" direction=\"out\" />\n"
 "    </method>\n"
+"    <property name=\"config\" type=\"s\" access=\"read\"/>\n"
 "  </interface>\n"
 INTROSPECT
 "</node>\n";
@@ -410,6 +411,42 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         goto finish;
 
+    } else if (dbus_message_is_method_call(m, DBUS_INTERFACE_PROPERTIES, "Get")) {
+        const char *interface, *property;
+        u_scheduler *sched = scheduler_get();
+
+        if (!dbus_message_get_args(m, &error,
+                                      DBUS_TYPE_STRING, &interface,
+                                      DBUS_TYPE_STRING, &property,
+                                      DBUS_TYPE_INVALID)) {
+            g_warning("Failed to parse property get call: %s\n", error.message);
+            ret = dbus_message_new_error(m, error.name, error.message);
+            goto finish;
+        }
+
+        if (g_strcmp0(interface, U_DBUS_SYSTEM_INTERFACE) == 0) {
+
+            ret = dbus_message_new_method_return(m);
+
+            if(g_strcmp0(property, "config") == 0) {
+                if(sched->get_config) {
+                    char *tmp = sched->get_config();
+                    if(tmp) {
+                        dbus_message_append_args (ret,
+                                                  DBUS_TYPE_STRING, &tmp,
+                                                  DBUS_TYPE_INVALID);
+                    }
+                    g_free(tmp);
+                }
+                goto finish;
+            }
+
+            dbus_message_unref(ret);
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        } else	{
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        }
+
     } else if (dbus_message_is_method_call(m, DBUS_INTERFACE_INTROSPECTABLE, "Introspect")) {
         ret = dbus_message_new_method_return(m);
         dbus_message_append_args(ret,
@@ -440,8 +477,10 @@ gboolean u_dbus_setup() {
         .message_function = dbus_system_handler,
     };
 
-    if(!U_dbus_connection)
+    if(!U_dbus_connection) {
+      g_warning("dbus connection missing. can't create dbus interface");
       return FALSE;
+    }
 
     DBusError error;
     DBusConnection *c = dbus_g_connection_get_connection(U_dbus_connection);

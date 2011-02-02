@@ -204,6 +204,7 @@ function Scheduler:load_config(name)
   end
   ulatency.log_debug("use schduler map \n" .. to_string(MAPPING))
   self.MAPPING = MAPPING
+  self.CONFIG_NAME = name
   return true
 end
 
@@ -269,6 +270,13 @@ function Scheduler:set_config(config)
     return false
   end
   return self:load_config(config)
+end
+
+function Scheduler:get_config()
+  if self.CONFIG_NAME then
+    return string.lower(self.CONFIG_NAME)
+  end
+  return nil
 end
 
 

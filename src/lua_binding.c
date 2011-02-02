@@ -1418,6 +1418,34 @@ out:
   return rv;
 }
 
+char *l_scheduler_get_config() {
+  lua_State *L = lua_main_state;
+  int base = lua_gettop(lua_main_state);
+  char *rv = NULL;
+
+  lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
+  lua_getfield(L, -1, "scheduler");
+  lua_remove(L, 1);
+
+  if(lua_istable(L, 1)) {
+    lua_getfield(L, 1, "get_config");
+    if(!lua_isfunction(L, 2)) {
+      goto out;
+    }
+    lua_pushvalue(L, 1);
+    if(docall(L, 1, 1)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.get_config failed");
+      goto out;
+    }
+    rv = g_strdup(lua_tostring(L, -1));
+  }
+
+out:
+  lua_pop(L, lua_gettop(L)-base);
+  return rv;
+}
+
+
 static GPtrArray *l_scheduler_list_configs() {
   lua_State *L = lua_main_state;
   int base = lua_gettop(lua_main_state);
@@ -1494,6 +1522,7 @@ u_scheduler LUA_SCHEDULER = {
   .one=wrap_l_scheduler_run_one,
   .list_configs = l_scheduler_list_configs,
   .set_config = l_scheduler_set_config,
+  .get_config = l_scheduler_get_config,
   .get_config_description = l_scheduler_get_description,
 };
 
