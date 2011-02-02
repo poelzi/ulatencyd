@@ -1,18 +1,3 @@
-/* !!!!  CLOSE YOUR EYES OR CLOSE THIS FILE :-)  !!!!
-
-or you want to clean up this mess.
-
-current problems:
-it is quite hard to connect as root to a local xserver. you need a valid
-auth cookie to connnect for detecting the current used window.
-getting a valid cookie is hard, xcb uses a different format then the
-Xauth parser, but does not export anything usefull obtaining it. 
-thats the first reason for all this copied code.
-Reading the auth file needs to be done as the user owning it, as root may not
-access it in case of nfs for example.
-
-*/
-
 /*
     Copyright 2010,2011 ulatencyd developers
 
@@ -51,29 +36,24 @@ access it in case of nfs for example.
 #include <errno.h>
 #include <glib.h>
 #include <pwd.h>
+#include <time.h>
+
+#ifdef DEBUG_XWATCH
+#define dprint(...) printf(__VA_ARGS__)
+#else
+#define dprint(...)
+#endif
+
+
 
 #define DEFAULT_INTERVAL 1000
-
-enum auth_protos {
-    AUTH_MC1,
-    N_AUTH_PROTOS
-};
-
-#define AUTH_PROTO_XDM_AUTHORIZATION "XDM-AUTHORIZATION-1"
-#define AUTH_PROTO_MIT_MAGIC_COOKIE "MIT-MAGIC-COOKIE-1"
-
-static char *authnames[N_AUTH_PROTOS] = {
-    AUTH_PROTO_MIT_MAGIC_COOKIE,
-};
-
-static int authnameslen[N_AUTH_PROTOS] = {
-    sizeof(AUTH_PROTO_MIT_MAGIC_COOKIE) - 1,
-};
+#define RETRY_TIMEOUT 30
 
 struct x_server {
+  char *name; // unique name for identification
+  time_t last_try;
   uid_t uid;
   char *display;
-  xcb_auth_info_t *auth;
   xcb_connection_t *connection;
   xcb_screen_t *screen;
   xcb_atom_t atom_active;
@@ -87,13 +67,13 @@ struct x_server {
 static void free_x_server(struct x_server *xs) {
   g_debug("remove x_server display: %s", xs->display);
   xcb_disconnect (xs->connection);
+  g_free(xs->name);
   g_free(xs->display);
-  g_free(xs->auth->name);
-  g_free(xs->auth->data);
-  g_free(xs->auth);
 }
 
-static GList *server_list = NULL;
+static int xwatch_id; // unique plugin id
+static GList *server_list = NULL;  // list of x_server objects
+static char *localhost; // char of localhost
 
 static
 xcb_atom_t get_atom (xcb_connection_t *conn, xcb_intern_atom_cookie_t ck)
@@ -110,86 +90,6 @@ xcb_atom_t get_atom (xcb_connection_t *conn, xcb_intern_atom_cookie_t ck)
   return atom;
 }
 
-static const char bin2hex_lst[16] = {
-'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
-};
-
-
-char *bin2hex(const char *data, size_t len) {
-  size_t lenout, i;
-  char *out;
-
-  if (len == 0) {
-    return NULL;
-  }
-
-  lenout = (len * 2)+1;
-
-  //printf("len %d\n", (int)lenout);
-
-  out = malloc(lenout);
-  if (!out) {
-    return NULL;
-  }
-
-  for (i=0; i < len; i++) {
-    out[2*i]   = bin2hex_lst[(data[i] & 0xf0) >> 4];
-    out[2*i+1] = bin2hex_lst[(data[i] & 0x0f)];
-  }
-  out[lenout-1] = 0;
-  return out;
-}
-
-
-int hex2bin(const char *data, size_t len, char **bin, int *len_out) {
-  size_t lenout, i;
-
-  if (len == 0) {
-    return 1;
-  } else if (len % 2) {
-    return 1;
-  }
-
-  lenout = len / 2;
-  char *out = malloc(lenout+1);
-  if (!out) {
-    return 1;
-  }
-
-  for (i=0; i < lenout; i++) {
-    char c = data[2*i];
-    if (c >= '0' && c <= '9') {
-      out[i] = (c - '0') << 4;
-    } else if (c >= 'a' && c <= 'f') {
-      out[i] = (c - 'a' + 10) << 4;
-    } else if (data[2*i] >= 'A' && c <= 'F') {
-      out[i] = (c - 'A' + 10) << 4;
-    } else {
-      free(out);
-      return 1;
-    }
-
-    c = data[2*i+1];
-    if (c >= '0' && c <= '9') {
-      out[i] += c - '0';
-    } else if (c >= 'a' && c <= 'f') {
-      out[i] += c - 'a' + 10;
-    } else if (c >= 'A' && c <= 'F') {
-      out[i] += c - 'A' + 10;
-    } else {
-      free(out);
-      return 1;
-    }
-  }
-  out[lenout] = 0;
-  *len_out = lenout;
-  *bin = out;
-
-  return 0;
-}
-
-
-
 
 static inline
 xcb_intern_atom_cookie_t intern_string (xcb_connection_t *c, const char *s)
@@ -197,7 +97,7 @@ xcb_intern_atom_cookie_t intern_string (xcb_connection_t *c, const char *s)
     return xcb_intern_atom (c, 0, strlen (s), s);
 }
 
-char *
+static char *
 get_localhost()
 {
   char *buf = 0;
@@ -226,157 +126,78 @@ get_localhost()
   return buf;
 }
 
-static char *localhost;
-
-xcb_auth_info_t *read_xauth(int uid, char *hostname, int display)
-{
-  int     fd[2], nbytes;
-  pid_t   childpid;
-  char    readbuffer[40];
-  char dispbuf[40];   /* big enough to hold more than 2^64 base 10 */
-  int dispbuflen;
-  xcb_auth_info_t *rv;
-  Xauth *xauth;
-  char *tmp;
-  xcb_auth_info_t *tmpauth = NULL;
-  GString *full_data = g_string_new("");
-  int    childrv;
-
-
-  pipe(fd);
-  
-  if((childpid = fork()) == -1)
-  {
-    return NULL;
-  }
-
-  if(childpid == 0)
-  {
-    /* Child process closes up input side of pipe */
-    close(fd[0]);
-    tmpauth = malloc(sizeof(xcb_auth_info_t));
-    setuid(uid);
-    clearenv();
-    struct passwd *pw = getpwuid(uid);
-
-    setenv("HOME", pw->pw_dir, 1);
-    dispbuflen = snprintf(dispbuf, sizeof(dispbuf), "%d", display);
-    if(dispbuflen < 0) {
-      printf("cant put display buf\n");
-      return 0;
-    }
-
-    xauth = XauGetBestAuthByAddr (FamilyLocal,
-                         (unsigned short) strlen(localhost), localhost,
-                         (unsigned short) dispbuflen, dispbuf,
-                         N_AUTH_PROTOS, authnames, authnameslen);
-
-    if(!xauth)
-      exit(1);
-
-    tmpauth->namelen = xauth->name_length;
-    tmpauth->name =  g_malloc0(xauth->name_length+1);
-    memcpy(tmpauth->name, xauth->name, xauth->name_length);
-
-    tmpauth->datalen = xauth->data_length;
-    tmpauth->data =  g_malloc0(xauth->data_length+1);
-    memcpy(tmpauth->data, xauth->data, xauth->data_length);
-
-    // move the data as hex
-    tmp = bin2hex(tmpauth->name, tmpauth->namelen);
-    /* Send "string" through the output side of pipe */
-    write(fd[1], tmp, strlen(tmp));
-    write(fd[1], ":", 1);
-    //printf("send: %s:", tmp);
-    free(tmp);
-    tmp = bin2hex(tmpauth->data, tmpauth->datalen);
-    write(fd[1], tmp, strlen(tmp));
-    //printf("%s\n", tmp);
-    free(tmp);
-    close(fd[1]);
-    exit(0);
-  }
-  else
-  {
-    /* Parent process closes up output side of pipe */
-    close(fd[1]);
-
-    /* Read in a string from the pipe */
-    while(TRUE) {
-      nbytes = read(fd[0], readbuffer, sizeof(readbuffer));
-      if(!nbytes) {
-        full_data = g_string_append_c(full_data, 0);
-        break;
-      }
-      full_data = g_string_append_len(full_data, (const char*)&readbuffer, nbytes);
-    }
-    //printf("Received string: '%s' \n", full_data->str);
-
-    waitpid(childpid, &childrv, 0);
-
-    if(full_data->len < 10)
-      return NULL;
-
-    rv = malloc(sizeof(xcb_auth_info_t));
-    tmp = strchr(full_data->str, ':');
-    hex2bin(full_data->str, tmp-(full_data->str), &rv->name, &rv->namelen);
-    hex2bin(tmp+1, (full_data->len - (tmp - full_data->str) - 2), &rv->data, &rv->datalen);
-    g_string_free(full_data, TRUE);
-    if(!rv->namelen || !rv->datalen) {
-      free(rv);
-      return NULL;
-    }
-    close(fd[0]);
-    return rv;
-  }
-
-  return NULL;
-}
-
-struct x_server *create_connection(uid_t uid, const char *display) {
+int create_connection(struct x_server *xs) {
   int  screenNum, i, dsp, parsed = 0;
   char *host;
   char dispbuf[40];   /* big enough to hold more than 2^64 base 10 */
   int dispbuflen;
   xcb_screen_iterator_t iter;
   const xcb_setup_t *setup;
-  struct x_server *rv;
+  struct passwd *pw;
+  GPtrArray *xauthptr;
+  char *save_home, *save_xauth = NULL;
 
-  parsed = xcb_parse_display(display, &host, &dsp, &screenNum);
+  xs->last_try = time(NULL);
+
+  parsed = xcb_parse_display(xs->display, &host, &dsp, &screenNum);
 
   if(!parsed) {
-    g_warning("can't parse display: %s", display);
-    return NULL;
+    g_warning("can't parse display: %s", xs->display);
+    return FALSE;
   }
 
 
   dispbuflen = snprintf(dispbuf, sizeof(dispbuf), "%d", dsp);
   if(dispbuflen < 0) {
       printf("cant put display buf\n");
-      return NULL;
+      return FALSE;
   }
 
-  rv = g_malloc0(sizeof(struct x_server));
+  pw = getpwuid(xs->uid);
+  save_home = g_strdup(getenv("HOME"));
+  save_xauth = g_strdup(getenv("XAUTHORITY"));
+  xauthptr = search_user_env(xs->uid, "XAUTHORITY", TRUE);
 
-  rv->display = g_strdup(display);
-  rv->uid = uid;
-  rv->auth = read_xauth(uid, host, dsp);
-  if(!rv->auth) {
-    g_warning("can't parse auth data for host: %s", host);
-    return NULL;
-  }
-  rv->connection = xcb_connect_to_display_with_auth_info(display, rv->auth, &screenNum);
-  if(!rv->connection) {
-    g_warning("can't connect to host: %s", host);
-    return NULL;
-  }
+  setenv("HOME", pw->pw_dir, 1);
+  unsetenv("XAUTHORITY");
+  i = -1;
+  seteuid(xs->uid);
+  do {
+    xs->connection = xcb_connect(xs->display, &screenNum);
+    if(xs->connection) {
+      g_debug("connected to X11 %s", xs->display);
+      break;
+    }
+    i++;
+    if(!xauthptr)
+      goto error;
+    if(i >= xauthptr->len)
+      goto error;
 
-  setup = xcb_get_setup(rv->connection);
+    setenv("XAUTHORITY", g_ptr_array_index(xauthptr, i), 1);
+  } while(TRUE);
+
+  seteuid(0);
+
+  g_ptr_array_unref(xauthptr);
+
+  if(save_home)
+    setenv("HOME", save_home, 1);
+  else
+    unsetenv("HOME");
+  if(save_xauth)
+    setenv("XAUTHORITY", save_xauth, 1);
+  else
+    unsetenv("XAUTHORITY");
+
+  g_free(save_xauth);
+  g_free(save_home);
+
+  setup = xcb_get_setup(xs->connection);
   
   if(!setup) {
     g_warning("can't get setup");
-    free_x_server(rv);
-    return NULL;
+    return FALSE;
   }
 
   iter = xcb_setup_roots_iterator(setup);  
@@ -386,40 +207,82 @@ struct x_server *create_connection(uid_t uid, const char *display) {
       xcb_screen_next (&iter);
   }
 
-  rv->screen = iter.data;
+  xs->screen = iter.data;
 
 
-  g_debug("connected to X11 host: %s display: %d screen: %d \n", localhost, dsp, screenNum);
+  g_debug("setup connection to X11 host: %s display: %d screen: %d \n", localhost, dsp, screenNum);
 
   // fillup the x server atoms
   xcb_intern_atom_cookie_t net_active_ck
-      = intern_string (rv->connection, "_NET_ACTIVE_WINDOW");
+      = intern_string (xs->connection, "_NET_ACTIVE_WINDOW");
 
   xcb_intern_atom_cookie_t net_pid_ck
-      = intern_string (rv->connection, "_NET_WM_PID");
+      = intern_string (xs->connection, "_NET_WM_PID");
 
   xcb_intern_atom_cookie_t net_client_ck
-      = intern_string (rv->connection, "WM_CLIENT_MACHINE");
+      = intern_string (xs->connection, "WM_CLIENT_MACHINE");
 
-  rv->atom_active = get_atom (rv->connection, net_active_ck);
-  rv->atom_pid = get_atom (rv->connection, net_pid_ck);
-  rv->atom_client = get_atom (rv->connection, net_client_ck);
+  xs->atom_active = get_atom (xs->connection, net_active_ck);
+  xs->atom_pid = get_atom (xs->connection, net_pid_ck);
+  xs->atom_client = get_atom (xs->connection, net_client_ck);
 
 
   xcb_intern_atom_cookie_t window_ck
-          = intern_string (rv->connection, "WINDOW");
+          = intern_string (xs->connection, "WINDOW");
 
   xcb_intern_atom_cookie_t cardinal_ck
-          = intern_string (rv->connection, "CARDINAL");
+          = intern_string (xs->connection, "CARDINAL");
 
   xcb_intern_atom_cookie_t string_ck
-          = intern_string (rv->connection, "STRING");
+          = intern_string (xs->connection, "STRING");
 
-  rv->window_atom = get_atom (rv->connection, window_ck);
-  rv->cardinal_atom = get_atom (rv->connection, cardinal_ck);
-  rv->string_atom = get_atom (rv->connection, string_ck);
+  xs->window_atom = get_atom (xs->connection, window_ck);
+  xs->cardinal_atom = get_atom (xs->connection, cardinal_ck);
+  xs->string_atom = get_atom (xs->connection, string_ck);
 
-  return rv;
+  return TRUE;
+
+error:
+  seteuid(0);
+
+  g_message("could not connect to display %s \n", xs->display);
+
+  // restore env
+  if(save_home)
+    setenv("HOME", save_home, 1);
+  else
+    unsetenv("HOME");
+  if(save_xauth)
+    setenv("XAUTHORITY", save_xauth, 1);
+  else
+    unsetenv("XAUTHORITY");
+
+  g_free(save_xauth);
+  g_free(save_home);
+
+  return FALSE;
+}
+
+// test if connection is alive, initiate new connection if lost etc
+int test_connection(struct x_server *xs) {
+
+    if(xs->connection) {
+        if(xcb_connection_has_error(xs->connection)) {
+            xcb_disconnect(xs->connection);
+            xs->connection = NULL;
+            xs->screen = NULL;
+            g_debug("got connection problems. disconnectd %s", xs->display);
+        } else {
+          return TRUE;
+        }
+    }
+
+    if(!xs->connection) {
+        if(xs->last_try && xs->last_try + RETRY_TIMEOUT > time(NULL))
+            return FALSE;
+        return create_connection(xs);
+    }
+    return FALSE;
 }
 
 gint match_display(gconstpointer a, gconstpointer b) {
@@ -434,11 +297,13 @@ void del_connection(struct x_server *rm) {
   g_free(rm);
 }
 
-struct x_server *add_connection(uid_t uid, const char *display) {
+struct x_server *add_connection(const char *name, uid_t uid, const char *display) {
   struct x_server *nc;
   GList *cur;
   uid_t myid = getuid();
-  
+
+  // test if we are root. we will not be able to connect to other users
+  // if we are not root, so skip them
   if(myid && myid != uid)
     return NULL;
 
@@ -450,91 +315,24 @@ struct x_server *add_connection(uid_t uid, const char *display) {
     server_list = g_list_remove(server_list, cur->data);
   }
 
-  nc = create_connection(uid, display);
+  nc = g_malloc0(sizeof(struct x_server));
 
-  if(nc) {
-    server_list = g_list_append(server_list, nc);
-    return nc;
-  }
-  return NULL;
+  nc->name = g_strdup(name);
+  nc->display = g_strdup(display);
+  nc->uid = uid;
+
+  create_connection(nc);
+
+  server_list = g_list_append(server_list, nc);
+
+  return nc;
 }
 
-static int add_all_console_kit(int update) {
-  GError *error;
-  DBusGProxy *proxy, *cproxy = NULL;
-  GPtrArray *array;
-  int i;
-  char *display;
-  pid_t uid;
-  GList *cur;
-  
-  g_type_init ();
-
-  error = NULL;
-
-  proxy = dbus_g_proxy_new_for_name(U_dbus_connection,
-                                    "org.freedesktop.ConsoleKit",
-                                    "/org/freedesktop/ConsoleKit/Manager",
-                                    "org.freedesktop.ConsoleKit.Manager");
-  error = NULL;
-  if (!dbus_g_proxy_call (proxy, "GetSessions", &error, G_TYPE_INVALID,
-                          dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
-                          &array, G_TYPE_INVALID)) {
-    g_warning("Error: %s\n", error->message);
-    goto error;
-  }
-
-
-  for (i = 0; i < array->len; i++) {
-    error = NULL;
-    cproxy = dbus_g_proxy_new_for_name(U_dbus_connection,
-                                       "org.freedesktop.ConsoleKit",
-                                       g_ptr_array_index(array, i),
-                                       "org.freedesktop.ConsoleKit.Session");
-    if (!dbus_g_proxy_call (cproxy, "GetUser", &error, G_TYPE_INVALID,
-                            G_TYPE_UINT,
-                            &uid, G_TYPE_INVALID)) {
-      g_warning ("Error: %s\n", error->message);
-      goto error;
-    }
-    if (!dbus_g_proxy_call (cproxy, "GetX11Display", &error, G_TYPE_INVALID,
-                            G_TYPE_STRING,
-                            &display, G_TYPE_INVALID)) {
-      g_warning ("Error: %s\n", error->message);
-      goto error;
-    }
-
-    if(strcmp(display, "")) {
-      if(!update) {
-        g_debug("found X11 display %s (uid: %d)", display, uid);
-        add_connection(uid, display);
-      } else {
-        cur = g_list_find_custom(server_list, display, match_display);
-        if(!cur)
-          add_connection(uid, display);
-      }
-    }
-    g_free(display);
-    g_object_unref (cproxy);
-  }
-  g_ptr_array_free(array, TRUE);
-  g_object_unref (proxy);
-  return 0;
-
-error:
-  if(error)
-    g_error_free (error);
-  if(cproxy)
-    g_object_unref(cproxy);
-  g_object_unref (proxy);
-  return 1;
-}
-
-
-pid_t read_pid(struct x_server *conn) {
+pid_t read_pid(struct x_server *conn, int *err) {
   xcb_generic_error_t *error;
+  *err = 0;
 
-  //printf("conn: %p : %p\n", conn, conn->connection);
+  dprint("dsp: %s xs: %p conn: %p\n", conn->display, conn, conn->connection);
 
   xcb_get_property_cookie_t naw =
     xcb_get_property (conn->connection,
@@ -552,9 +350,9 @@ pid_t read_pid(struct x_server *conn) {
   if(!rep || !xcb_get_property_value_length(rep))
     return 0;
 
-  //printf("len: %d", xcb_get_property_value_length (rep));
+  dprint("len: %d ", xcb_get_property_value_length (rep));
   uint32_t *win = xcb_get_property_value(rep);
-  //printf("win: %p\n", *win);
+  dprint("win: 0x%x\n", *win);
 
   xcb_get_property_cookie_t caw =
     xcb_get_property (conn->connection,
@@ -575,9 +373,9 @@ pid_t read_pid(struct x_server *conn) {
   if(!rep2 || !xcb_get_property_value_length(rep2))
     return 0;
 
-  //printf("len: %d", xcb_get_property_value_length (rep2));
+  dprint("len: %d ", xcb_get_property_value_length (rep2));
   uint32_t *pid = xcb_get_property_value(rep2);
-  //printf("pid: %d\n", *pid);
+  dprint("pid: %d\n", *pid);
 
   xcb_get_property_cookie_t ccaw =
     xcb_get_property (conn->connection,
@@ -598,44 +396,111 @@ pid_t read_pid(struct x_server *conn) {
   if(!rep3 || !xcb_get_property_value_length(rep3))
     return 0;
 
-  //printf("%d: %d \n", rep3->value_len, rep3->bytes_after);
-
   char *client =  xcb_get_property_value(rep3);
-  //printf("client: %d %s\n", xcb_get_property_value_length(rep3), client);
-  if(client && !strcmp(client, localhost)) {
+#ifdef DEBUG_XWATCH
+  char *tmp = g_strndup(xcb_get_property_value(rep3), xcb_get_property_value_length(rep3));
+  dprint("client: %d %s\n", xcb_get_property_value_length(rep3), tmp);
+  g_free(tmp);
+#endif
+  if(client && !strncmp(client, localhost, xcb_get_property_value_length(rep3))) {
     return *pid;
   }
   return 0;
 error:
   // error in connection. free x_server connection
   if(error->response_type == 0 && error->error_code == 3)
-    return 1;
-  printf("error: %d %d\n", error->response_type, error->error_code);
-  del_connection(conn);
-  return 1;
+    return 0;
+  *err = 1;
+  g_debug("xcb error: %d %d\n", error->response_type, error->error_code);
+  return 0;
 }
 
+
+
 #ifndef TEST_XWATCH
-static gboolean update_server_list(gpointer data) {
-  add_all_console_kit(TRUE);
-  return TRUE;
-}
 
 static gboolean update_all_server(gpointer data) {
   GList *cur;
   pid_t pid;
   int i;
+  u_session *sess;
+  GList *csess;
+  struct x_server *xs;
 
-  // we have to use for loop here, because read_pid removes connection
-  // on hard errors
-  for(i = 0; i < g_list_length(server_list); i++) {
+  // check the session list for new/changed servers
+  // remove dead servers
+  for(i = 0; i < g_list_length(server_list);) {
+    int found = FALSE;
     cur = g_list_nth(server_list, i);
+    xs = cur->data;
+
+    csess = g_list_first(U_session_list);
+    while(csess) {
+      sess = csess->data;
+
+      if(!strcmp(xs->name, sess->name)) {
+        found = TRUE;
+        break;
+      }
+      csess = g_list_next(csess);
+    }
+    if(!found) {
+      del_connection(xs);
+    } else {
+      i++;
+    }
+    csess = g_list_next(csess);
+  }
+  csess = g_list_first(U_session_list);
+  while(csess) {
+    sess = csess->data;
+    int found = FALSE;
+    GList *xcur = g_list_first(server_list);
+    while(xcur) {
+      xs = xcur->data;
+      if(!strcmp(xs->name, sess->name)) {
+        found = TRUE;
+        break;
+      }
+      xcur = g_list_next(xcur);
+    }
+    if(!found) {
+      add_connection(sess->name, sess->uid, sess->X11Display);
+    }
+
+    csess = g_list_next(csess);
+  }
+
+  int error = 0;
+  cur = server_list;
+  while(cur) {
     struct x_server *xs = cur->data;
-    pid = read_pid(xs);
-    if(pid) {
+    struct user_active *ua = get_userlist(xs->uid, TRUE);
+
+    // we take over the active pid if noone is doing it
+    if(ua->active_agent == USER_ACTIVE_AGENT_NONE)
+        ua->active_agent = xwatch_id;
+
+    // test if another agent is doing the active pid
+    if(ua->active_agent != xwatch_id) {
+        cur = g_list_next(cur);
+        continue;
+    }
+
+    // if we can't connect, skip
+    if(!test_connection(xs)) {
+      cur = g_list_next(cur);
+      continue;
+    }
+
+    pid = read_pid(xs, &error);
+
+    if(pid && error == 0) {
       //printf ("current uid: %d pid: %d\n", xs->uid, pid);
       set_active_pid(xs->uid, pid);
     }
+
+    cur = g_list_next(cur);
   }
   return TRUE;
 }
@@ -643,16 +508,15 @@ static gboolean update_all_server(gpointer data) {
 
 int xwatch_init() {
   localhost = get_localhost();
+  xwatch_id = get_plugin_id();
 #ifndef TEST_XWATCH
   GError *error = NULL;
   int interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", &error);
   if(error && error->code)
     interval = DEFAULT_INTERVAL;
   g_timeout_add(interval, update_all_server, NULL);
-  g_timeout_add_seconds(30, update_server_list, NULL);
   g_message("x server observation active. poll interval: %d", interval);
 #endif
-  add_all_console_kit(FALSE);
   return 0;
 }
 

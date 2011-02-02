@@ -37,7 +37,7 @@ static gint cmp_pid(gconstpointer a, gconstpointer b) {
   const guint pid = *(guint *)b;
   const struct user_active_process *up = a;
 
-  return (up->pid - pid);
+  return !(up->pid == pid);
 }
 
 
@@ -49,8 +49,9 @@ struct user_active* get_userlist(guint uid, gboolean create) {
   if(gls)
     return (struct user_active *)gls->data;
   if(create) {
-    ua = g_malloc(sizeof(struct user_active));
+    ua = g_malloc0(sizeof(struct user_active));
     ua->uid = uid;
+    ua->active_agent = USER_ACTIVE_AGENT_NONE;
     ua->max_processes = g_key_file_get_integer(config_data, "user", "default_active_list", &error);
     if(error && error->code) {
       ua->max_processes = 5;
@@ -100,11 +101,11 @@ void set_active_pid(guint uid, guint pid)
   while(g_list_length(ua->actives) > ua->max_processes) {
       up = g_list_last(ua->actives)->data;
       proc = proc_by_pid(up->pid);
+      ua->actives = g_list_remove(ua->actives, up);
       if(proc) {
         proc->changed = 1;
         process_run_one(proc, FALSE);
       }
-      ua->actives = g_list_remove(ua->actives, up);
   }
 
 }

@@ -343,8 +343,6 @@ static void ck_session_removed(DBusGProxy *proxy, gchar *name, gpointer ignored)
         g_free(sess->name);
         g_free(sess->X11Display);
         g_free(sess->X11Device);
-        g_free(sess->X11Cookie_name);
-        g_free(sess->X11Cookie_value);
         g_free(sess->dbus_session);
 
         U_session_list = g_list_remove(U_session_list, sess);
@@ -411,6 +409,9 @@ void consolekit_init() {
     GPtrArray *array;
     GError *error = NULL;
     int i;
+
+    if(!U_dbus_connection_system)
+      return;
 
     // cleanup first. the dbus connection could be new
     struct ck_seat *seat = NULL;

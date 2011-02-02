@@ -90,25 +90,12 @@ enum FILTER_PRIORITIES {
 
 // default categories for convinience
 
-/*
-#define FLAG_CAT_MEDIA "MEDIA"
-#define FLAG_CAT_DESKTOP_UI "DESKTOP_UI"
-#define FLAG_CAT_DESKTOP_HIGH "DESKTOP_HIGH"
-#define FLAG_CAT_DESKTOP "DESKTOP"
-#define FLAG_CAT_DESKTOP_IDLE "DESKTOP_IDLE"
-#define FLAG_CAT_DESKTOP_POISON "DESKTOP_POISON"
-#define FLAG_CAT_DEAMON "DEAMON"
-#define FLAG_CAT_DEAMON_ESSENTIAL "DEAMON_ESSENTIAL"
-*/
-
 enum IO_PRIO_CLASS {
   IOPRIO_CLASS_NONE,
   IOPRIO_CLASS_RT,
   IOPRIO_CLASS_BE,
   IOPRIO_CLASS_IDLE,
 };
-
-
 
 struct lua_callback {
   lua_State *lua_state;
@@ -235,6 +222,7 @@ struct user_active_process {
 
 enum USER_ACTIVE_AGENT {
   USER_ACTIVE_AGENT_NONE = 0,
+  USER_ACTIVE_AGENT_DISABLED,
   USER_ACTIVE_AGENT_DBUS,
   USER_ACTIVE_AGENT_MODULE=1000,
 };
@@ -244,10 +232,6 @@ typedef struct {
   gchar     *name;
   gchar     *X11Display;
   gchar     *X11Device;
-  // X11 auth data
-  gchar     *X11Cookie_name;
-  gchar     *X11Cookie_value;
-  size_t     X11Cookie_value_len;
   // most likely dbus session
   gchar     *dbus_session;
   uid_t     uid;

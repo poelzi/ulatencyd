@@ -440,6 +440,9 @@ gboolean u_dbus_setup() {
         .message_function = dbus_system_handler,
     };
 
+    if(!U_dbus_connection)
+      return FALSE;
+
     DBusError error;
     DBusConnection *c = dbus_g_connection_get_connection(U_dbus_connection);
     

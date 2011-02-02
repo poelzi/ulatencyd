@@ -208,7 +208,6 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
               tmp = g_ptr_array_index(proc->cmdline, 0);
               if(tmp) {
                   tmp2 = g_strrstr_len(tmp, -1, "/");
-                  printf("lastp: %s %s\n", tmp2, tmp);
                   if(tmp2 == NULL) {
                     proc->cmdfile = g_strdup(tmp);
                   } else if((tmp2+1-tmp) < strlen(tmp)) {
@@ -910,6 +909,14 @@ int load_rule_directory(char *path, char *load_pattern, int fatal) {
   DIR             *dip;
   struct dirent   *dit;
   char rpath[PATH_MAX+1];
+  gsize  disabled_len;
+  int i;
+  char **disabled;
+  char *rule_name;
+
+  disabled = g_key_file_get_string_list(config_data, CONFIG_CORE,
+                                        "disabled_rules", &disabled_len, NULL);
+
 
   g_message("load rule directory: %s", path);
 
@@ -926,15 +933,25 @@ int load_rule_directory(char *path, char *load_pattern, int fatal) {
   {
     if(fnmatch("*.lua", dit->d_name, 0))
       continue;
-    if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0)) {
-      g_debug("skip rule: %s", dit->d_name);
-      continue;
+    rule_name = g_strndup(dit->d_name,strlen(dit->d_name)-4);
+    if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0))
+      goto skip;
+
+    for(i = 0; i < disabled_len; i++) {
+      if(!g_strcasecmp(disabled[i], rule_name))
+        goto skip;
     }
 
     snprintf(rpath, PATH_MAX, "%s/%s", path, dit->d_name);
     if(load_lua_rule_file(lua_main_state, rpath) && fatal)
       abort();
+    g_free(rule_name);
+    continue;
+skip:
+    g_debug("skip rule: %s", dit->d_name);
+    g_free(rule_name);
   }
+  g_strfreev(disabled);
   free(dip);
   return 0;
 }
@@ -1001,7 +1018,7 @@ int load_modules(char *modules_directory) {
 
     free(module_name);
   }
-  g_free(disabled);
+  g_strfreev(disabled);
   closedir(dip);
   return 1;
 }
