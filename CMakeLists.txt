@@ -94,7 +94,7 @@ if(GETTEXT_FOUND)
   set(ENABLE_NLS 1)
 endif(GETTEXT_FOUND)
 
-configure_file(config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 
 include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LIBCGROUP_INCLUDE_DIRS} 
