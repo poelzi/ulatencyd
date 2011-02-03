@@ -97,7 +97,7 @@ endif(GETTEXT_FOUND)
 configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 
-include_directories (${CMAKE_CURRENT_BINARY_DIR} ${LIBCGROUP_INCLUDE_DIRS} 
+include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${LIBCGROUP_INCLUDE_DIRS}
                      ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
                      ${GIO_INCLUDE_DIRS})
 
