@@ -1,0 +1,14 @@
+0.4.0
+=====
+  Features since 0.3.0
+  - DBUS interface to query and control ulatencyd
+  - Much improved desktop config.
+    It now uses the task group as primary grouping value
+  - IO optimization when available
+  - Workarounds for GNOME & KDE which do not properly set task groups
+  - More robust startup on missing system features
+  - Tons of updates and bugfixes
+
+0.3.0
+=====
+  - First public release
