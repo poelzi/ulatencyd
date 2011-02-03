@@ -160,29 +160,27 @@ local function map_to_group(proc, parts, subsys)
 end
 
 
-Scheduler = {}
+Scheduler = {C_FILTER = false, ITERATION = 1}
 
-local C_FILTER = false
-local ITERATION = 1
 function Scheduler:all()
   local group
-  C_FILTER = not ulatency.get_flags_changed()
+  self.C_FILTER = not ulatency.get_flags_changed()
   for j, flag in pairs(ulatency.list_flags()) do
     if flag.name == "pressure" or flag.name == "emergency" then
-      C_FILTER = false
+      self.C_FILTER = false
     end
   end
-  if ITERATION > (tonumber(ulatency.get_config("scheduler", "mapping")) or 15) then
-    C_FILTER = false
-    ITERATION = 1
+  if self.ITERATION > (tonumber(ulatency.get_config("scheduler", "mapping")) or 15) then
+    self.C_FILTER = false
+    self.ITERATION = 1
   end
   -- list only changed processes
   for k,proc in ipairs(ulatency.list_processes(C_FILTER)) do
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end
-  C_FILTER = true
-  ITERATION = ITERATION + 1
+  self.C_FILTER = true
+  self.ITERATION = self.ITERATION + 1
   return true
 end
 
@@ -269,7 +267,12 @@ function Scheduler:set_config(config)
     ulatencyd.log_info("requested scheduler reconfiguration denied")
     return false
   end
-  return self:load_config(config)
+  local rv = self:load_config(config)
+  if rv then
+    self.C_FILTER = true
+    ulatency.run_iteration()
+  end
+  return rv
 end
 
 function Scheduler:get_config()

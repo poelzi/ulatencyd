@@ -210,7 +210,7 @@ int create_connection(struct x_server *xs) {
   xs->screen = iter.data;
 
 
-  g_debug("setup connection to X11 host: %s display: %d screen: %d \n", localhost, dsp, screenNum);
+  g_debug("setup connection to X11 host: %s display: %d screen: %d", localhost, dsp, screenNum);
 
   // fillup the x server atoms
   xcb_intern_atom_cookie_t net_active_ck

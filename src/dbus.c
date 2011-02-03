@@ -343,6 +343,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         if(tmps) {
             ret = dbus_message_new_method_return(m);
+            g_message("DBUS: setSchedulerConfig(\"%s\") executed", tmps);
             dbus_bool_t rv = (dbus_bool_t)sched->set_config(tmps);
             dbus_message_append_args (ret,
                                       DBUS_TYPE_BOOLEAN, &rv,

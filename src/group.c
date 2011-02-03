@@ -124,6 +124,24 @@ int is_active_pid(u_proc *proc) {
   return TRUE;
 }
 
+int get_active_pos(u_proc *proc) {
+  int rv = 0;
+  GList *cur;
+  struct user_active *ua = get_userlist(proc->proc.ruid, FALSE);
+
+  if(!ua)
+    return 0;
+
+  cur = ua->actives;
+  while(cur) {
+    rv++;
+    if(((struct user_active_process *)cur->data)->pid == proc->pid)
+      return rv;
+    cur = g_list_next(cur);
+  }
+  return 0;
+}
+
 // cgroups 
 //void set_active_pid(guint uid, guint pid);
 

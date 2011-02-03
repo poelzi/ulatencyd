@@ -372,6 +372,7 @@ int adj_oom_killer(pid_t pid, int adj);
 void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
 int is_active_pid(u_proc *proc);
+int get_active_pos(u_proc *proc);
 
 // sysinfo.c
 GHashTable * u_read_env_hash (pid_t pid);
