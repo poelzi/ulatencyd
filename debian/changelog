@@ -1,0 +1,18 @@
+ulatencyd (0.3.5-1) unstable; urgency=low
+
+  * new upstream version
+
+ -- Daniel Poelzleithner <poelzi@poelzi.org>  Thu, 20 Jan 2011 11:47:19 +0100
+
+ulatencyd (0.3.1-2) unstable; urgency=low
+
+  * remove cmake file from docs
+  * add missing docs files 
+
+ -- Daniel Poelzleithner <poelzi@poelzi.org>  Tue, 18 Jan 2011 09:45:09 +0100
+
+ulatencyd (0.3.1-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Daniel Poelzleithner <poelzi@poelzi.org>  Mon, 17 Jan 2011 21:11:33 +0100

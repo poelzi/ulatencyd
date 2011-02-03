@@ -1,0 +1,12 @@
+# Defaults for ulatencyd initscript
+# sourced by /etc/init.d/ulatencyd
+# installed at /etc/default/ulatencyd by the maintainer scripts
+
+#
+# This is a POSIX shell fragment
+#
+
+ENABLE_ULATENCYD="yes"
+
+# Additional options that are passed to the Daemon.
+DAEMON_OPTS=""
