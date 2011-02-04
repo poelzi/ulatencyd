@@ -1034,6 +1034,7 @@ int core_init() {
   iteration = 1;
   filter_list = NULL;
 
+  smp_num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
 #ifdef ENABLE_DBUS
   if(!u_dbus_setup())

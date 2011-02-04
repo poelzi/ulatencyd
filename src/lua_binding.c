@@ -799,6 +799,61 @@ static int u_proc_set_pgid (lua_State *L) {
   return 2;
 }
 
+static int u_proc_set_oom_score (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  int value = luaL_checkint(L, 2);
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  lua_pushboolean(L, !adj_oom_killer(proc->pid, value));
+
+  return 1;
+}
+
+static int u_proc_get_oom_score (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  lua_pushinteger(L, !get_oom_killer(proc->pid));
+
+  return 1;
+}
+
+static int u_proc_ioprio_set (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  int prio = luaL_checkint(L, 2);
+  int class = luaL_checkint(L, 3);
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, class));
+
+  return 1;
+}
+
+static int u_proc_ioprio_get (lua_State *L) {
+  u_proc *proc = check_u_proc(L, 1);
+  int prio = 0;
+  int class = 0;
+
+  if(U_PROC_IS_INVALID(proc))
+    return 0;
+
+  ioprio_getpid(proc->pid, &prio, &class);
+
+  lua_pushinteger(L, prio);
+  lua_pushinteger(L, class);
+
+  return 2;
+}
+
+
+
+
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
     lua_pushinteger(L, (lua_Integer)proc->proc.name); \
@@ -893,7 +948,21 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "set_pgid" )) {
     lua_pushcfunction(L, u_proc_set_pgid);
     return 1;
+  } else if(!strcmp(key, "set_oom_score" )) {
+    lua_pushcfunction(L, u_proc_set_oom_score);
+    return 1;
+  } else if(!strcmp(key, "get_oom_score" )) {
+    lua_pushcfunction(L, u_proc_get_oom_score);
+    return 1;
+  } else if(!strcmp(key, "set_ioprio" )) {
+    lua_pushcfunction(L, u_proc_ioprio_set);
+    return 1;
+  } else if(!strcmp(key, "get_ioprio" )) {
+    lua_pushcfunction(L, u_proc_ioprio_get);
+    return 1;
   }
+  
+  
   
   
 
@@ -1605,16 +1674,17 @@ inline int l_filter_postcheck(u_filter *flt) {
 int l_filter_check(u_proc *proc, u_filter *flt) {
   struct lua_filter *lft = (struct lua_filter *)flt->data;
 
-  if(lft->regexp_basename && proc->proc.cmd[0]) {
-    if(g_regex_match(lft->regexp_basename, &proc->proc.cmd[0], 0, NULL))
+  if(lft->regexp_basename) {
+    u_proc_ensure(proc, CMDLINE, FALSE);
+    if(proc->cmdfile &&
+       g_regex_match(lft->regexp_basename, proc->cmdfile, 0, NULL))
       return TRUE;
   }
   if(lft->regexp_cmdline) {
     u_proc_ensure(proc, CMDLINE, FALSE);
-    if(proc->cmdline_match) {
-      if(g_regex_match(lft->regexp_cmdline, proc->cmdline_match, 0, NULL))
+    if(proc->cmdline_match && 
+       g_regex_match(lft->regexp_cmdline, proc->cmdline_match, 0, NULL))
         return TRUE;
-    }
   }
  
 /*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);

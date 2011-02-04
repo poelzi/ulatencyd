@@ -8,14 +8,26 @@
 
 GnomeUI = {
   name = "GnomeUI",
-  re_basename = "metacity|compiz|gnome-panel|gtk-window-deco",
+  re_basename = "metacity|compiz|gnome-panel|gtk-window-decorator",
   --re_basename = "metacity",
   check = function(self, proc)
     local flag = ulatency.new_flag("user.ui")
     proc:add_flag(flag)
-
+    proc:set_oom_score(-300)
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)
     return rv
+  end
+}
+
+
+GnomeCore = {
+  name = "GnomeCore",
+  re_basename = "x-session-manager",
+    -- adjust the oom score adjust so x server will more likely survive
+  check = function(self, proc)
+    proc:set_oom_score(-300)
+
+    return ulatency.filter_rv(ulatency.FILTER_STOP)
   end
 }
 
@@ -36,8 +48,7 @@ GnomeFix = {
         proc:set_pgid(proc.pid)
       end
     end
-    rv = ulatency.filter_rv(ulatency.FILTER_STOP)
-    return rv
+    return ulatency.filter_rv(ulatency.FILTER_STOP)
   end
 }
 
@@ -68,5 +79,6 @@ end
 
 ulatency.add_timeout(cleanup_gnome_mess, 1000)
 
+ulatency.register_filter(GnomeCore)
 ulatency.register_filter(GnomeUI)
 ulatency.register_filter(GnomeFix)

@@ -39,7 +39,7 @@
                                G_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
-#define VERSION 0.4.0
+#define VERSION 0.4.1
 
 #define OPENPROC_FLAGS PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
@@ -367,6 +367,7 @@ extern u_scheduler LUA_SCHEDULER;
 int ioprio_getpid(pid_t pid, int *ioprio, int *ioclass);
 int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
 int adj_oom_killer(pid_t pid, int adj);
+int get_oom_killer(pid_t pid);
 
 // group.c
 void set_active_pid(unsigned int uid, unsigned int pid);

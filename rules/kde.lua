@@ -13,7 +13,6 @@ local Kde_Ui_Tab = {
   "kmix",
   "kded4",
   "kwin",
-  "plasma",
   "plasma-desktop"
 }
 
@@ -31,6 +30,21 @@ KdeUI = {
   end
 }
 
+KdeCore = {
+  name = "KdeCore",
+  re_basename = "startkde|kdeinit4|plasma-desktop",
+  check = function(self, proc)
+    if proc.cmd_file == "plasma-desktop" then
+      -- plasma requires a lot of ram and is buggy sometimes, better we
+      -- do not set it's oom adj to low
+      proc:set_oom_score(-130)
+    else
+      proc:set_oom_score(-300)
+    end
+
+    return ulatency.filter_rv(ulatency.FILTER_STOP)
+  end
+}
 
 -- kde does a very bad job in setting grpid's, causing the complete
 -- desktop to be run under one group. we fix this problem here, ugly
@@ -80,6 +94,7 @@ local function cleanup_kde_mess()
 end
 
 ulatency.add_timeout(cleanup_kde_mess, 1000)
+ulatency.register_filter(KdeCore)
 ulatency.register_filter(KdeUI)
 ulatency.register_filter(KdeRunnerFix)
 

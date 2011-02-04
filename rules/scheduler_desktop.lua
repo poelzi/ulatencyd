@@ -13,6 +13,13 @@ SCHEDULER_MAPPING_DESKTOP.description = "a good default desktop configuration"
 -- cpu & memory configuration
 SCHEDULER_MAPPING_DESKTOP["cm"] =
 {
+  { 
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+              return (proc.ppid == 0 and proc.pid ~= 1)
+            end
+  },
   {
     name = "system_essential",
     cgroups_name = "sys_essential",
@@ -131,6 +138,13 @@ SCHEDULER_MAPPING_DESKTOP["cm"] =
 SCHEDULER_MAPPING_DESKTOP["io"] =
 {
   { 
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+              return true
+            end
+  },
+  { 
     name = "active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
@@ -144,11 +158,5 @@ SCHEDULER_MAPPING_DESKTOP["io"] =
     check = function(proc)
               return proc.pgrp > 0
             end,
-  }, { 
-    name = "kernel",
-    cgroups_name = "",
-    check = function(proc)
-              return true
-            end
-  },
+  }
 }

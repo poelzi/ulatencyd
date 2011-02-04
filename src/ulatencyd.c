@@ -120,18 +120,6 @@ void cleanup() {
   core_unload();
 }
 
-static void avoid_oom_killer(void)
-{
-  int oomfd;
-
-  oomfd = open("/proc/self/oom_adj", O_NOFOLLOW | O_WRONLY);
-  if (oomfd >= 0) {
-    (void)write(oomfd, "-17", 3);
-    close(oomfd);
-    return;
-  }
-}
-
 #define FORMAT_UNSIGNED_BUFSIZE ((GLIB_SIZEOF_LONG * 3) + 3)
 #define	STRING_BUFFER_SIZE	(FORMAT_UNSIGNED_BUFSIZE + 32)
 
@@ -554,7 +542,7 @@ int main (int argc, char *argv[])
   
   //signal (SIGABRT, cleanup_on_abort);
   core_init();
-  avoid_oom_killer();
+  adj_oom_killer(getpid(), -1000);
   load_modules(modules_directory);
   load_rule_directory(rules_directory, load_pattern, TRUE);
 

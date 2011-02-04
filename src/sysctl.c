@@ -20,6 +20,7 @@
 #include "ulatency.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <getopt.h>
 #include <unistd.h>
@@ -30,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <err.h>
+#include <linux/oom.h>
 #include "nls.h"
 #ifndef __USE_GNU
 #define __USE_GNU
@@ -119,17 +121,17 @@ int renice_pid(int pid, int prio) {
 int adj_oom_killer(pid_t pid, int adj)
 {
   int oomfd, val;
-  char aval[4];
+  char aval[6];
   char *path;
 
-  val = MAX(-17, MIN(adj, 15));
+  val = MAX(-1000, MIN(adj, 1000));
 
-  g_snprintf(&aval[0], 4, "%d", val);
-  path = g_strdup_printf("/proc/%d/oom_adj", pid);
+  g_snprintf(&aval[0], 6, "%d", val);
+  path = g_strdup_printf("/proc/%d/oom_score_adj", pid);
 
   oomfd = open(path, O_NOFOLLOW | O_WRONLY);
   if (oomfd >= 0) {
-    (void)write(oomfd, &aval, 3);
+    (void)write(oomfd, &aval, strlen(&aval[0]));
     close(oomfd);
     free(path);
     return 0;
@@ -138,4 +140,28 @@ int adj_oom_killer(pid_t pid, int adj)
   return -1;
 }
 
+int get_oom_killer(pid_t pid)
+{
+    char       *contents, *path;
+    gsize       length;
+    GError     *error = NULL;
+    int         rv, res;
 
+    path = g_strdup_printf ("/proc/%u/oom_score_adj", (guint)pid);
+
+    res = g_file_get_contents (path,
+                               &contents,
+                               &length,
+                               &error);
+    if (!res) {
+        g_error_free (error);
+        return 0;
+    }
+    if(!sscanf(contents, "%d", &rv))
+      rv = 0;
+
+    g_free(contents);
+    g_free(path);
+
+    return rv;
+}
