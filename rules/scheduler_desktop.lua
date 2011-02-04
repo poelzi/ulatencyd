@@ -13,13 +13,6 @@ SCHEDULER_MAPPING_DESKTOP.description = "a good default desktop configuration"
 -- cpu & memory configuration
 SCHEDULER_MAPPING_DESKTOP["cm"] =
 {
-  { 
-    name = "kernel",
-    cgroups_name = "",
-    check = function(proc)
-              return (proc.ppid == 0 and proc.pid ~= 1)
-            end
-  },
   {
     name = "system_essential",
     cgroups_name = "sys_essential",
@@ -132,31 +125,45 @@ SCHEDULER_MAPPING_DESKTOP["cm"] =
             end,
     param = { ["cpu.shares"]="800", ["memory.swappiness"] = "70" },
   },
+  { 
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+              return (proc.vm_size == 0)
+            end
+  },
 }
 
 -- io configuration. blkio does not support hirarchies
 SCHEDULER_MAPPING_DESKTOP["io"] =
 {
-  { 
-    name = "kernel",
-    cgroups_name = "",
-    check = function(proc)
-              return true
-            end
-  },
+
   { 
     name = "active",
+    cgroups_name = "usr_${euid}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
         return proc.is_active
       end
   },
   { 
+    name = "idle",
+    param = { ["blkio.weight"]="1" },
+    label = { "daemon.idle", "user.idle" },
+  },
+  { 
     name = "group",
     param = { ["blkio.weight"]="300" },
-    cgroups_name = "ps_${pgrp}",
+    cgroups_name = "grp_${pgrp}",
     check = function(proc)
               return proc.pgrp > 0
             end,
-  }
+  },
+  { 
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+              return (proc.vm_size == 0)
+            end
+  },
 }

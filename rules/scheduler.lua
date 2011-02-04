@@ -160,7 +160,7 @@ local function map_to_group(proc, parts, subsys)
 end
 
 
-Scheduler = {C_FILTER = false, ITERATION = 1}
+Scheduler = {C_FILTER = false, ITERATION = 1, TRACE = ulatency.get_config("logging", "trace_scheduler") == "true"}
 
 function Scheduler:all()
   local group
@@ -222,6 +222,9 @@ function Scheduler:one(proc)
         local mappings = run_list(proc, map)
         --pprint(mappings)
         group = map_to_group(proc, mappings, subsys)
+        if(self.TRACE) then
+          print(proc, group)
+        end
         --print(tostring(group))
         --pprint(mappings)
         --print(tostring(proc.pid) .. " : ".. tostring(group))

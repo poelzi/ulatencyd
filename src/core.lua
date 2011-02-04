@@ -215,7 +215,7 @@ local _CGroup_Cache = {}
 CGroup = {}
 
 function CGroup_tostring(data, key)
-  return "<CGroup ".. data.name ..">"
+  return "<CGroup ".. data.tree .. ":" .. data.name ..">"
 end
 
 
