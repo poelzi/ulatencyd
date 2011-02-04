@@ -43,6 +43,15 @@ How can I see if it's working ?
      2:memory,cpu,cpuset:/usr_1000/grp_26561
      1:blkio:/ps_26561
 
+Are you trying to do scheduling in userspace ?
+----------------------------------------------
+
+   NO. That would be nuts. You can't write a scheduler in userspace.
+   ulatencyd just uses the interfaces the Linux kernel already provides
+   to adjust the parameters of the scheduler and other subsystems. 
+   Adjustment is something that should be done in userspace and does not need to be done very
+   often, so the resources required by ulatencyd are quite low.
+
 
 What causes conflicts ?
 -----------------------
