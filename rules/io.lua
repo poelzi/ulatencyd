@@ -117,5 +117,6 @@ local function iterate()
   return true
 end
 
-
-ulatency.add_timeout(iterate, 1000)
+if ulatency.tree_loaded("io") then
+  ulatency.add_timeout(iterate, 1000)
+end
