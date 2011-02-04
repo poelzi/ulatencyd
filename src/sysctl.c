@@ -38,6 +38,12 @@
 #endif
 #include <fcntl.h>
 
+#ifndef OOM_SCORE_ADJ_MIN
+#define OOM_SCORE_ADJ_MIN       (-1000)
+#define OOM_SCORE_ADJ_MAX       1000
+#endif
+
+
 const char *to_prio[] = { "none", "realtime", "best-effort", "idle", };
 
 // IO PRIO stuff
@@ -124,7 +130,7 @@ int adj_oom_killer(pid_t pid, int adj)
   char aval[6];
   char *path;
 
-  val = MAX(-1000, MIN(adj, 1000));
+  val = MAX(OOM_SCORE_ADJ_MIN, MIN(adj, OOM_SCORE_ADJ_MAX));
 
   g_snprintf(&aval[0], 6, "%d", val);
   path = g_strdup_printf("/proc/%d/oom_score_adj", pid);
