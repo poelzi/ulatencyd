@@ -175,7 +175,7 @@ function Scheduler:all()
     self.ITERATION = 1
   end
   -- list only changed processes
-  for k,proc in ipairs(ulatency.list_processes(C_FILTER)) do
+  for k,proc in ipairs(ulatency.list_processes(self.C_FILTER)) do
 --    print("sched", proc, proc.cmdline)
     self:one(proc)
   end
