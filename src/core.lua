@@ -125,6 +125,30 @@ if(not ulatency.load_rule("../cgroups.conf")) then
   end
 end
 
+-- build a list of usefull mountpoints
+ulatency.mountpoints = {}
+
+local function load_mountpoints()
+  local fp = io.open("/proc/mounts")
+  local good = { sysfs=true, debugfs=true }
+
+  if not fp then
+    ulatency.log_error("/proc/mounts could not be opened")
+  end
+  for line in fp:lines() do
+    local chunks = string.split(line, " ")
+    if good[chunks[3]] then
+      ulatency.mountpoints[chunks[3]] = chunks[2]
+    end
+  end
+  fp:close()
+end
+load_mountpoints()
+
+if not ulatency.mountpoints["sysfs"] then
+  ulatency.log_error("sysfs is not mounted")
+end
+
 
 local __CGROUP_HAS = false
 local __CGROUP_AVAIL = false
