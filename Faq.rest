@@ -75,6 +75,7 @@ What kernel options are required ?
    
    ::
 
+     PROC_EVENTS=y
      CONFIG_CGROUPS=y
      CONFIG_CGROUP_FREEZER=y
      CONFIG_CGROUP_DEVICE=y
@@ -86,6 +87,13 @@ What kernel options are required ?
      CONFIG_RT_GROUP_SCHED=y
      CONFIG_BLK_CGROUP=y
      CONFIG_CFQ_GROUP_IOSCHED=y
+
+I get WARNING: binding sk_nl error: Bad file descriptor
+-------------------------------------------------------
+
+    You are missing the `PROC_EVENTS` option in your Kernel.
+    
+    Enable it here: `Device Drivers -> Connector ... -> Report process events to userspace`
 
 Does ulatencyd support my cgroups mount points
 ----------------------------------------------
