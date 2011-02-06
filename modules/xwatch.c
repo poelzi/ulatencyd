@@ -164,9 +164,13 @@ int create_connection(struct x_server *xs) {
   seteuid(xs->uid);
   do {
     xs->connection = xcb_connect(xs->display, &screenNum);
+
     if(xs->connection) {
-      g_debug("connected to X11 %s", xs->display);
-      break;
+      setup = xcb_get_setup(xs->connection);
+      if(setup) {
+        g_debug("connected to X11 %s", xs->display);
+        break;
+      }
     }
     i++;
     if(!xauthptr)
@@ -193,12 +197,6 @@ int create_connection(struct x_server *xs) {
   g_free(save_xauth);
   g_free(save_home);
 
-  setup = xcb_get_setup(xs->connection);
-  
-  if(!setup) {
-    g_warning("can't get setup");
-    return FALSE;
-  }
 
   iter = xcb_setup_roots_iterator(setup);  
 
