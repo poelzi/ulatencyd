@@ -579,47 +579,57 @@ function CGroup:starve(what)
 end
 
 
-
-
-
 -- helper classes
 
-function to_string(data, indent)
-    local str = ""
+function vardump(data)
+	local function rvardump (rdata, erg,indent,key)
 
-    if(indent == nil) then
-        indent = 0
-    end
+		local linePrefix = ""
+		if key ~= nil then 
+			linePrefix = string.format("[%s]",key)
+		end
 
-    -- Check the type
-    if(type(data) == "string") then
-        str = str .. (" "):rep(indent) .. data .. "\n"
-    elseif(type(data) == "number") then
-        str = str .. (" "):rep(indent) .. data .. "\n"
-    elseif(type(data) == "boolean") then
-        if(data == true) then
-            str = str .. "true"
-        else
-            str = str .. "false"
-        end
-    elseif(type(data) == "table") then
-        local i, v
-        for i, v in pairs(data) do
-            -- Check for a table in a table
-            if(type(v) == "table") then
-                str = str .. (" "):rep(indent) .. i .. ":\n"
-                str = str .. to_string(v, indent + 2)
-            else
-                str = str .. (" "):rep(indent) .. i .. ": " .. to_string(v, 0)
-            end
-        end
-    else
-        return tostring(data).."\n"
-    end
+		if(indent == nil) then
+			indent = 0
+		else 
+			indent = indent +1
+			table.insert(erg,string.rep(" ",indent)) 
+		end
 
-    return str
+		if type(rdata) == 'table' then
+			mTable = getmetatable(rdata)
+			if mTable == nil then
+				table.insert(erg,linePrefix)
+				table.insert(erg ,"(table)")
+			else
+				table.insert(erg ,"(metatable)")
+				rdata = mTable
+			end
+			table.insert(erg,"\n")
+			for tableKey, tableValue in pairs(rdata) do
+				rvardump(tableValue, erg,indent,tableKey)
+			end
+		elseif  type(rdata) == 'function'   or
+			type(rdata)	== 'thread' or
+			type(rdata)	== 'userdata' or
+			rdata		== nil  then
+
+			table.insert(erg,tostring(rdata))
+			table.insert(erg,"\n")
+		else
+			table.insert(erg,string.format("%s(%s)%s",linePrefix,type(rdata),tostring(rdata)))
+			table.insert(erg,"\n")
+		end
+	end
+
+	local erg= {}
+	rvardump(data,erg)
+	
+	return table.concat(erg)
 end
 
+
+
 function pprint(data)
-  print(to_string(data))
+  print(vardump(data))
 end
