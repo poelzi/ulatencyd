@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <string.h>
+#include <unistd.h>
 
 int
 main (argc, argv)
@@ -30,7 +31,6 @@ main (argc, argv)
 {
   int c = 0;
   int i = 0;
-  int digit_optind = 0;
   int chunk = 1024;
   int nums = 10;
   int delay = 50000;
@@ -39,7 +39,6 @@ main (argc, argv)
 
   while (1)
     {
-      int this_option_optind = optind ? optind : 1;
       int option_index = 0;
       static struct option long_options[] =
       {

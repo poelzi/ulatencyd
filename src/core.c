@@ -1255,7 +1255,8 @@ int iterate(gpointer rv) {
   tfilter = g_timer_elapsed(timer_filter, &dump);
   tscheduler = g_timer_elapsed(timer_scheduler, &dump);
 
-  g_debug("spend between iterations: update=%0.2F filter=%0.2F scheduler=%0.2F", tparse, tfilter, tscheduler);
+  g_debug("spend between iterations: update=%0.2F filter=%0.2F scheduler=%0.2F total=%0.2F", 
+          tparse, tfilter, tscheduler, (tparse + tfilter + tscheduler));
   g_timer_start(timer);
   u_flag_clear_timeout(NULL, timeout);
   iteration += 1;
