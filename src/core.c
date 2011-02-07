@@ -354,12 +354,23 @@ static void processes_free_value(gpointer data) {
  *
  * Returns: @u_proc of parent
  */
-static inline u_proc *parent_proc_by_pid(pid_t parent_pid, pid_t child_pid) {
+static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
     u_proc *parent = proc_by_pid(parent_pid);
     // this should't happen, but under fork stress init may not have
-    // collected so the parent does not exist.
+    // collected so the parent does not exist, or the parent just died. we try updating
+    // the process first and try again.
     if(!parent) {
-      g_warning("pid: %d parent %d missing. attaching to pid 1", child_pid, parent_pid);
+      g_debug("parent missing: %d, force update", parent_pid);
+      process_update_pid(child->pid);
+      parent = proc_by_pid(child->proc.ppid);
+      if(!parent) {
+        g_debug("parent missing, second try: %d parent %d", child->pid, child->proc.ppid);
+        process_update_pid(child->proc.ppid);
+        parent = proc_by_pid(child->proc.ppid);
+      }
+    }
+    if(!parent) {
+      g_warning("pid: %d parent %d missing. attaching to pid 1", child->pid, parent_pid);
       return proc_by_pid(1);
     }
     return parent;
@@ -399,7 +410,7 @@ static void rebuild_tree() {
     g_assert(proc->proc.ppid != proc->pid);
     if(proc->proc.ppid) {
       // get a parent, hopfully the real one
-      parent = parent_proc_by_pid(proc->proc.ppid, proc->pid);
+      parent = parent_proc_by_pid(proc->proc.ppid, proc);
 
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
 
@@ -757,7 +768,7 @@ gboolean process_new_lazy(pid_t pid, pid_t parent) {
       proc->proc.ppid = parent;
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
       // put it into the lists
-      proc_parent = parent_proc_by_pid(parent, pid);
+      proc_parent = parent_proc_by_pid(parent, proc);
       g_node_append(proc_parent->node, proc->node);
       g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
     } else {
@@ -1486,7 +1497,7 @@ int core_init() {
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "core initialized");
   if(delay)
-    g_timeout_add((int)(delay / 10), run_new_pid, NULL);
+    g_timeout_add((int)(delay / 3), run_new_pid, NULL);
   // we save delay as ns for easier comparison
   delay = delay * 1000000;
   return 1;

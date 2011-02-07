@@ -107,7 +107,14 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 	case PROC_EVENT_FORK:
 		g_trace("FORK Event: PARENT = %d PID = %d",
 			ev->event_data.fork.parent_pid, ev->event_data.fork.child_pid);
-		process_new_lazy(ev->event_data.fork.child_pid, ev->event_data.fork.parent_pid);
+		// parent does not mean the parent of the new proc, but the parent of
+		// the forking process. so we lookup the parent of the forking process
+		// first
+		u_proc *rparent = proc_by_pid(ev->event_data.fork.parent_pid);
+		if(rparent)
+			process_new_lazy(ev->event_data.fork.child_pid, rparent->proc.ppid); //ev->event_data.fork.parent_pid);
+		else
+			process_new_lazy(ev->event_data.fork.child_pid, 0);
 		break;
 	default:
 		return 0;
