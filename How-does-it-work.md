@@ -13,5 +13,5 @@ set on a process expire and the scheduler will make another decision.
 
 The rules and the scheduler can be adjusted by the user to his wishes.
 
-* [Writing rules](WritingRules)
+* [Writing rules](Writing-Rules)
 * [Adjusting the default scheduler](Adjusting-default-scheduler)
