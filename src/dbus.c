@@ -89,6 +89,7 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "      <arg type=\"aa{sv}\" direction=\"out\" />\n"
 "    </method>\n"
 "    <property name=\"config\" type=\"s\" access=\"read\"/>\n"
+"    <property name=\"version\" type=\"s\" access=\"read\"/>\n"
 "  </interface>\n"
 INTROSPECT
 "</node>\n";
@@ -440,7 +441,14 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
                     g_free(tmp);
                 }
                 goto finish;
+            } else if(g_strcmp0(property, "version") == 0) {
+                const char *tmp = QUOTEME(VERSION);
+                dbus_message_append_args (ret,
+                                          DBUS_TYPE_STRING, &tmp,
+                                          DBUS_TYPE_INVALID);
+                goto finish;
             }
+
 
             dbus_message_unref(ret);
             return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
