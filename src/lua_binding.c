@@ -2155,6 +2155,7 @@ int load_lua_rule_file(lua_State *L, const char *name) {
   }
   if(lua_pcall(L, 0, LUA_MULTRET, 0)) {
     report(L, 1);
+    return 1;
   }
   return 0;
 
