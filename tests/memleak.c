@@ -28,7 +28,8 @@ main (argc, argv)
      int argc;
      char **argv;
 {
-  int i, c;
+  int c = 0;
+  int i = 0;
   int digit_optind = 0;
   int chunk = 1024;
   int nums = 10;
