@@ -95,6 +95,14 @@ I get WARNING: binding sk_nl error: Bad file descriptor
     
     Enable it here: `Device Drivers -> Connector ... -> Report process events to userspace`
 
+I don't have a swap
+-------------------
+
+    Having no swap device is not a problem, but the memory protector which runs in a 1 second interval
+    may not have the chance to detect memory pressure in time and therefore the OOM will kick in or the system
+    will freeze. Due the new dynamic swapiness of groups, having a swap is now a very good idea and will not cause
+    a laggy behaviour after long periods of idle.
+
 Does ulatencyd support my cgroups mount points
 ----------------------------------------------
 
