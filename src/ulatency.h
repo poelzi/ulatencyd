@@ -41,9 +41,12 @@
 
 #define VERSION 0.4.1
 
-#define OPENPROC_FLAGS PROC_FILLMEM | \
+#define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP
+  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP)
+
+#define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
+
 
 #define CONFIG_CORE "core"
 
@@ -56,9 +59,11 @@ struct _U_HEAD {
 };
 
 enum U_PROC_STATE {
-  UPROC_NEW     = (1<<0),
-  UPROC_INVALID = (1<<1),
-  UPROC_ALIVE   = (1<<2),
+  UPROC_NEW          = (1<<0),
+  UPROC_INVALID      = (1<<1),
+  UPROC_BASIC        = (1<<2),
+  UPROC_ALIVE        = (1<<3),
+  UPROC_HAS_PARENT   = (1<<4),
 };
 
 #define U_PROC_OK_MASK ~UPROC_INVALID
@@ -68,6 +73,8 @@ enum U_PROC_STATE {
 
 #define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
 #define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
+#define U_PROC_HAS_STATE(P,STATE) ( ( P ->ustate & STATE ) == STATE )
+
 
 enum FILTER_TYPES {
   FILTER_LUA,
@@ -308,6 +315,7 @@ static inline u_proc *proc_by_pid(pid_t pid) {
 }
 
 enum ENSURE_WHAT {
+  BASIC,
   ENVIRONMENT,
   CMDLINE,
   EXE,
@@ -328,6 +336,7 @@ void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
 // notify system of a new pids/changed/dead pids
 int process_new(pid_t pid, int noupdate);
+int process_new_lazy(pid_t pid, pid_t parent);
 int process_new_list(GArray *list, int noupdate);
 int process_remove(u_proc *proc);
 int process_remove_by_pid(pid_t pid);

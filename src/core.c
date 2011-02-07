@@ -49,6 +49,23 @@ static double _last_percent;
 // flag list of system wide flags
 GList *system_flags;
 int    system_flags_changed;
+// lazy rules execution
+static long int delay;
+static GPtrArray *lazy_stack;
+
+// profiling timers
+GTimer *timer_filter;
+GTimer *timer_scheduler;
+GTimer *timer_parse;
+
+
+
+// lazy new processes
+
+struct lazy_proc {
+	struct timespec when;
+	u_proc  *proc;
+};
 
 
 double get_last_load() {
@@ -77,29 +94,19 @@ void u_head_free(gpointer fb) {
   DEC_REF(fb);
 }
 
+/**
+ * u_proc_remove_child_nodes:
+ * @proc: a #u_proc
+ *
+ * Unlinks all child nodes from a #u_proc node. Moving them to the parent
+ * on @proc and unlinks the node. Makes sure the node is save to remove.
+ *
+ * Returns: none
+ */
 
-void u_proc_free(void *ptr) {
-  u_proc *proc = ptr;
+static void u_proc_remove_child_nodes(u_proc *proc) {
   GNode *nparent, *cur;
   u_proc *proc_tmp;
-
-  g_assert(proc->ref == 0);
-
-  g_free(proc->cmdfile);
-  g_free(proc->exe);
-  g_free(proc->cmdline_match);
-  if(proc->environ)
-      g_hash_table_unref(proc->environ);
-  if(proc->cmdline)
-      g_ptr_array_unref(proc->cmdline);
-
-  if(proc->lua_data) {
-    luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
-  }
-  //g_hash_table_remove_all (proc->skip_filter);
-  //g_hash_table_unref(proc->skip_filter);
-  g_hash_table_destroy (proc->skip_filter);
-
   if(g_node_n_children(proc->node)) {
     // the process which dies has some children. we have to move children
     // to a new parent. Try the parent of the dead process first
@@ -116,25 +123,94 @@ void u_proc_free(void *ptr) {
         nparent = processes_tree;
       }
     }
-    g_assert(nparent != proc->node);
     g_node_unlink(proc->node);
+    g_assert(nparent != proc->node);
     while((cur = g_node_first_child(proc->node)) != NULL) {
       g_node_unlink(cur);
       g_node_append(nparent, cur);
     }
+  } else {
+    g_node_unlink(proc->node);
   }
+}
+
+
+/**
+ * remove_proc_from_lazy_stack
+ * @pid: #pid_t pid
+ *
+ * removes process from the lazy stack
+ *
+ * Returns: none
+ */
+
+static void remove_proc_from_lazy_stack(pid_t pid) {
+  int i = 0;
+  struct lazy_proc *cur;
+
+  for(i = 0; i < lazy_stack->len;) {
+      cur = g_ptr_array_index(lazy_stack, i);
+      if(cur->proc->pid == pid) {
+          g_trace("remove lazy %d %d:%d", pid, i, lazy_stack->len);
+          g_ptr_array_remove_index_fast(lazy_stack, i);
+      } else {
+        i++;
+      }
+  }
+}
+
+/**
+ * u_proc_free
+ * @ptr: pointer to #u_proc
+ *
+ * free's all memory of a u_proc. This function should never be called directly.
+ * It as called automaticly when the ref counter drops 0
+ *
+ * Returns: none
+ */
+
+void u_proc_free(void *ptr) {
+  u_proc *proc = ptr;
+
+  g_assert(proc->ref == 0);
+
+  g_free(proc->cmdfile);
+  g_free(proc->exe);
+  g_free(proc->cmdline_match);
+  if(proc->environ)
+      g_hash_table_unref(proc->environ);
+  if(proc->cmdline)
+      g_ptr_array_unref(proc->cmdline);
+
+  if(proc->lua_data) {
+    luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
+  }
+  g_hash_table_destroy (proc->skip_filter);
+
+  u_proc_remove_child_nodes(proc);
+
   g_assert(g_node_n_children(proc->node) == 0);
   g_node_destroy(proc->node);
   freesupgrp(&(proc->proc));
   freeproc_light(&(proc->proc));
-  free(proc);
+  g_slice_free(u_proc, proc);
 }
 
+/**
+ * u_proc_new
+ * @proc: pointer to #proc_t datastructure
+ *
+ * Allocates a new #u_proc. It can be prefiled with a proc_t datastructure.
+ * If @proc is NULL, the resulting u_proc will have the state UPROC_NEW, otherwise
+ * it is UPROC_ALIVE
+ *
+ * Returns: newly allocated #u_proc reference
+ */
 
 u_proc* u_proc_new(proc_t *proc) {
   u_proc *rv;
 
-  rv = g_new0(u_proc, 1);
+  rv = g_slice_new0(u_proc);
 
   rv->free_fnk = u_proc_free;
   rv->ref = 1;
@@ -159,16 +235,22 @@ u_proc* u_proc_new(proc_t *proc) {
 /**
  * u_proc_ensure:
  * @proc: a #u_proc
- * @what: what variable should exist
+ * @what: set of varibles to fill from #ENSURE_WHAT
  * @update: force update
  *
- * Ensures a varible is filled. If update is true, the variable is updated
- * to recent values for sure
+ * Ensures a set of varibles is filled. 
+ * If update is true, the variable are updated even if they already exist.
  *
  * Returns: @success
  */
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
-  if(what == ENVIRONMENT) {
+  if(what == BASIC) {
+    // make sure process has basic values parsed
+    if(U_PROC_HAS_STATE(proc,UPROC_BASIC) && !update)
+      return TRUE;
+    else
+      return process_update_pid(proc->pid);
+  } else if(what == ENVIRONMENT) {
       if(update && proc->environ) {
           g_hash_table_unref(proc->environ);
           proc->environ = NULL;
@@ -241,20 +323,57 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
   return FALSE;
 }
 
-void processes_free_value(gpointer data) {
+/**
+ * process_free_value:
+ * @data: a #u_proc pointer
+ *
+ * INTERNAL: Called when the process is removed from the process_list
+ *
+ * Returns: none
+ */
+static void processes_free_value(gpointer data) {
   // called when a process is freed from the process list
   // this means that the process is not valid anymore and is
   // marked as such
   u_proc *proc = data;
   U_PROC_SET_STATE(proc, UPROC_INVALID);
-  if(proc->node)
-    g_node_unlink(proc->node);
+  u_proc_remove_child_nodes(proc);
+  // remove it from the lazy stack
+  remove_proc_from_lazy_stack(proc->pid);
+
   DEC_REF(proc);
 }
 
-// rebuild the node tree from content of the hash table
-void rebuild_tree() {
-//  processes_tree
+
+/**
+ * parent_proc_by_pid:
+ * @parent_pid: #proc_t of parent
+ * @child_pid: #proc_t of child
+ *
+ * INTERNAL: lookup the parent #u_proc of a child. Prints warning when missing.
+ *
+ * Returns: @u_proc of parent
+ */
+static inline u_proc *parent_proc_by_pid(pid_t parent_pid, pid_t child_pid) {
+    u_proc *parent = proc_by_pid(parent_pid);
+    // this should't happen, but under fork stress init may not have
+    // collected so the parent does not exist.
+    if(!parent) {
+      g_warning("pid: %d parent %d missing. attaching to pid 1", child_pid, parent_pid);
+      return proc_by_pid(1);
+    }
+    return parent;
+}
+
+/**
+ * rebuild_tree:
+ *
+ * INTERNAL: completly rebuild the process tree. used when a desync is detected
+ * on update_processes.
+ *
+ * Returns: none
+ */
+static void rebuild_tree() {
   GHashTableIter iter;
   gpointer key, value;
   u_proc *proc, *parent;
@@ -279,13 +398,10 @@ void rebuild_tree() {
     proc = (u_proc *)value;
     g_assert(proc->proc.ppid != proc->pid);
     if(proc->proc.ppid) {
-      parent = proc_by_pid(proc->proc.ppid);
-      // this should't happen, but under fork stress init may not have
-      // collected so the parent does not exist.
-      if(!parent) {
-        g_warning("pid: %d parent %d missing. attaching to pid 1", proc->pid, proc->proc.ppid);
-        parent = proc_by_pid(1);
-      }
+      // get a parent, hopfully the real one
+      parent = parent_proc_by_pid(proc->proc.ppid, proc->pid);
+
+      U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
 
       g_assert(parent != proc);
       g_assert(parent && parent->node);
@@ -294,11 +410,25 @@ void rebuild_tree() {
     } else {
       g_node_unlink(proc->node);
       g_node_append(processes_tree, proc->node);
+
+      U_PROC_UNSET_STATE(proc, UPROC_HAS_PARENT);
     }
   }
 
 
 }
+
+/**
+ * detect_changed:
+ * @old: *#proc_t of old values
+ * @new: *#proc_t of new values
+ *
+ * INTERNAL: detect if the changed values of a u_proc.proc structure are sufficient
+ * enough for the #u_proc.changed flag to be set. When the changed flag is set,
+ * the scheduler will run again.
+ *
+ * Returns: @boolean
+ */
 
 static int detect_changed(proc_t *old, proc_t *new) {
   // detects changes of main paramenters
@@ -308,23 +438,56 @@ static int detect_changed(proc_t *old, proc_t *new) {
   return 0;
 }
 
+/**
+ * processes_is_last_changed:
+ * @key: unused
+ * @value: #u_proc pointer
+ * @user_data: pointer to int
+ *
+ * INTERNAL: detect if the process was changed in the last full update run.
+ * if not, the process is removed from the process_list
+ *
+ * Returns: @u_proc of parent
+ */
 static gboolean processes_is_last_changed(gpointer key, gpointer value,
                                          gpointer user_data) {
   u_proc *proc = (u_proc *)value;
   int last_changed = *(int *)user_data;
-
   return (proc->last_update != last_changed);
 
 }
 
+/**
+ * process_remove:
+ * @proc: *#u_proc to remove
+ *
+ * tells the core that a process is not active anymore
+ *
+ * Returns: boolean if the process got removed
+ */
 int process_remove(u_proc *proc) {
   return g_hash_table_remove(processes, GUINT_TO_POINTER(proc->pid));
 }
 
+/**
+ * process_remove:
+ * @proc: #pid_t to remove
+ *
+ * same as process_remove execpt with pid
+ *
+ * Returns: boolean if the process got removed
+ */
 int process_remove_by_pid(int pid) {
   return g_hash_table_remove(processes, GUINT_TO_POINTER(pid));
 }
 
+/**
+ * clear_process_changed:
+ *
+ * INTERNAL: unset the changed flag. called after a full run.
+ *
+ * Returns: none
+ */
 static void clear_process_changed() {
   GHashTableIter iter;
   gpointer ikey, value;
@@ -355,7 +518,17 @@ static void clear_process_changed() {
     proc->changed = 1; \
   }
 
-void process_workarrounds(u_proc *proc, u_proc *parent) {
+/**
+ * process_workarrounds:
+ * @proc: #u_proc proc
+ * @parent: #uproc_parent
+ *
+ * INTERNAL: do workarounds for process parameters that can't be changed in the
+ * system but need to for nice grouping.
+ *
+ * Returns: boolean if the process got removed
+ */
+static void process_workarrounds(u_proc *proc, u_proc *parent) {
   // do various workaround jobs here...
   fake_var_fix(fake_pgrp, pgrp);
   fake_var_fix(fake_session, session);
@@ -363,6 +536,17 @@ void process_workarrounds(u_proc *proc, u_proc *parent) {
 
 #undef fake_var_fix
 
+/**
+ * update_processes_run:
+ * @proctab: #PROCTAB 
+ * @full: indicates that a full run is done 
+ *
+ * parses the /proc filesystem and updates the internal node structure acordingly.
+ * This low level function is usually called from wrapper that fill the @proctab
+ * accordingly.
+ *
+ * Returns: int number of parsed records
+ */
 int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
   u_proc *proc;
@@ -382,7 +566,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
     return 1;
   }
-
+  memset(&buf, 0, sizeof(proc_t));
   while(readproc(proctab, &buf)){
     proc = proc_by_pid(buf.tgid);
     if(proc) {
@@ -395,18 +579,24 @@ int update_processes_run(PROCTAB *proctab, int full) {
     }
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
-
+    // remove it from lazy stack
+    remove_proc_from_lazy_stack(proc->pid);
     if(full)
       proc->last_update = run;
     // we can simply steal the pointer of the current allocated buffer
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
+    if((proctab->flags & OPENPROC_FLAGS) == OPENPROC_FLAGS) {
+        U_PROC_SET_STATE(proc, UPROC_BASIC);
+    } else
+        U_PROC_UNSET_STATE(proc, UPROC_BASIC);
 
     u_flag_clear_timeout(proc, timeout);
     updated = g_list_append(updated, proc);
 
     rv++;
+    memset(&buf, 0, sizeof(proc_t));
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
   }
@@ -446,6 +636,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
     removed = g_hash_table_foreach_remove(processes, 
                                           processes_is_last_changed,
                                           &run);
+    // we can completly clean the lazy stack as all processes are now processed
+    // missing so will cause scheduling for dead processes
+    if(lazy_stack->len)
+      g_ptr_array_remove_range(lazy_stack, 0, lazy_stack->len);
   }
   if(full_update) {
     rebuild_tree();
@@ -454,6 +648,13 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
 }
 
+/**
+ * processes_update_all:
+ *
+ * updates all process of the system
+ *
+ * Returns: number of process updated
+ */
 int process_update_all() {
   int rv;
   PROCTAB *proctab;
@@ -463,48 +664,192 @@ int process_update_all() {
   return rv;
 }
 
-/* 
-  updates a list of pids.
-  pids must be a array of pid_t values followed by 0
-*/
+
+// calculated the difference between two timespec values
+static struct timespec diff(struct timespec start, struct timespec end)
+{
+	struct timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
+
+/**
+ * run_new_pid:
+ *
+ * called by timeout to check if processes from the lazy stack are old enough
+ * to be run through the filters and scheduler
+ *
+ * Returns: number of process updated
+ */
+static int run_new_pid(gpointer ign) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    struct lazy_proc *cur;
+    struct timespec td;
+    int i;
+
+    GArray *targets = NULL;
+
+    if(!lazy_stack->len)
+      return TRUE;
+
+    targets = g_array_new(TRUE, FALSE, sizeof(pid_t));
+
+    for(i = 0; i < lazy_stack->len;i++) {
+        cur = g_ptr_array_index(lazy_stack, i);
+        td = diff(cur->when, now);
+        //printf("test %d  %ld >= %ld\n",  cur->proc->pid, (td.tv_sec * 1000000000 + td.tv_nsec), delay);
+        if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
+            g_trace("run filter for %d", cur->proc->pid);
+            g_array_append_val(targets, cur->proc->pid);
+        }
+    }
+    process_new_list(targets, TRUE);
+
+    // process_new_list removes the entries it processes from the lazy stack
+    // buf it the process is dead already, they stay here in the list. we make
+    // sure they are removed.
+    for(i=0; i<targets->len; i++) {
+      remove_proc_from_lazy_stack(g_array_index(targets, pid_t, i));
+    }
+
+    g_array_unref(targets);
+    return TRUE;
+}
+
+
+/**
+ * process_new_lazy:
+ * @pid: new pid to create
+ * @parent: pid of parent process
+ *
+ * this function creates a lazy process. This means that a #u_proc instance is
+ * created and linked into the process tree, but the process is not parsed and 
+ * the rules and scheduler run on it. If the lazy process sticks in the system
+ * for the configured "delay" or is updated by the full update in between, the
+ * process will be parsed fully and run through the rules and scheduler.
+ * This is the prefered way to notifiy the core of new processes as it allows to
+ * save cpu time for processes that die very quickly.
+ * Passing a parent helps to skip reading basic data from /proc
+ *
+ * Returns: boolean. TRUE if process could be created.
+ */
+gboolean process_new_lazy(pid_t pid, pid_t parent) {
+  u_proc *proc, *proc_parent;
+  struct lazy_proc *lp;
+  g_assert(pid != 0);
+  if(!delay) {
+      return process_new(pid, TRUE);
+  }
+  proc = proc_by_pid(pid);
+  if(!proc) {
+    if(parent) {
+      proc = u_proc_new(NULL);
+      proc->pid = pid;
+      proc->proc.tgid = pid;
+      proc->proc.ppid = parent;
+      U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
+      // put it into the lists
+      proc_parent = parent_proc_by_pid(parent, pid);
+      g_node_append(proc_parent->node, proc->node);
+      g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
+    } else {
+      if(!process_update_pid(pid))
+        return FALSE;
+      proc = proc_by_pid(pid);
+      if(!proc)
+        return FALSE;
+    }
+    lp = g_malloc(sizeof(struct lazy_proc));
+    lp->proc = proc;
+    clock_gettime(CLOCK_MONOTONIC, &(lp->when));
+    g_ptr_array_add(lazy_stack, lp);
+  }
+  return TRUE;
+}
+
+
+/**
+ * process_update_pids:
+ * @pids: #pid_t array
+ *
+ * Updates a list of processes. The @pids list must be terminated with 0.
+ *
+ * Returns: int. number of processes updated
+ */
 int process_update_pids(pid_t pids[]) {
   int rv;
   PROCTAB *proctab;
+  g_timer_continue(timer_parse);
   proctab = openproc(OPENPROC_FLAGS | PROC_PID, pids);
   rv = update_processes_run(proctab, FALSE);
+  g_timer_stop(timer_parse);
   closeproc(proctab);
   return rv;
 
 }
 
+/**
+ * process_update_pid:
+ * @pid: #pid_t to update
+ *
+ * Updates a single pid. If you have a list of processes to update, better use
+ * process_update_pids
+ *
+ * Returns: int. number of processes updated
+ */
 int process_update_pid(int pid) {
   pid_t pids [2] = { pid, 0 };
   return process_update_pids(pids);
 }
 
-
+/**
+ * process_new:
+ * @pid: #pid_t to update
+ * @noupdate: skip if process already exists
+ *
+ * Indicates a new process and runs the rules and scheduler on it.
+ *
+ * Returns: boolean. Sucess
+ */
 int process_new(int pid, int noupdate) {
   u_proc *proc;
   // if the process is already dead we can exit
   if(noupdate && proc_by_pid(pid))
-      return 0;
+      return FALSE;
   if(!process_update_pid(pid))
-    return 0;
+    return FALSE;
   proc = proc_by_pid(pid);
   if(!proc)
-    return 0;
+    return FALSE;
   filter_for_proc(proc);
   scheduler_run_one(proc);
-  return 1;
+  return TRUE;
 }
 
-int process_new_list(GArray *list, int noupdate) {
+/**
+ * process_new_list:
+ * @list: array of #pid_t
+ * @update: update even if existing
+ *
+ * Indicates a list of new processes and runs the rules and scheduler on it.
+ *
+ * Returns: boolean. Sucess
+ */
+int process_new_list(GArray *list, int update) {
   u_proc *proc;
   int i, j = 0;
   pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
   //int pid_t = malloc(sizeof(pid_t)*(list->len+1));
   for(; i < list->len; i++) {
-    if(!proc_by_pid(g_array_index(list,pid_t,i))) {
+    if(update || !proc_by_pid(g_array_index(list,pid_t,i))) {
       pids[j] = g_array_index(list,pid_t,i);
       j++;
     }
@@ -516,6 +861,8 @@ int process_new_list(GArray *list, int noupdate) {
     proc = proc_by_pid(g_array_index(list,pid_t,i));
     if(!proc)
       continue;
+    if(!u_proc_ensure(proc, BASIC, FALSE))
+      continue;
     filter_for_proc(proc);
     scheduler_run_one(proc);
   }
@@ -523,6 +870,15 @@ int process_new_list(GArray *list, int noupdate) {
   return TRUE;
 }
 
+/**
+ * process_run_one:
+ * @proc: #u_proc to run
+ * @update: update process before run
+ *
+ * Run the filters and scheduler on the process
+ *
+ * Returns: boolean. Sucess
+ */
 int process_run_one(u_proc *proc, int update) {
   if(update)
     process_update_pid(proc->pid);
@@ -532,6 +888,14 @@ int process_run_one(u_proc *proc, int update) {
 }
 
 
+/**
+ * u_flag_free:
+ * @ptr: #u_flag pointer
+ *
+ * INTERNAL: free a u_flag structure. It is called when the ref count drops 0.
+ *
+ * Returns: none
+ */
 void u_flag_free(void *ptr) {
   u_flag *flag = ptr;
 
@@ -539,15 +903,23 @@ void u_flag_free(void *ptr) {
 
   if(flag->name)
     free(flag->name);
-  free(flag);
+  g_slice_free(u_flag, flag);
 }
 
+/**
+ * u_flag_new:
+ * @source: pointer to identify the source
+ * @name: char * name of flag
+ *
+ * Allocates a new u_flag
+ *
+ * Returns: #u_flag pointer
+ */
 u_flag *u_flag_new(u_filter *source, const char *name) {
   u_flag *rv;
-  
-  rv = malloc(sizeof(u_flag));
-  memset(rv, 0, sizeof(u_flag));
-  
+
+  rv = g_slice_new0(u_flag);
+
   rv->free_fnk = u_flag_free;
   rv->ref = 1;
   rv->source = source;
@@ -559,6 +931,15 @@ u_flag *u_flag_new(u_filter *source, const char *name) {
   return rv;
 }
 
+/**
+ * u_flag_add:
+ * @proc: #u_proc to add the flag to, or NULL for system flags
+ * @flag: #u_flag to add
+ *
+ * Adds a new flag to the u_proc or system flag list.
+ *
+ * Returns: boolean. TRUE on success.
+ */
 int u_flag_add(u_proc *proc, u_flag *flag) {
   if(proc) {
     if(!g_list_find(proc->flags, flag)) {
@@ -575,23 +956,31 @@ int u_flag_add(u_proc *proc, u_flag *flag) {
   return TRUE;
 }
 
+/**
+ * u_flag_del:
+ * @proc: #u_proc to remove the flag from, or NULL for system flags
+ * @flag: #u_flag to remove
+ *
+ * Removes a flag from a process or system flags.
+ *
+ * Returns: boolean. TRUE on success.
+ */
 int u_flag_del(u_proc *proc, u_flag *flag) {
-  int rv = 0;
   if(proc) {
     if(g_list_index(proc->flags, flag) != -1) {
       DEC_REF(flag);
     }
     proc->flags = g_list_remove(proc->flags, flag);
     proc->changed = 1;
-    return 1;
+    return TRUE;
   } else {
     if(g_list_index(system_flags, flag) != -1) {
       DEC_REF(flag);
-      rv++;
     }
     system_flags = g_list_remove(system_flags, flag);
+    return TRUE;
   }
-  return rv;
+  return FALSE;
 }
 
 static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
@@ -800,8 +1189,12 @@ int scheduler_run() {
 
 int scheduler_run_one(u_proc *proc) {
   // FIXME make scheduler more flexible
+  int rv;
   if(scheduler.one) {
-    return scheduler.one(proc);
+    g_timer_continue(timer_scheduler);
+    rv = scheduler.one(proc);
+    g_timer_stop(timer_scheduler);
+    return rv;
   }
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "no scheduler.one set");
   return 1;
@@ -809,12 +1202,13 @@ int scheduler_run_one(u_proc *proc) {
 
 void filter_for_proc(u_proc *proc) {
   /* run all filters on one proc */
+  g_timer_continue(timer_filter);
   GList *cur = g_list_first(filter_list);
   while(cur) {
     filter_run_for_proc(proc, cur->data);
     cur = g_list_next(cur);
   }
-
+  g_timer_stop(timer_filter);
 }
 
 
@@ -854,9 +1248,14 @@ static void update_caches() {
 int iterate(gpointer rv) {
   time_t timeout = time(NULL);
   GTimer *timer = g_timer_new();
-  gdouble last, current;
+  gdouble last, current, tparse, tfilter, tscheduler;
   gulong dump;
 
+  tparse = g_timer_elapsed(timer_parse, &dump);
+  tfilter = g_timer_elapsed(timer_filter, &dump);
+  tscheduler = g_timer_elapsed(timer_scheduler, &dump);
+
+  g_debug("spend between iterations: update=%0.2F filter=%0.2F scheduler=%0.2F", tparse, tfilter, tscheduler);
   g_timer_start(timer);
   u_flag_clear_timeout(NULL, timeout);
   iteration += 1;
@@ -876,8 +1275,19 @@ int iterate(gpointer rv) {
   g_timer_stop(timer);
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. complete run %d took %0.2F", (current - last), iteration, current);
+
   clear_process_changed();
   system_flags_changed = 0;
+  // g_timer_reset causes strange effects...
+  g_timer_start(timer_parse);
+  g_timer_stop(timer_parse);
+  g_timer_start(timer_filter);
+  g_timer_stop(timer_filter);
+  g_timer_start(timer_scheduler);
+  g_timer_stop(timer_scheduler);
+
+
+
   return GPOINTER_TO_INT(rv);
 }
 
@@ -1036,11 +1446,23 @@ int core_init() {
 
   smp_num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
+  // initialize profiling timer
+  timer_filter = g_timer_new();
+  g_timer_stop(timer_filter);
+  timer_scheduler = g_timer_new();
+  g_timer_stop(timer_scheduler);
+  timer_parse = g_timer_new();
+  g_timer_stop(timer_parse);
+
+
 #ifdef ENABLE_DBUS
   if(!u_dbus_setup())
     g_warning("failed to setup dbus");
 #endif
 
+  // lazy stack 
+  lazy_stack = g_ptr_array_new_with_free_func(free);
+  delay = g_key_file_get_integer(config_data, CONFIG_CORE, "delay_new_pid", NULL);
 
   processes_tree = g_node_new(NULL);
   processes = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, 
@@ -1062,6 +1484,10 @@ int core_init() {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "core initialized");
+  if(delay)
+    g_timeout_add((int)(delay / 10), run_new_pid, NULL);
+  // we save delay as ns for easier comparison
+  delay = delay * 1000000;
   return 1;
 }
 
