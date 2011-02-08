@@ -110,11 +110,19 @@ static void l_ptrarray_to_table(lua_State *L, GPtrArray *array) {
 static void l_vstr_to_table(lua_State *L, char **vec, int len) {
     int i = 0;
     lua_newtable(L);
-    for(i = 0; i < len; i++) {
-        lua_pushinteger(L, i+1);
-        lua_pushstring(L, (char *)vec[i]);
-        lua_settable(L, -3);
-    }
+    if(len != -1) {
+        for(i = 0; i < len; i++) {
+            lua_pushinteger(L, i+1);
+            lua_pushstring(L, (char *)vec[i]);
+            lua_settable(L, -3);
+        }
+    } else {
+        for(i = 0; vec[i]; i++) {
+            lua_pushinteger(L, i+1);
+            lua_pushstring(L, (char *)vec[i]);
+            lua_settable(L, -3);
+        }
+   }
 }
 
 static int get_load (lua_State *L) {
@@ -698,7 +706,7 @@ static int u_proc_kill (lua_State *L) {
 static int u_proc_get_n_children (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   lua_pushinteger(L, g_node_n_children(proc->node));
@@ -709,7 +717,7 @@ static int u_proc_get_n_children (lua_State *L) {
 static int u_proc_get_n_nodes (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   lua_pushinteger(L, g_node_n_nodes(proc->node, G_TRAVERSE_ALL));
@@ -721,7 +729,7 @@ static int u_proc_set_block_scheduler (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "block_scheduler set to: %d by %s", value, "(FIXME)");
@@ -738,7 +746,7 @@ static int u_proc_set_rtprio (lua_State *L) {
     param.sched_priority = lua_tointeger(L, 3);
 
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
 
@@ -786,7 +794,7 @@ static int u_proc_set_pgid (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   proc->fake_pgrp_old = proc->proc.pgrp;
@@ -803,7 +811,7 @@ static int u_proc_set_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   lua_pushboolean(L, !adj_oom_killer(proc->pid, value));
@@ -814,7 +822,7 @@ static int u_proc_set_oom_score (lua_State *L) {
 static int u_proc_get_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   lua_pushinteger(L, !get_oom_killer(proc->pid));
@@ -827,7 +835,7 @@ static int u_proc_ioprio_set (lua_State *L) {
   int prio = luaL_checkint(L, 2);
   int class = luaL_checkint(L, 3);
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, class));
@@ -840,7 +848,7 @@ static int u_proc_ioprio_get (lua_State *L) {
   int prio = 0;
   int class = 0;
 
-  if(U_PROC_IS_INVALID(proc))
+  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
   ioprio_getpid(proc->pid, &prio, &class);
@@ -870,7 +878,6 @@ static int u_proc_ioprio_get (lua_State *L) {
 static int u_proc_index (lua_State *L)
 {
   //char        path[PROCPATHLEN];
-  char path[PROCPATHLEN];
   u_proc *proc = check_u_proc(L, 1);
   const char *key = luaL_checkstring(L, 2);
 
@@ -997,7 +1004,10 @@ static int u_proc_index (lua_State *L)
     return 1;
   }
 
-
+  if(!u_proc_ensure(proc, BASIC, FALSE)) {
+    lua_pushliteral(L, "u_proc basic data not available");
+    lua_error(L);
+  }
 
   // data of proc.proc must be invalidated as the process is already dead
   if(U_PROC_IS_INVALID(proc)) {
@@ -1155,19 +1165,21 @@ static int u_proc_index (lua_State *L)
   PUSH_INT(exit_signal)
   PUSH_INT(processor)
 
-  if(!strcmp(key, "cgroup_name" )) {
-    sprintf(path, "/proc/%d", proc->proc.tgid);
-    proc->proc.cgroup = file2strvec(path, "cgroup"); 	/* read /proc/#/cgroup */
-    if(proc->proc.cgroup && *proc->proc.cgroup) {
-      int i = strlen(*proc->proc.cgroup);
-      if( (*proc->proc.cgroup)[i-1]=='\n' )
-        (*proc->proc.cgroup)[i-1] = ' '; //little hack to remove trailing \n
-      lua_pushstring(L, *proc->proc.cgroup);
+  if(!strcmp(key, "cgroup" )) {
+    if(proc->proc.cgroup) {
+      l_vstr_to_table(L, proc->proc.cgroup, -1);
       return 1;
+    } else {
+      return 0;
     }
-    return 0;
+  } else if(!strcmp(key, "cgroup_origin" )) {
+    if(proc->cgroup_origin) {
+      l_vstr_to_table(L, proc->cgroup_origin, -1);
+      return 1;
+    } else {
+      return 0;
+    }
   }
-
 
   return 0;
 }
@@ -1598,7 +1610,7 @@ u_scheduler LUA_SCHEDULER = {
 
 // FILTER mappings
 
-int l_filter_callback(u_proc *proc, u_filter *flt) {
+int l_filter_run_table_proc(u_proc *proc, u_filter *flt, const char *key, int ignore) {
   gint rv;
   lua_State *L;
   u_proc *nproc;
@@ -1610,9 +1622,13 @@ int l_filter_callback(u_proc *proc, u_filter *flt) {
 
   lua_rawgeti (L, LUA_REGISTRYINDEX, lf->lua_func);
   //lua_pushstring(lf->lua_state, "check")
-  lua_getfield (L, -1, "check");
+  lua_getfield (L, -1, key);
   if(!lua_isfunction(L, -1)) {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "filter does not have a check method, disable %s", flt->name);
+    if(ignore) {
+      lua_pop(L, 2);
+      return 0;
+    }
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "filter does not have a %s method, disable %s", key, flt->name);
     lua_pop(L, 2);
     return FILTER_STOP;
   }
@@ -1662,6 +1678,15 @@ int l_filter_run_table(u_filter *flt, char *key) {
   return rv;
 }
 
+int l_filter_callback(u_proc *proc, u_filter *flt) {
+  return l_filter_run_table_proc(proc, flt, "check", FALSE);
+}
+
+int l_filter_exit(u_proc *proc, u_filter *flt) {
+  return l_filter_run_table_proc(proc, flt, "exit", TRUE);
+}
+
+
 inline int l_filter_precheck(u_filter *flt) {
   return l_filter_run_table(flt, "precheck");
 }
@@ -1669,7 +1694,6 @@ inline int l_filter_precheck(u_filter *flt) {
 inline int l_filter_postcheck(u_filter *flt) {
   return l_filter_run_table(flt, "postcheck");
 }
-
 
 int l_filter_check(u_proc *proc, u_filter *flt) {
   struct lua_filter *lft = (struct lua_filter *)flt->data;
@@ -1779,6 +1803,7 @@ static int l_register_filter (lua_State *L) {
   flt->callback = l_filter_callback;
   flt->precheck = l_filter_precheck;
   flt->postcheck = l_filter_postcheck;
+  flt->exit = l_filter_exit;
   filter_register(flt);
 
   return 0;

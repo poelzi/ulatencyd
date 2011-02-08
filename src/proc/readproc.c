@@ -447,7 +447,7 @@ int file2str(const char *directory, const char *what, char *ret, int cap) {
     return num_read;
 }
 
-char** file2strvec(const char* directory, const char* what) {
+char** file2strvec_ext(const char* directory, const char* what, char terminator) {
     char buf[2048];	/* read buf bytes at a time */
     char *p, *rbuf = 0, *endbuf, **q, **ret;
     int fd, tot = 0, n, c, end_of_file = 0;
@@ -459,33 +459,36 @@ char** file2strvec(const char* directory, const char* what) {
 
     /* read whole file into a memory buffer, allocating as we go */
     while ((n = read(fd, buf, sizeof buf - 1)) > 0) {
-	if (n < (int)(sizeof buf - 1))
-	    end_of_file = 1;
-	if (n == 0 && rbuf == 0)
-	    return NULL;	/* process died between our open and read */
-	if (n < 0) {
-	    if (rbuf)
-		free(rbuf);
-	    return NULL;	/* read error */
-	}
-	if (end_of_file && buf[n-1])		/* last read char not null */
-	    buf[n++] = '\0';			/* so append null-terminator */
-	rbuf = xrealloc(rbuf, tot + n);		/* allocate more memory */
-	memcpy(rbuf + tot, buf, n);		/* copy buffer into it */
-	tot += n;				/* increment total byte ctr */
-	if (end_of_file)
-	    break;
+        if (n < (int)(sizeof buf - 1))
+            end_of_file = 1;
+        if (n == 0 && rbuf == 0)
+            return NULL;	/* process died between our open and read */
+        if (n < 0) {
+            if (rbuf)
+                free(rbuf);
+            return NULL;	/* read error */
+        }
+        if (end_of_file && buf[n-1] != terminator)		/* last read char not null */
+            buf[n++] = '\0';			/* so append null-terminator */
+        rbuf = xrealloc(rbuf, tot + n);		/* allocate more memory */
+        memcpy(rbuf + tot, buf, n);		/* copy buffer into it */
+        tot += n;				/* increment total byte ctr */
+        if (end_of_file)
+            break;
     }
     close(fd);
     if (n <= 0 && !end_of_file) {
-	if (rbuf) free(rbuf);
-	return NULL;		/* read error */
+        if (rbuf) free(rbuf);
+        return NULL;		/* read error */
     }
     endbuf = rbuf + tot;			/* count space for pointers */
     align = (sizeof(char*)-1) - ((tot + sizeof(char*)-1) & (sizeof(char*)-1));
-    for (c = 0, p = rbuf; p < endbuf; p++)
-    	if (!*p)
-	    c += sizeof(char*);
+    for (c = 0, p = rbuf; p < endbuf; p++) {
+        if (*p == terminator)
+          *p = 0;
+        if (!*p)
+            c += sizeof(char*);
+    }
     c += sizeof(char*);				/* one extra for NULL term */
 
     rbuf = xrealloc(rbuf, tot + c + align);	/* make room for ptrs AT END */
@@ -494,11 +497,15 @@ char** file2strvec(const char* directory, const char* what) {
     *q++ = p = rbuf;				/* point ptrs to the strings */
     endbuf--;					/* do not traverse final NUL */
     while (++p < endbuf) 
-    	if (!*p)				/* NUL char implies that */
-	    *q++ = p+1;				/* next string -> next char */
+        if (!*p)				/* NUL char implies that */
+            *q++ = p+1;				/* next string -> next char */
 
     *q = 0;					/* null ptr list terminator */
     return ret;
+}
+
+char** file2strvec(const char* directory, const char* what) {
+  return file2strvec_ext(directory, what, '\0');
 }
 
 // warning: interface may change
@@ -633,7 +640,7 @@ static proc_t* simple_readproc(PROCTAB *restrict const PT, proc_t *restrict cons
         p->environ = NULL;
 
     if(linux_version_code>=LINUX_VERSION(2,6,24) && (flags & PROC_FILLCGROUP)) {
-	p->cgroup = file2strvec(path, "cgroup"); 	/* read /proc/#/cgroup */
+	p->cgroup = file2strvec_ext(path, "cgroup", '\n'); 	/* read /proc/#/cgroup */
     	if(p->cgroup && *p->cgroup) {
 		int i = strlen(*p->cgroup);
 		if( (*p->cgroup)[i-1]=='\n' )

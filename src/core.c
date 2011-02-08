@@ -177,6 +177,7 @@ void u_proc_free(void *ptr) {
   g_free(proc->cmdfile);
   g_free(proc->exe);
   g_free(proc->cmdline_match);
+  g_strfreev(proc->cgroup_origin);
   if(proc->environ)
       g_hash_table_unref(proc->environ);
   if(proc->cmdline)
@@ -336,6 +337,19 @@ static void processes_free_value(gpointer data) {
   // this means that the process is not valid anymore and is
   // marked as such
   u_proc *proc = data;
+  u_filter *flt;
+
+  U_PROC_UNSET_STATE(proc, UPROC_ALIVE);
+
+  // run exit hooks
+  GList *cur = g_list_first(filter_list);
+  while(cur) {
+    flt = cur->data;
+    if(flt->exit)
+      flt->exit(proc, flt);
+    cur = cur->next;
+  }
+
   U_PROC_SET_STATE(proc, UPROC_INVALID);
   u_proc_remove_child_nodes(proc);
   // remove it from the lazy stack
@@ -587,7 +601,11 @@ int update_processes_run(PROCTAB *proctab, int full) {
     } else {
       proc = u_proc_new(&buf);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
+      // we save the origin of cgroups for scheduler constrains
     }
+    if(!proc->cgroup_origin)
+      proc->cgroup_origin = g_strdupv(proc->proc.cgroup);
+
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
     // remove it from lazy stack

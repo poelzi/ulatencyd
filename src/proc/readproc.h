@@ -264,6 +264,7 @@ extern proc_t * get_proc_stats(pid_t pid, proc_t *p);
 
 
 char** file2strvec(const char* directory, const char* what);
+char** file2strvec_ext(const char* directory, const char* what, char terminator);
 
 EXTERN_C_END
 #endif

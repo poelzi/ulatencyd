@@ -45,7 +45,7 @@
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
   PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP)
 
-#define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
+#define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS | PROC_FILLCGROUP)
 
 
 #define CONFIG_CORE "core"
@@ -134,6 +134,9 @@ typedef struct _u_proc {
   int           pid; // duplicate of proc.tgid
   int           ustate; // status bits for process
   struct proc_t proc;
+  char        **cgroup_origin; // the original cgroups this process was created in
+  GArray        proc_history;
+  int           history_len;
   guint         last_update; // for detecting dead processes
   GNode         *node; // for parent/child lookups
   GHashTable    *skip_filter;
@@ -165,6 +168,7 @@ typedef struct _filter {
   int (*check)(u_proc *pr, struct _filter *filter);
   int (*postcheck)(struct _filter *filter);
   int (*callback)(u_proc *pr, struct _filter *filter);
+  int (*exit)(u_proc *pr, struct _filter *filter);
   void *data;
 } u_filter;
 
