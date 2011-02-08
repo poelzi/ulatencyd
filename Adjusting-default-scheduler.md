@@ -47,8 +47,9 @@ Lets look at at one entry:
   label matches.
 * `check(proc)` is a function that will be called with the process. If it returns `true`, the rule matches.
 * `param` are the default parameters that will be used for this cgroup. They represent the cgroups subsystem values set
-  for the subsystems mounted. `cm` for example mounts the cpu, cpuset and memory subsystem. `cpu.shares` represent the
-  amount of of cpu power this group will get. For values see the cgroups documentation below.
+  for the subsystems mounted. `cm` for example mounts the cpu, cpuset and memory subsystem. Names starting with "?" will 
+  be silently ignored on writing errors. `cpu.shares` represent the amount of of cpu power this group will get. For values
+  see the cgroups documentation below.
 * `adjust(cgroup, proc)` is a function that is called with the cgroup and proc object. It can adjust the cgroup parameter 
   for better fitting. Important: this function is called everytime a process runs through.
 * `adjust_new(cgroup, proc)` this function is only called once a new cgroup is created. When a cgroup does not have any 
