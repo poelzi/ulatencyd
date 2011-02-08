@@ -514,23 +514,31 @@ end
 
 function CGroup:commit()
   mkdirp(self:path())
-  uncommited = rawget(self, "uncommited")
+  local uncommited = rawget(self, "uncommited")
   for k, v in pairs(uncommited) do
-    path = self:path(k)
-    fp = io.open(path, "w")
+    local par = string.sub(k, 1, 1)
+    if par == '?' then
+      k = string.sub(k, 2)
+    else
+      par = nil
+    end
+    local path = self:path(k)
+    local fp = io.open(path, "w")
     if fp then
       --print("write"..path)
       fp:write(v)
       fp:close()
       uncommited[k] = nil
     else
-      cg_log("can't write into :"..tostring(path))
+      if par ~= '?' then
+        cg_log("can't write into :"..tostring(path))
+      end
     end
   end
   local t_file = self:path("tasks")
-  fp = io.open(t_file, "w")
+  local fp = io.open(t_file, "w")
   if fp then
-    pids = rawget(self, "new_tasks")
+    local pids = rawget(self, "new_tasks")
     if pids then
       while true do
         pid = table.remove(pids, 1)

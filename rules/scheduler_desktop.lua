@@ -70,33 +70,33 @@ SCHEDULER_MAPPING_DESKTOP["cm"] =
       },
       { 
         name = "bg_high",
-        param = { ["cpu.shares"]="1000", ["memory.swappiness"] = "20" },
+        param = { ["cpu.shares"]="1000", ["?memory.swappiness"] = "20" },
         label = { "user.bg_high" },
       },
       { 
         name = "media",
-        param = { ["cpu.shares"]="2600", ["memory.swappiness"] = "40" },
+        param = { ["cpu.shares"]="2600", ["?memory.swappiness"] = "40" },
         label = { "user.media" },
       },
       { 
         name = "ui",
-        param = { ["cpu.shares"]="2000", ["memory.swappiness"] = "0" },
+        param = { ["cpu.shares"]="2000", ["?memory.swappiness"] = "0" },
         label = { "user.ui" }
       },
       { 
         name = "active",
-        param = { ["cpu.shares"]="1500", ["memory.swappiness"] = "0" },
+        param = { ["cpu.shares"]="1500", ["?memory.swappiness"] = "0" },
         check = function(proc)
             return proc.is_active
           end
       },
       { 
         name = "idle",
-        param = { ["cpu.shares"]="200", ["memory.swappiness"] = "100" },
+        param = { ["cpu.shares"]="200", ["?memory.swappiness"] = "100" },
       },
       { 
         name = "group",
-        param = { ["cpu.shares"]="600", ["memory.swappiness"] = "60" },
+        param = { ["cpu.shares"]="600", ["?memory.swappiness"] = "60" },
         cgroups_name = "grp_${pgrp}",
         check = function(proc)
                   return true
@@ -108,13 +108,13 @@ SCHEDULER_MAPPING_DESKTOP["cm"] =
     name = "system",
     cgroups_name = "sys_idle",
     label = { "daemon.idle" },
-    param = { ["cpu.shares"]="1", ["memory.swappiness"] = "100" },
+    param = { ["cpu.shares"]="1", ["?memory.swappiness"] = "100" },
   },
   {
     name = "system",
     cgroups_name = "sys_bg",
     label = { "daemon.bg" },
-    param = { ["cpu.shares"]="600", ["memory.swappiness"] = "100" },
+    param = { ["cpu.shares"]="600", ["?memory.swappiness"] = "100" },
   },
   {
     name = "system",
@@ -123,7 +123,7 @@ SCHEDULER_MAPPING_DESKTOP["cm"] =
               -- don't put kernel threads into a cgroup
               return (proc.ppid ~= 0 or proc.pid == 1)
             end,
-    param = { ["cpu.shares"]="800", ["memory.swappiness"] = "70" },
+    param = { ["cpu.shares"]="800", ["?memory.swappiness"] = "70" },
   },
   { 
     name = "kernel",
