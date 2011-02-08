@@ -84,6 +84,10 @@ If you simply return `0`, the filter is executed on the next iteration again.
       postcheck = function(self)
                 -- run after all processes are processed. You can make final manipulations to processes here.
       end
+      exit = function(self, proc)
+                -- only called when the process is removed from the process list. most functions calls on the
+                -- process will fail. Useful for cleanup data in filters
+      end
     }
 `
 
