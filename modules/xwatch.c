@@ -66,7 +66,8 @@ struct x_server {
 
 static void free_x_server(struct x_server *xs) {
   g_debug("remove x_server display: %s", xs->display);
-  xcb_disconnect (xs->connection);
+  if(xs->connection)
+      xcb_disconnect (xs->connection);
   g_free(xs->name);
   g_free(xs->display);
 }
@@ -139,10 +140,12 @@ int create_connection(struct x_server *xs) {
 
   xs->last_try = time(NULL);
 
+  g_debug("create x-watch connection: '%s'", xs->display);
+
   parsed = xcb_parse_display(xs->display, &host, &dsp, &screenNum);
 
   if(!parsed) {
-    g_warning("can't parse display: %s", xs->display);
+    g_warning("can't parse display: '%s'", xs->display);
     return FALSE;
   }
 
@@ -208,7 +211,7 @@ int create_connection(struct x_server *xs) {
   xs->screen = iter.data;
 
 
-  g_debug("setup connection to X11 host: %s display: %d screen: %d", localhost, dsp, screenNum);
+  g_message("connected to X11 host: %s display: %d screen: %d", localhost, dsp, screenNum);
 
   // fillup the x server atoms
   xcb_intern_atom_cookie_t net_active_ck
@@ -462,7 +465,7 @@ static gboolean update_all_server(gpointer data) {
       }
       xcur = g_list_next(xcur);
     }
-    if(!found) {
+    if(!found && sess->X11Display && strcmp(sess->X11Display, "")) {
       add_connection(sess->name, sess->uid, sess->X11Display);
     }
 
