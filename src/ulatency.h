@@ -340,7 +340,7 @@ void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 
 // notify system of a new pids/changed/dead pids
 int process_new(pid_t pid, int noupdate);
-int process_new_lazy(pid_t pid, pid_t parent);
+int process_new_delay(pid_t pid, pid_t parent);
 int process_new_list(GArray *list, int noupdate);
 int process_remove(u_proc *proc);
 int process_remove_by_pid(pid_t pid);

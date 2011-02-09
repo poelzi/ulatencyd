@@ -1950,6 +1950,15 @@ static int l_get_sessions(lua_State *L) {
     }
     return 1;
 }
+
+#ifdef DEVELOP_MODE
+static int l_trap(lua_State *L) {
+  asm("int3");
+  return 0;
+}
+#endif
+
+
 /* object table */
 static const luaL_reg R[] = {
   // system load
@@ -2003,6 +2012,10 @@ static const luaL_reg R[] = {
   {"load_rule", user_load_lua_rule_file},
   {"process_update", l_process_update},
   {"run_iteration", l_run_interation},
+#ifdef DEVELOP_MODE
+  {"trap", l_trap},
+#endif
+
 	{NULL,        NULL}
 };
 

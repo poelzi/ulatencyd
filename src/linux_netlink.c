@@ -102,7 +102,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		g_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
-		process_new_lazy(ev->event_data.exec.process_pid, 0);
+		process_new_delay(ev->event_data.exec.process_pid, 0);
 		break;
 	case PROC_EVENT_FORK:
 		g_trace("FORK Event: PARENT = %d PID = %d",
@@ -112,9 +112,9 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		// first
 		u_proc *rparent = proc_by_pid(ev->event_data.fork.parent_pid);
 		if(rparent)
-			process_new_lazy(ev->event_data.fork.child_pid, rparent->proc.ppid); //ev->event_data.fork.parent_pid);
+			process_new_delay(ev->event_data.fork.child_pid, rparent->proc.ppid); //ev->event_data.fork.parent_pid);
 		else
-			process_new_lazy(ev->event_data.fork.child_pid, 0);
+			process_new_delay(ev->event_data.fork.child_pid, 0);
 		break;
 	default:
 		return 0;

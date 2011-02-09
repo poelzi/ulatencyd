@@ -49,9 +49,9 @@ static double _last_percent;
 // flag list of system wide flags
 GList *system_flags;
 int    system_flags_changed;
-// lazy rules execution
+// delay rules execution
 static long int delay;
-static GPtrArray *lazy_stack;
+static GPtrArray *delay_stack;
 
 // profiling timers
 GTimer *timer_filter;
@@ -60,9 +60,9 @@ GTimer *timer_parse;
 
 
 
-// lazy new processes
+// delay new processes
 
-struct lazy_proc {
+struct delay_proc {
 	struct timespec when;
 	u_proc  *proc;
 };
@@ -136,23 +136,23 @@ static void u_proc_remove_child_nodes(u_proc *proc) {
 
 
 /**
- * remove_proc_from_lazy_stack
+ * remove_proc_from_delay_stack
  * @pid: #pid_t pid
  *
- * removes process from the lazy stack
+ * removes process from the delay stack
  *
  * Returns: none
  */
 
-static void remove_proc_from_lazy_stack(pid_t pid) {
+static void remove_proc_from_delay_stack(pid_t pid) {
   int i = 0;
-  struct lazy_proc *cur;
+  struct delay_proc *cur;
 
-  for(i = 0; i < lazy_stack->len;) {
-      cur = g_ptr_array_index(lazy_stack, i);
+  for(i = 0; i < delay_stack->len;) {
+      cur = g_ptr_array_index(delay_stack, i);
       if(cur->proc->pid == pid) {
-          g_trace("remove lazy %d %d:%d", pid, i, lazy_stack->len);
-          g_ptr_array_remove_index_fast(lazy_stack, i);
+          g_trace("remove delay %d %d:%d", pid, i, delay_stack->len);
+          g_ptr_array_remove_index_fast(delay_stack, i);
       } else {
         i++;
       }
@@ -352,8 +352,8 @@ static void processes_free_value(gpointer data) {
 
   U_PROC_SET_STATE(proc, UPROC_INVALID);
   u_proc_remove_child_nodes(proc);
-  // remove it from the lazy stack
-  remove_proc_from_lazy_stack(proc->pid);
+  // remove it from the delay stack
+  remove_proc_from_delay_stack(proc->pid);
 
   DEC_REF(proc);
 }
@@ -603,17 +603,18 @@ int update_processes_run(PROCTAB *proctab, int full) {
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
       // we save the origin of cgroups for scheduler constrains
     }
-    if(!proc->cgroup_origin)
-      proc->cgroup_origin = g_strdupv(proc->proc.cgroup);
-
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
-    // remove it from lazy stack
-    remove_proc_from_lazy_stack(proc->pid);
+    // remove it from delay stack
+    remove_proc_from_delay_stack(proc->pid);
     if(full)
       proc->last_update = run;
     // we can simply steal the pointer of the current allocated buffer
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
+
+    if(!proc->cgroup_origin)
+      proc->cgroup_origin = g_strdupv(proc->proc.cgroup);
+
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
     if((proctab->flags & OPENPROC_FLAGS) == OPENPROC_FLAGS) {
@@ -665,10 +666,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
     removed = g_hash_table_foreach_remove(processes, 
                                           processes_is_last_changed,
                                           &run);
-    // we can completly clean the lazy stack as all processes are now processed
+    // we can completly clean the delay stack as all processes are now processed
     // missing so will cause scheduling for dead processes
-    if(lazy_stack->len)
-      g_ptr_array_remove_range(lazy_stack, 0, lazy_stack->len);
+    if(delay_stack->len)
+      g_ptr_array_remove_range(delay_stack, 0, delay_stack->len);
   }
   if(full_update) {
     rebuild_tree();
@@ -712,7 +713,7 @@ static struct timespec diff(struct timespec start, struct timespec end)
 /**
  * run_new_pid:
  *
- * called by timeout to check if processes from the lazy stack are old enough
+ * called by timeout to check if processes from the delay stack are old enough
  * to be run through the filters and scheduler
  *
  * Returns: number of process updated
@@ -720,19 +721,19 @@ static struct timespec diff(struct timespec start, struct timespec end)
 static int run_new_pid(gpointer ign) {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
-    struct lazy_proc *cur;
+    struct delay_proc *cur;
     struct timespec td;
     int i;
 
     GArray *targets = NULL;
 
-    if(!lazy_stack->len)
+    if(!delay_stack->len)
       return TRUE;
 
     targets = g_array_new(TRUE, FALSE, sizeof(pid_t));
 
-    for(i = 0; i < lazy_stack->len;i++) {
-        cur = g_ptr_array_index(lazy_stack, i);
+    for(i = 0; i < delay_stack->len;i++) {
+        cur = g_ptr_array_index(delay_stack, i);
         td = diff(cur->when, now);
         //printf("test %d  %ld >= %ld\n",  cur->proc->pid, (td.tv_sec * 1000000000 + td.tv_nsec), delay);
         if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
@@ -742,11 +743,11 @@ static int run_new_pid(gpointer ign) {
     }
     process_new_list(targets, TRUE);
 
-    // process_new_list removes the entries it processes from the lazy stack
+    // process_new_list removes the entries it processes from the delay stack
     // buf it the process is dead already, they stay here in the list. we make
     // sure they are removed.
     for(i=0; i<targets->len; i++) {
-      remove_proc_from_lazy_stack(g_array_index(targets, pid_t, i));
+      remove_proc_from_delay_stack(g_array_index(targets, pid_t, i));
     }
 
     g_array_unref(targets);
@@ -755,13 +756,13 @@ static int run_new_pid(gpointer ign) {
 
 
 /**
- * process_new_lazy:
+ * process_new_delay:
  * @pid: new pid to create
  * @parent: pid of parent process
  *
- * this function creates a lazy process. This means that a #u_proc instance is
+ * this function creates a delay process. This means that a #u_proc instance is
  * created and linked into the process tree, but the process is not parsed and 
- * the rules and scheduler run on it. If the lazy process sticks in the system
+ * the rules and scheduler run on it. If the delay process sticks in the system
  * for the configured "delay" or is updated by the full update in between, the
  * process will be parsed fully and run through the rules and scheduler.
  * This is the prefered way to notifiy the core of new processes as it allows to
@@ -770,9 +771,9 @@ static int run_new_pid(gpointer ign) {
  *
  * Returns: boolean. TRUE if process could be created.
  */
-gboolean process_new_lazy(pid_t pid, pid_t parent) {
+gboolean process_new_delay(pid_t pid, pid_t parent) {
   u_proc *proc, *proc_parent;
-  struct lazy_proc *lp;
+  struct delay_proc *lp;
   g_assert(pid != 0);
   if(!delay) {
       return process_new(pid, TRUE);
@@ -796,10 +797,10 @@ gboolean process_new_lazy(pid_t pid, pid_t parent) {
       if(!proc)
         return FALSE;
     }
-    lp = g_malloc(sizeof(struct lazy_proc));
+    lp = g_malloc(sizeof(struct delay_proc));
     lp->proc = proc;
     clock_gettime(CLOCK_MONOTONIC, &(lp->when));
-    g_ptr_array_add(lazy_stack, lp);
+    g_ptr_array_add(delay_stack, lp);
   }
   return TRUE;
 }
@@ -835,6 +836,7 @@ int process_update_pids(pid_t pids[]) {
  * Returns: int. number of processes updated
  */
 int process_update_pid(int pid) {
+  printf("update_pid %d\n", pid);
   pid_t pids [2] = { pid, 0 };
   return process_update_pids(pids);
 }
@@ -1490,8 +1492,8 @@ int core_init() {
     g_warning("failed to setup dbus");
 #endif
 
-  // lazy stack 
-  lazy_stack = g_ptr_array_new_with_free_func(free);
+  // delay stack 
+  delay_stack = g_ptr_array_new_with_free_func(free);
   delay = g_key_file_get_integer(config_data, CONFIG_CORE, "delay_new_pid", NULL);
 
   processes_tree = g_node_new(NULL);
