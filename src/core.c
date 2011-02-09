@@ -17,11 +17,14 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#define _GNU_SOURCE
+
 #include "config.h"
 #include "ulatency.h"
 
 #include "proc/procps.h"
 #include "proc/sysinfo.h"
+
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -31,6 +34,8 @@
 #include <dlfcn.h>
 #include <fnmatch.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
@@ -1348,13 +1353,12 @@ u_scheduler *scheduler_get() {
  **************************************************************************/
 
 int load_rule_directory(char *path, char *load_pattern, int fatal) {
-  DIR             *dip;
-  struct dirent   *dit;
   char rpath[PATH_MAX+1];
   gsize  disabled_len;
-  int i;
+  int i, j;
   char **disabled;
-  char *rule_name;
+  char *rule_name = NULL;
+  struct stat sb;
 
   disabled = g_key_file_get_string_list(config_data, CONFIG_CORE,
                                         "disabled_rules", &disabled_len, NULL);
@@ -1362,39 +1366,50 @@ int load_rule_directory(char *path, char *load_pattern, int fatal) {
 
   g_message("load rule directory: %s", path);
 
-  if ((dip = opendir(path)) == NULL)
-  {
-    perror("opendir");
-    return 1;
+
+  struct dirent **namelist;
+  int n;
+
+  n = scandir(path, &namelist, 0, versionsort);
+  if (n < 0) {
+     perror("scandir");
+  } else {
+     for(i = 0; i < n; i++) {
+
+        if(fnmatch("*.lua", namelist[i]->d_name, 0))
+          continue;
+        rule_name = g_strndup(namelist[i]->d_name,strlen(namelist[i]->d_name)-4);
+        if(load_pattern && (fnmatch(load_pattern, namelist[i]->d_name, 0) != 0))
+          goto skip;
+
+        for(j = 0; j < disabled_len; j++) {
+          if(!g_strcasecmp(disabled[j], rule_name))
+            goto skip;
+        }
+
+        snprintf(rpath, PATH_MAX, "%s/%s", path, namelist[i]->d_name);
+        if (stat(rpath, &sb) == -1)
+            goto skip;
+        if((sb.st_mode & S_IFMT) != S_IFREG)
+            goto next;
+
+        if(load_lua_rule_file(lua_main_state, rpath) && fatal)
+          abort();
+    next:
+        g_free(rule_name);
+        rule_name = NULL;
+
+        free(namelist[i]);
+        continue;
+    skip:
+        g_debug("skip rule: %s", namelist[i]->d_name);
+        g_free(rule_name);
+        rule_name = NULL;
+
+        free(namelist[i]);
+     }
+     free(namelist);
   }
-
-  if(load_pattern)
-    g_message("load pattern: %s", load_pattern);
-
-  while ((dit = readdir(dip)) != NULL)
-  {
-    if(fnmatch("*.lua", dit->d_name, 0))
-      continue;
-    rule_name = g_strndup(dit->d_name,strlen(dit->d_name)-4);
-    if(load_pattern && (fnmatch(load_pattern, dit->d_name, 0) != 0))
-      goto skip;
-
-    for(i = 0; i < disabled_len; i++) {
-      if(!g_strcasecmp(disabled[i], rule_name))
-        goto skip;
-    }
-
-    snprintf(rpath, PATH_MAX, "%s/%s", path, dit->d_name);
-    if(load_lua_rule_file(lua_main_state, rpath) && fatal)
-      abort();
-    g_free(rule_name);
-    continue;
-skip:
-    g_debug("skip rule: %s", dit->d_name);
-    g_free(rule_name);
-  }
-  g_strfreev(disabled);
-  free(dip);
   return 0;
 }
 
