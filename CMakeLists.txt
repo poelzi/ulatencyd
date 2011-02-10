@@ -7,6 +7,7 @@ INCLUDE (CheckIncludeFiles)
 
 
 option(CONFIG_PREFIX "config prefix" "/etc")
+option(SYSTEMD_DIR "systemd service file directory" "/lib/systemd/system")
 
 option(DEVELOP_MODE "build for development" FALSE)
 option(LIBCGROUPS "add libcgroups support (BROKEN)" FALSE)
