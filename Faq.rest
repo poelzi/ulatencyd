@@ -60,13 +60,17 @@ What causes conflicts ?
 
      * cgrulesengd (from libcgroup/cgroup-bin)
 
+
 Does it work with systemd
 -------------------------
 
-   Please someone test.
-   There are some implications:
-    * if systemd relays of a process does not leave a cgroup, the default scheduler config will not work.
-      This could be done by adjusting scheduler_desktop.lua in the rules directory.
+   Since Version 0.4.5 ulatencyd works with systemd under two conditions:
+
+     * DefaultControllers should be unset. In `/etc/systemd/system.conf` set `DefaultControllers=`
+     * The PAM-systemd module should be disabled.
+
+   Both options would cause constant moving of processes as the layout of systemd and ulatencyd (in the default 
+   configuration) differs.
 
 What kernel options are required ?
 ----------------------------------
