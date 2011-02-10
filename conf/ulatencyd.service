@@ -1,0 +1,13 @@
+[Unit]
+Description=Latency reducing daemon for linux
+Wants=rsyslog.service display-manager.service
+After=rsyslog.service display-manager.service
+
+[Service]
+EnvironmentFile=/etc/default/ulatencyd
+ExecStart=/usr/sbin/ulatencyd
+Restart=always
+UMask=022
+
+[Install]
+WantedBy=multi-user.target
