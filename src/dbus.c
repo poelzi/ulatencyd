@@ -477,6 +477,7 @@ finish:
 
 
 void consolekit_init();
+void systemd_init();
 
 gboolean u_dbus_setup() {
     static const DBusObjectPathVTable utable = {
@@ -504,6 +505,7 @@ gboolean u_dbus_setup() {
     dbus_connection_register_object_path(c, U_DBUS_USER_PATH, &utable, NULL);
     dbus_connection_register_object_path(c, U_DBUS_SYSTEM_PATH, &stable, NULL);
 
+    //systemd_init();
     consolekit_init();
 
     return TRUE;

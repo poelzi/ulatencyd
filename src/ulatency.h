@@ -34,10 +34,16 @@
 //#include <libcgroup.h>
 
 
-#define G_LOG_LEVEL_TRACE   1 << 8
-#define g_trace(...)    g_log (G_LOG_DOMAIN,         \
-                               G_LOG_LEVEL_TRACE,    \
+#define U_LOG_LEVEL_SCHED   1 << 8
+#define u_sched(...)    g_log (G_LOG_DOMAIN,         \
+                               U_LOG_LEVEL_SCHED,    \
                                __VA_ARGS__)
+
+#define U_LOG_LEVEL_TRACE   1 << 9
+#define u_trace(...)    g_log (G_LOG_DOMAIN,         \
+                               U_LOG_LEVEL_TRACE,    \
+                               __VA_ARGS__)
+
 
 #define VERSION 0.4.1
 
@@ -45,7 +51,7 @@
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
   PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP)
 
-#define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS | PROC_FILLCGROUP)
+#define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
 
 
 #define CONFIG_CORE "core"

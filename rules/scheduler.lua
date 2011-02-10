@@ -32,20 +32,18 @@ function get_user_group(uid)
 end
 
 
---ulatency.quit_daemon()
-
-ul_group = CGroup.new("s_ul", { ["cpu.shares"]="500", ["memory.swappiness"] = "0" })
 local UL_PID = posix.getpid()["pid"]
---print("ul_pid"..UL_PID)
-ul_group:add_task(UL_PID)
-ul_group:commit()
 
-ITER = 1
+ul_group_cpu = CGroup.new("s_ul", { ["cpu.shares"]="500"}, "cpu")
+ul_group_cpu:add_task(UL_PID)
+ul_group_cpu:commit()
+ul_group_mem = CGroup.new("s_ul", { ["?memory.swappiness"]="0"}, "memory")
+ul_group_cpu:add_task(UL_PID)
+ul_group_cpu:commit()
 
 
 -- WARNING: don't use non alpha numeric characters in name
 -- FIXME: build validator
-
 
 local function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags()) do
@@ -141,7 +139,7 @@ end
 
 local function map_to_group(proc, parts, subsys)
   local chain = build_path_parts(proc, parts)
-  local path = subsys .. table.concat(chain, "/")
+  local path = subsys .."/".. table.concat(chain, "/")
   local cgr = CGroup.get_group(path)
   if cgr then
     cgr:run_adjust(proc)
@@ -233,7 +231,7 @@ function Scheduler:one(proc)
             group:commit()
           end
           --print("add task", proc.pid, group)
-          group:add_task(proc.pid, true)
+          group:add_task(proc.pid)
           group:commit()
           proc:clear_changed()
         else
@@ -294,9 +292,6 @@ end
 --ulatency.add_timeout(byby, 100000)
 
 ulatency.scheduler = Scheduler
-
-
-
 
 
 --[[

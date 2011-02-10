@@ -156,7 +156,7 @@ static void remove_proc_from_delay_stack(pid_t pid) {
   for(i = 0; i < delay_stack->len;) {
       cur = g_ptr_array_index(delay_stack, i);
       if(cur->proc->pid == pid) {
-          g_trace("remove delay %d %d:%d", pid, i, delay_stack->len);
+          u_trace("remove delay %d %d:%d", pid, i, delay_stack->len);
           g_ptr_array_remove_index_fast(delay_stack, i);
       } else {
         i++;
@@ -535,7 +535,7 @@ static void clear_process_changed() {
 // copy the fake value of a parent pid to the child until the real value
 // of the child changes from the parent
 #define fake_var_fix(FAKE, ORG) \
-  if(proc->FAKE && (proc-> FAKE##_old != proc->proc.ORG)) { \
+  if(proc->FAKE && ((proc-> FAKE##_old != proc->proc.ORG) || (proc->FAKE == proc->proc.ORG))) { \
     /* when real value was set, the fake value disapears. */ \
     proc-> FAKE = 0; \
     proc->FAKE##_old = 0; \
@@ -742,7 +742,7 @@ static int run_new_pid(gpointer ign) {
         td = diff(cur->when, now);
         //printf("test %d  %ld >= %ld\n",  cur->proc->pid, (td.tv_sec * 1000000000 + td.tv_nsec), delay);
         if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
-            g_trace("run filter for %d", cur->proc->pid);
+            u_trace("run filter for %d", cur->proc->pid);
             g_array_append_val(targets, cur->proc->pid);
         }
     }
@@ -841,7 +841,6 @@ int process_update_pids(pid_t pids[]) {
  * Returns: int. number of processes updated
  */
 int process_update_pid(int pid) {
-  printf("update_pid %d\n", pid);
   pid_t pids [2] = { pid, 0 };
   return process_update_pids(pids);
 }

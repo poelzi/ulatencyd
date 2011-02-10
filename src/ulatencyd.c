@@ -219,8 +219,11 @@ static void log_file_handler (const gchar    *log_domain,
     case G_LOG_LEVEL_DEBUG:
       strcpy (level_prefix, "DEBUG");
       break;
-    case G_LOG_LEVEL_TRACE:
+    case U_LOG_LEVEL_TRACE:
       strcpy (level_prefix, "TRACE");
+      break;
+    case U_LOG_LEVEL_SCHED:
+      strcpy (level_prefix, "SCHED");
       break;
     default:
       strcpy (level_prefix, "LOG-");

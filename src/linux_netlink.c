@@ -74,7 +74,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 	switch (ev->what) {
 	// quite seldom events on old processes changing important parameters
 	case PROC_EVENT_UID:
-		g_trace("UID Event: PID = %d, tGID = %d, rUID = %d,"
+		u_trace("UID Event: PID = %d, tGID = %d, rUID = %d,"
 				" eUID = %d", ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.ruid,
@@ -83,7 +83,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_GID:
-		g_trace("GID Event: PID = %d, tGID = %d, rGID = %d,"
+		u_trace("GID Event: PID = %d, tGID = %d, rGID = %d,"
 				" eGID = %d", ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.rgid,
@@ -92,20 +92,20 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_EXIT:
-		g_trace("EXIT Event: PID = %d", ev->event_data.exit.process_pid);
+		u_trace("EXIT Event: PID = %d", ev->event_data.exit.process_pid);
 		//g_ptr_array_foreach(stack, remove_pid_from_stack, &pid);
 		// if the pid was found in the new stack, pid is set to 0 to indicate
 		// the removal
 		process_remove_by_pid(ev->event_data.exit.process_pid);
 		break;
 	case PROC_EVENT_EXEC:
-		g_trace("EXEC Event: PID = %d, tGID = %d",
+		u_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
 		process_new_delay(ev->event_data.exec.process_pid, 0);
 		break;
 	case PROC_EVENT_FORK:
-		g_trace("FORK Event: PARENT = %d PID = %d",
+		u_trace("FORK Event: PARENT = %d PID = %d",
 			ev->event_data.fork.parent_pid, ev->event_data.fork.child_pid);
 		// parent does not mean the parent of the new proc, but the parent of
 		// the forking process. so we lookup the parent of the forking process

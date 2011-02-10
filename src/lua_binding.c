@@ -1005,7 +1005,7 @@ static int u_proc_index (lua_State *L)
   }
 
   if(!u_proc_ensure(proc, BASIC, FALSE)) {
-    lua_pushliteral(L, "u_proc basic data not available");
+    lua_pushfstring (L, "u_proc<pid %d> basic data not available ", proc->pid);
     lua_error(L);
   }
 
@@ -1147,7 +1147,10 @@ static int u_proc_index (lua_State *L)
     lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc.pgrp);
     return 1;
   }
-  PUSH_INT(session)
+  if(!strcmp(key, "session" )) {
+    lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc.session);
+    return 1;
+  }
   PUSH_INT(nlwp)
   PUSH_INT(tgid)
   PUSH_INT(tty)
@@ -1870,14 +1873,20 @@ static int l_get_time (lua_State *L) {
 
 
 static int user_load_lua_rule_file(lua_State *L) {
-  char *full;
+  char *full, *full2;
   const char *name = luaL_checkstring(L, 1);
   int abs = lua_toboolean(L, 2);
-
   if(!abs) {
     full = g_strconcat(QUOTEME(RULES_DIRECTORY), "/", name, NULL);
-    lua_pushboolean(L, !load_lua_rule_file(L, full));
+    full2 = realpath(full, NULL);
+    if(!full2) {
+      g_warning("load_rule_file: realpath failed for %s", full);
+      g_free(full);
+      return 0;
+    }
+    lua_pushboolean(L, !load_lua_rule_file(L, full2));
     g_free(full);
+    g_free(full2);
   } else {
     lua_pushboolean(L, !load_lua_rule_file(L, name));
   }
@@ -2063,6 +2072,8 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_MESSAGE, G_LOG_LEVEL_MESSAGE)
   PUSH_INT(LOG_LEVEL_INFO, G_LOG_LEVEL_INFO)
   PUSH_INT(LOG_LEVEL_DEBUG, G_LOG_LEVEL_DEBUG)
+  PUSH_INT(LOG_LEVEL_SCHED, U_LOG_LEVEL_SCHED)
+  PUSH_INT(LOG_LEVEL_TRACE, U_LOG_LEVEL_TRACE)
   
   PUSH_INT(FILTER_STOP, FILTER_STOP)
   PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)

@@ -44,6 +44,15 @@ end
 
 
 -- logging shortcuts
+
+function ulatency.log_trace(msg)
+  ulatency.log(ulatency.LOG_LEVEL_TRACE, msg)
+end
+
+function ulatency.log_sched(msg)
+  ulatency.log(ulatency.LOG_LEVEL_SCHED, msg)
+end
+
 function ulatency.log_debug(msg)
   ulatency.log(ulatency.LOG_LEVEL_DEBUG, msg)
 end
@@ -226,10 +235,12 @@ local function mkdirp(path)
       if posix.access(name, posix.R_OK) ~= 0 then
         if posix.mkdir(name) ~= 0 then
           cg_log("can't create "..name)
+          return false
         end
       end
     end
   end
+  return true
 end
 
 
@@ -253,19 +264,6 @@ if string.sub(CGROUP_ROOT, -1) ~= "/" then
   CGROUP_ROOT = CGROUP_ROOT .. "/"
 end
 
--- try mounting the mountpoints
-mkdirp(CGROUP_ROOT)
-
--- disable the autogrouping
-local fp = io.open("/proc/sys/kernel/sched_autogroup_enabled", "w")
-if fp then
-  ulatency.log_info("disable sched_autogroup in linux kernel")
-  fp:write("0")
-  fp:close()
-end
-
-ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
-
 -- test if a cgroups is mounted
 local function is_mounted(mnt_pnt)
   if string.sub(mnt_pnt, #mnt_pnt) == "/" then
@@ -279,11 +277,32 @@ local function is_mounted(mnt_pnt)
   return false
 end
 
+-- try mounting the mountpoints
+if not is_mounted(CGROUP_ROOT) then
+  -- try mounting a tmpfs there
+  local prog = "/bin/mount -n -t tmpfs none "..CGROUP_ROOT.."/"
+  ulatency.log_info("mount cgroups root: "..prog)
+  fd = io.popen(prog, "r")
+  print(fd:read("*a"))
+  if not is_mounted(CGROUP_ROOT) then
+    ulatency.log_error("can't mount: "..CGROUP_ROOT)
+  end
+end
+
+-- disable the autogrouping
+local fp = io.open("/proc/sys/kernel/sched_autogroup_enabled", "w")
+if fp then
+  ulatency.log_info("disable sched_autogroup in linux kernel")
+  fp:write("0")
+  fp:close()
+end
+
+ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
+
 local __found_one_group = false
 for n,v in pairs(CGROUP_MOUNTPOINTS) do
   local path = CGROUP_ROOT..n
   local mnt_opts = false
-  mkdirp(path)
   for i, subsys in ipairs(v) do
     if ulatency.has_cgroup_subsystem(subsys) then
       if mnt_opts then
@@ -299,20 +318,28 @@ for n,v in pairs(CGROUP_MOUNTPOINTS) do
       __CGROUP_LOADED[n] = true
       __found_one_group = true
     else
-      prog = "/bin/mount -t cgroup -o "..mnt_opts.." none "..path.."/"
+      mkdirp(path)
+      local prog = "/bin/mount -n -t cgroup -o "..mnt_opts.." none "..path.."/"
       ulatency.log_info("mount cgroups: "..prog)
       fd = io.popen(prog, "r")
       print(fd:read("*a"))
       if not is_mounted(path) then
         ulatency.log_error("can't mount: "..path)
       else
-        fp = io.open(path.."/release_agent", "w")
-        if fp then
-          fp:write(ulatency.release_agent)
-          fp:close()
-        end
         __CGROUP_LOADED[n] = true
         __found_one_group = true
+      end
+    end
+    local fp = io.open(path.."/release_agent", "r")
+    local ragent = fp:read("*a")
+    fp:close()
+    -- we only write a release agent if not already one. update if it looks like
+    -- a ulatencyd release agent
+    if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.lua' then
+      local fp = io.open(path.."/release_agent", "w")
+      if fp then
+        fp:write(ulatency.release_agent)
+        fp:close()
       end
     end
   else
@@ -354,11 +381,11 @@ end
 ulatency.add_timeout(cgroups_cleanup, 120000)
 
 function CGroup.new(name, init, tree)
-  rv = _CGroup_Cache[name]
+  tree = tree or "cpu"
+  rv = _CGroup_Cache[tree..'/'..name]
   if rv then
     return rv
   end
-  tree = tree or "cm"
   if CGROUP_DEFAULT[tree] then
     cinit = table.copy(CGROUP_DEFAULT[tree])
   else
@@ -367,7 +394,7 @@ function CGroup.new(name, init, tree)
   uncommited=table.merge(cinit, init or {})
   rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={},
                       tree=tree, adjust={}, used=false}, CGroupMeta)
-  _CGroup_Cache[name] = rv
+  _CGroup_Cache[tree..'/'..name] = rv
   return rv
 end
 
@@ -384,7 +411,7 @@ function CGroup:path(file)
   if file then
     return CGROUP_ROOT .. self.tree .. "/".. self.name .. "/" .. tostring(file)
   else
-   return CGROUP_ROOT .. self.tree .. "/" .. self.name
+    return CGROUP_ROOT .. self.tree .. "/" .. self.name
   end
 end
 
@@ -473,6 +500,7 @@ function CGroup:add_task(pid, instant)
     if fp then
       fp:write(tostring(pid))
     --  print("write")
+      ulatency.log_sched("Move "..pid.." to "..tostring(self))
       fp:close()
     else
       cg_log("can't attach "..pid.." to group "..t_file)
@@ -546,6 +574,7 @@ function CGroup:commit()
           break
         end
         fp:write(pid)
+        ulatency.log_sched("Move "..pid.." to "..tostring(self))
       end
       fp:close()
     end

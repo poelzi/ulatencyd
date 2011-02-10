@@ -486,4 +486,44 @@ void consolekit_init() {
     g_ptr_array_free(array, TRUE);
 }
 
+#if 0
+
+// systemd does not yet support setting properties
+
+void systemd_init() {
+    GError *error = NULL;
+    DBusGProxy *systemd_proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
+                                      "org.freedesktop.systemd1",
+                                      "/org/freedesktop/systemd1",
+                                      DBUS_INTERFACE_PROPERTIES,
+                                      &error);
+    if(error) {
+        g_message ("systemd: %s\n", error->message);
+        g_error_free(error);
+        goto out;
+    }
+
+    char **empty = NULL;
+    GValue val = {0, };
+
+    g_value_init (&val, G_TYPE_STRV);
+    //g_value_set_string (&val, &empty);
+
+    if(!dbus_g_proxy_call(systemd_proxy, "Set", &error,
+                          G_TYPE_STRING, "org.freedesktop.systemd1.Manager",
+                          G_TYPE_STRING, "DefaultControllers",
+                          G_TYPE_VALUE, &val,
+                          G_TYPE_INVALID)) {
+        g_debug("can't unset systemd DefaultControllers: %s", error->message);
+        g_error_free(error);
+        goto out;
+    }
+
+out:
+    g_object_unref (systemd_proxy);
+}
+
 #endif
+
+#endif
+
