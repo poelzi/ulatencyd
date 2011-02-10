@@ -67,7 +67,7 @@ Does it work with systemd
    Since Version 0.4.5 ulatencyd works with systemd under two conditions:
 
      * DefaultControllers should be unset. In `/etc/systemd/system.conf` set `DefaultControllers=`
-     * The PAM-systemd module should be disabled.
+     * The PAM-systemd module should be disabled, or set "controllers="
 
    Both options would cause constant moving of processes as the layout of systemd and ulatencyd (in the default 
    configuration) differs.
