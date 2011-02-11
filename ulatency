@@ -9,12 +9,16 @@ class Session:
 
     def __init__(self):
         self.bus = dbus.SystemBus()
-        self.mode = { 'config':self.set_config }
+        self.sets = { 'config':self.set_config }
+        self.gets = { 'config':self.get_config }
 
-    def config_list(self):
+    def init_system(self):
         self.system = self.bus.get_object(
             'org.quamquam.ulatencyd',
             '/org/quamquam/ulatencyd/System')
+
+    def config_list(self):
+        self.init_system()
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try: return list(map(unicode, system.listSchedulerConfigs()))
         except dbus.exceptions.DBusException as e:
@@ -22,10 +26,10 @@ class Session:
             sys.exit(2)
 
     def set(self, key, *value):
-        if key not in self.mode:
+        if key not in self.sets:
             print("error: key '{0}' not available".format(key))
             sys.exit(1)
-        return self.mode[key](*value)
+        return self.sets[key](*value)
 
     def set_config(self, config=None):
         configs = self.config_list()
@@ -39,15 +43,34 @@ class Session:
             print(e)
             sys.exit(2)
 
+    def get(self, key):
+        if key not in self.gets:
+            print("error: key '{0}' not available".format(key))
+            sys.exit(1)
+        return self.gets[key]()
+
+    def get_config(self):
+        self.init_system()
+        properties=dbus.Interface(self.system,'org.freedesktop.DBus.Properties')
+        try:
+            return unicode(properties.Get(
+                'org.quamquam.ulatencyd.System', 'config'))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
 
 
 
 
 
 def main():
-    parser = OptionParser( usage = "usage: %prog [options] [key value]" )
-    parser.add_option("--list", dest="list", action="store_true", default=False,
-        help="list system configs")
+    parser = OptionParser( usage = "usage: %prog [options] [key [value]]" )
+    parser.add_option("--config-list", dest="list", action="store_true",
+        default=False, help="list system configs")
+    parser.add_option("-s", "--set", dest="set", action="store_true",
+        default=False, help="set key value pair")
+    parser.add_option("-g", "--get", dest="get", action="store_true",
+        default=False, help="get value by key")
 
     options, args = parser.parse_args()
 
@@ -55,10 +78,17 @@ def main():
         print("\n".join(Session().config_list()))
         sys.exit(0)
 
-    if len(args) > 0:
-        print(Session().set(*args))
-        sys.exit(0)
-    else: print(",".join(Session().mode.keys()))
+    if options.set or args[0] == 'set':
+        if len(args[1:]):
+            print(Session().set(*args[1:]))
+            sys.exit(0)
+        else: print(",".join(Session().sets.keys()))
+
+    if options.get or args[0] == 'get':
+        if len(args[1:]):
+            print(Session().get(*args[1:]))
+            sys.exit(0)
+        else: print(",".join(Session().gets.keys()))
 
 
 if __name__ == "__main__":
