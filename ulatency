@@ -10,7 +10,7 @@ class Session:
     def __init__(self):
         self.bus = dbus.SystemBus()
         self.sets = { 'config':self.set_config }
-        self.gets = { 'config':self.get_config }
+        self.gets = { 'config':self.get_config, 'desc':self.get_desc }
 
     def init_system(self):
         self.system = self.bus.get_object(
@@ -43,11 +43,11 @@ class Session:
             print(e)
             sys.exit(2)
 
-    def get(self, key):
+    def get(self, key, *value):
         if key not in self.gets:
             print("error: key '{0}' not available".format(key))
             sys.exit(1)
-        return self.gets[key]()
+        return self.gets[key](*value)
 
     def get_config(self):
         self.init_system()
@@ -55,6 +55,18 @@ class Session:
         try:
             return unicode(properties.Get(
                 'org.quamquam.ulatencyd.System', 'config'))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def get_desc(self, config):
+        configs = self.config_list()
+        if config is None: return ",".join(configs)
+        if config not in configs:
+            print("error: config '{0}' not available".format(config))
+            sys.exit(1)
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try: return system.getSchedulerConfigDescription(config)
         except dbus.exceptions.DBusException as e:
             print(e)
             sys.exit(2)
