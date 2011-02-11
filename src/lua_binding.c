@@ -706,7 +706,7 @@ static int u_proc_kill (lua_State *L) {
 static int u_proc_get_n_children (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(!U_PROC_IS_VALID(proc))
     return 0;
 
   lua_pushinteger(L, g_node_n_children(proc->node));
