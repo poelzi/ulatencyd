@@ -9,7 +9,10 @@ class Session:
 
     def __init__(self):
         self.bus = dbus.SystemBus()
-        self.sets = { 'config':self.set_config }
+        self.sets = {
+            'config':self.set_config,
+            'active':self.set_active,
+            }
         self.gets = {
             'config':self.get_config,
             'desc':self.get_desc,
@@ -20,6 +23,11 @@ class Session:
         self.system = self.bus.get_object(
             'org.quamquam.ulatencyd',
             '/org/quamquam/ulatencyd/System')
+
+    def init_user(self):
+        self.user = self.bus.get_object(
+            'org.quamquam.ulatencyd',
+            '/org/quamquam/ulatencyd/User')
 
     def config_list(self):
         self.init_system()
@@ -46,6 +54,18 @@ class Session:
         except dbus.exceptions.DBusException as e:
             print(e)
             sys.exit(2)
+
+    def set_active(self, pid=None):
+        if pid is None:
+            print("error: no pid given")
+            sys.exit(1)
+        self.init_user()
+        user = dbus.Interface(self.user, 'org.quamquam.ulatencyd.User')
+        try: return user.setActive(pid)
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
 
     def get(self, key, *value):
         if key not in self.gets:
