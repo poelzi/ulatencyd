@@ -83,7 +83,7 @@ class Session:
             print(e)
             sys.exit(2)
 
-    def get_desc(self, config):
+    def get_desc(self, config=None):
         configs = self.config_list()
         if config is None: return ",".join(configs)
         if config not in configs:
