@@ -9,7 +9,7 @@ class Session:
 
     def __init__(self):
         self.bus = dbus.SystemBus()
-        self.mode = { 'list':self.set_list }
+        self.mode = { 'config':self.set_config }
 
     def config_list(self):
         self.system = self.bus.get_object(
@@ -27,7 +27,7 @@ class Session:
             sys.exit(1)
         return self.mode[key](*value)
 
-    def set_list(self, config=None):
+    def set_config(self, config=None):
         configs = self.config_list()
         if config is None: return ",".join(configs)
         if config not in configs:
