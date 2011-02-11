@@ -10,7 +10,11 @@ class Session:
     def __init__(self):
         self.bus = dbus.SystemBus()
         self.sets = { 'config':self.set_config }
-        self.gets = { 'config':self.get_config, 'desc':self.get_desc }
+        self.gets = {
+            'config':self.get_config,
+            'desc':self.get_desc,
+            'systemflags':self.get_systemflags
+            }
 
     def init_system(self):
         self.system = self.bus.get_object(
@@ -71,6 +75,14 @@ class Session:
             print(e)
             sys.exit(2)
 
+    def get_systemflags(self):
+        self.init_system()
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try:
+            return list(map(unicode, system.listSystemFlags()))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
 
 
 
