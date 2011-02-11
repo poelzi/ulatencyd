@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import sys
+import dbus
+from optparse import OptionParser
+
+
+class Session:
+
+    def __init__(self):
+        self.bus = dbus.SystemBus()
+        self.mode = { 'list':self.set_list }
+
+    def config_list(self):
+        self.system = self.bus.get_object(
+            'org.quamquam.ulatencyd',
+            '/org/quamquam/ulatencyd/System')
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try: return list(map(unicode, system.listSchedulerConfigs()))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def set(self, key, *value):
+        if key not in self.mode:
+            print("error: key '{0}' not available".format(key))
+            sys.exit(1)
+        return self.mode[key](*value)
+
+    def set_list(self, config=None):
+        configs = self.config_list()
+        if config is None: return ",".join(configs)
+        if config not in configs:
+            print("error: config '{0}' not available".format(config))
+            sys.exit(1)
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try: return system.setSchedulerConfig(config)
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+
+
+
+
+
+def main():
+    parser = OptionParser()
+    parser.add_option("--list", dest="list", action="store_true", default=False,
+        help="list system configs")
+
+    options, args = parser.parse_args()
+
+    if options.list:
+        print("\n".join(Session().config_list()))
+        sys.exit(0)
+
+    if len(args) > 0:
+        print(Session().set(*args))
+        sys.exit(0)
+    else: print(",".join(Session().mode.keys()))
+
+
+if __name__ == "__main__":
+    main()
