@@ -3,6 +3,10 @@
 import sys
 import dbus
 from optparse import OptionParser
+from signal import signal, SIGINT, SIG_DFL
+
+
+signal(SIGINT, SIG_DFL)
 
 
 class Session:
@@ -21,11 +25,13 @@ class Session:
             }
 
     def init_system(self):
+        if hasattr(self, 'system'): return
         self.system = self.bus.get_object(
             'org.quamquam.ulatencyd',
             '/org/quamquam/ulatencyd/System')
 
     def init_user(self):
+        if hasattr(self, 'user'): return
         self.user = self.bus.get_object(
             'org.quamquam.ulatencyd',
             '/org/quamquam/ulatencyd/User')
@@ -116,6 +122,95 @@ class Session:
             sys.exit(2)
 
 
+class Gui:
+
+    def __init__(self):
+        pass
+
+    def run(self):
+        return 0
+
+
+class QtGui(Gui):
+
+    def __init__(self):
+        from PyQt4.Qt import QApplication, QSystemTrayIcon,\
+                             QIcon, QPixmap, QMenu
+        self.app = QApplication(sys.argv)
+        self.session = Session()
+        icon = QIcon(QPixmap(self.get_logo()))
+        self.app.trayicon = QSystemTrayIcon(icon, self.app)
+        self.app.trayicon.show()
+
+        self.cur = self.session.get_config()
+        configs = self.session.config_list()
+
+        self.app.menu = QMenu()
+        menu = self.app.menu.addMenu("set config")
+        self.config_action = {}
+        def connect(con):
+            return lambda: self.switch_config(con)
+        for config in configs:
+            self.config_action[config] = c = menu.addAction(config)
+            c.setCheckable(True)
+            c.setChecked(self.cur == config)
+            c.setToolTip(unicode(self.session.get_desc(config)))
+            c.triggered.connect(connect(config))
+        menu = self.app.menu
+        menu.addSeparator()
+        quit = menu.addAction("Quit")
+
+        self.app.trayicon.setContextMenu(menu)
+        quit.triggered.connect(self.app.quit)
+
+    def run(self):
+        return self.app.exec_()
+
+    def switch_config(self, new):
+        self.config_action[self.cur].setChecked(False)
+        self.config_action[new].setChecked(True)
+        self.cur = new
+
+    def get_logo(self):
+        header = ["16 16 5 1"]
+        chars = ["#","x","o","."]
+        color = ["black",
+            "gray25",
+            "gray50",
+            "white"]
+        background = [
+            "                ",
+            "      xxxx      ",
+            "    xx####xx    ",
+            "   x##xxxx##x   ",
+            "  x#xx    xx#x  ",
+            "  x#x      x#x  ",
+            " x#x        x#x ",
+            " x#x        x#x ",
+            " x#x        x#x ",
+            " x#x        x#x ",
+            "  x#x      x#x  ",
+            "  x#xx    xx#x  ",
+            "   x##xxxx##x   ",
+            "    xx####xx    ",
+            "      xxxx      ",
+            "                "]
+        foreground = [
+            "      ",
+            "oo  oo",
+            "o.  .o",
+            "o....o",
+            "oooo.o",
+            "   o.o",
+            "   ooo"]
+        color = ["  c None"] + [char+" c "+col for char,col in zip(chars,color)]
+        for y, line in enumerate(foreground):
+            for x, char in enumerate(line):
+                if char != " ":
+                    s = background[y+4]
+                    background[y+4] = s[:x+5] + char + s[x+6:]
+        return header + color + background
+
 
 
 def main():
@@ -126,8 +221,14 @@ def main():
         default=False, help="set key value pair")
     parser.add_option("-g", "--get", dest="get", action="store_true",
         default=False, help="get value by key")
+    parser.add_option("--gui", dest="gui", action="store_true",
+        default=False, help="enable gui")
+
 
     options, args = parser.parse_args()
+
+    if options.gui:
+        sys.exit(QtGui().run())
 
     if options.list:
         print("\n".join(Session().config_list()))
