@@ -12,6 +12,14 @@ signal(SIGINT, SIG_DFL)
 DEFAULT_TREE = "cpu"
 CGROUPS_PATH = "/sys/fs/cgroup"
 
+
+class drug():
+    def __init__(self, **kwargs):
+        for k in kwargs:
+            setattr(self, k, kwargs[k])
+
+
+
 class Session:
 
     def __init__(self):
@@ -124,19 +132,22 @@ class Session:
             print(e)
             sys.exit(2)
 
+
+
 class Tree(object):
     """Displays a cgroup tree"""
 
     boxes = {
-      True:  {"start":       u"\u2523\u2501\u2533\u00bb",
-              "start_end":   u"\u00ab",
-              "subtree":     u"\u2503",
-              "file":        u"\u2520", },
-      False: {"start":   "+-#",
-              "start_end":   "+-#",
-              "subtree": "|",
-              "file":    "+-",
-              },
+      True: drug(
+        start     = u"\u2523\u2501\u2533\u00bb",
+        end       = u"\u00ab",
+        subtree   = u"\u2503",
+        file      = u"\u2520 " ),
+      False: drug(
+        start     = "+-# ",
+        end       = " #",
+        subtree   = "|",
+        file      = "+- " ),
     }
 
     def __init__(self, tree=DEFAULT_TREE, print_processes=True, show_all=True,
@@ -151,11 +162,11 @@ class Tree(object):
           fp = file(os.path.join("/proc", pid, "status"))
         except OSError:
           return None
-        output = "%s" %pid
+        output = unicode(pid)
         for line in fp.readlines():
           chunks = line.split(":\t")
           if chunks[0] == 'Name':
-              output = "%s %s" %(pid, chunks[1].strip())
+              output = u"{0} {1}".format(pid, chunks[1].strip())
           if chunks[0] == 'Tgid':
               tgid = chunks[1]
           if chunks[0] == 'Pid':
@@ -167,7 +178,9 @@ class Tree(object):
         return output
 
     def print_tree(self, dir, padding):
-        print padding[:-1] + self.boxes[self.utf]["start"] + os.path.basename(os.path.abspath(dir)) + self.boxes[self.utf]["start_end"]
+        print u"{0}{1}{3}{2}".format(padding[:-1],
+            self.boxes[self.utf].start, self.boxes[self.utf].end,
+            os.path.basename(os.path.abspath(dir)))
         padding = padding + ' '
         files = []
         if self.print_processes:
@@ -189,10 +202,10 @@ class Tree(object):
                     self.print_tree(path, padding + ' ')
                     print padding[:-1]
                 else:
-                    self.print_tree(path, padding + self.boxes[self.utf]["subtree"])
-                    print padding + self.boxes[self.utf]["subtree"]
+                    self.print_tree(path, padding+self.boxes[self.utf].subtree)
+                    print padding + self.boxes[self.utf].subtree
             else:
-                print padding + self.boxes[self.utf]["file"] + fname
+                print padding + self.boxes[self.utf].file + fname
 
     def display(self):
         path = "%s/%s" %(CGROUPS_PATH, self.tree)
@@ -202,6 +215,8 @@ class Tree(object):
             return
 
         self.print_tree(path, ' ')
+
+
 
 class Gui:
 
