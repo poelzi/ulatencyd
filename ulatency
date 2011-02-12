@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import sys
 import dbus
 from optparse import OptionParser
@@ -169,6 +170,9 @@ class QtGui(Gui):
     def switch_config(self, new):
         self.config_action[self.cur].setChecked(False)
         self.config_action[new].setChecked(True)
+        cmd = " {0} set config {1}".format(sys.argv[0], new)
+        if os.system("gtksudo" + cmd) == 32512:
+            print os.system("kdesudo" + cmd)
         self.cur = new
 
     def get_logo(self):
