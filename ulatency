@@ -377,7 +377,9 @@ def main():
     parser.add_option("--no-utf", dest="utf", action="store_false",
         default=True, help="disables utf8 for tree view")
     parser.add_option("--no-color", dest="color", action="store_false",
-        default=True, help="enable color")
+        default=True, help="disables color")
+    parser.add_option("--all", dest="all", action="store_true",
+        default=False, help="show complete tree")
 
 
     options, args = parser.parse_args()
@@ -405,7 +407,8 @@ def main():
         if len(args) >= 1:
             tree = Tree(tree=args[1])
         else:
-            tree = Tree(utf = options.utf, color = options.color)
+            tree = Tree(utf = options.utf, color = options.color,
+                show_all = options.all)
         tree.display()
 
 
