@@ -375,6 +375,7 @@ class QtGui(Gui):
         )
         win.setCentralWidget(ui.treeview)
         ui.treeview.setHeaderLabels(["process", "pid"])
+        ui.treeview.setAlternatingRowColors(True)
         ui.treeview.indexOfChild = ui.treeview.indexOfTopLevelItem
         ui.treeview.child = ui.treeview.topLevelItem
         ui.timer.setInterval(3000)
