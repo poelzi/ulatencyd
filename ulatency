@@ -9,6 +9,8 @@ from signal import signal, SIGINT, SIG_DFL
 
 signal(SIGINT, SIG_DFL)
 
+DEFAULT_TREE = "cpu"
+CGROUPS_PATH = "/sys/fs/cgroup"
 
 class Session:
 
@@ -122,6 +124,84 @@ class Session:
             print(e)
             sys.exit(2)
 
+class Tree(object):
+    """Displays a cgroup tree"""
+
+    boxes = {
+      True:  {"start":       u"\u2523\u2501\u2533\u00bb",
+              "start_end":   u"\u00ab",
+              "subtree":     u"\u2503",
+              "file":        u"\u2520", },
+      False: {"start":   "+-#",
+              "start_end":   "+-#",
+              "subtree": "|",
+              "file":    "+-",
+              },
+    }
+
+    def __init__(self, tree=DEFAULT_TREE, print_processes=True, show_all=True,
+                 utf = True):
+        self.tree = tree
+        self.print_processes = print_processes
+        self.show_all = show_all
+        self.utf = utf
+
+    def format_process(self, pid):
+        try:
+          fp = file(os.path.join("/proc", pid, "status"))
+        except OSError:
+          return None
+        output = "%s" %pid
+        for line in fp.readlines():
+          chunks = line.split(":\t")
+          if chunks[0] == 'Name':
+              output = "%s %s" %(pid, chunks[1].strip())
+          if chunks[0] == 'Tgid':
+              tgid = chunks[1]
+          if chunks[0] == 'Pid':
+              pid = chunks[1]
+
+        if not self.show_all and pid != tgid:
+          output = None
+        fp.close()
+        return output
+
+    def print_tree(self, dir, padding):
+        print padding[:-1] + self.boxes[self.utf]["start"] + os.path.basename(os.path.abspath(dir)) + self.boxes[self.utf]["start_end"]
+        padding = padding + ' '
+        files = []
+        if self.print_processes:
+            fp = file(os.path.join(dir, "tasks"), "r")
+            for line in fp.readlines():
+                proc = self.format_process(line.strip())
+                if proc:
+                    files.append(proc)
+        for x in os.listdir(dir):
+            if os.path.isdir(dir + os.sep + x):
+                files.append(x)
+
+        count = 0
+        for fname in files:
+            count += 1
+            path = dir + os.sep + fname
+            if os.path.isdir(path):
+                if count == len(files):
+                    self.print_tree(path, padding + ' ')
+                    print padding[:-1]
+                else:
+                    self.print_tree(path, padding + self.boxes[self.utf]["subtree"])
+                    print padding + self.boxes[self.utf]["subtree"]
+            else:
+                print padding + self.boxes[self.utf]["file"] + fname
+
+    def display(self):
+        path = "%s/%s" %(CGROUPS_PATH, self.tree)
+        print path
+        if not os.path.exists(path):
+            print "Tree does not exist"
+            return
+
+        self.print_tree(path, ' ')
 
 class Gui:
 
@@ -238,17 +318,24 @@ def main():
         print("\n".join(Session().config_list()))
         sys.exit(0)
 
-    if options.set or args[0] == 'set':
+    if options.set or args and args[0] == 'set':
         if len(args[1:]):
             print(Session().set(*args[1:]))
             sys.exit(0)
         else: print(",".join(Session().sets.keys()))
 
-    if options.get or args[0] == 'get':
+    if options.get or args and args[0] == 'get':
         if len(args[1:]):
             print(Session().get(*args[1:]))
             sys.exit(0)
         else: print(",".join(Session().gets.keys()))
+
+    if not args or args[0] == 'tree':
+        if len(args) >= 1:
+            tree = Tree(tree=args[1])
+        else:
+            tree = Tree()
+        tree.display()
 
 
 if __name__ == "__main__":
