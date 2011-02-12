@@ -19,6 +19,34 @@ class drug():
             setattr(self, k, kwargs[k])
 
 
+style = drug(**dict(
+        default    = "\033[m",
+        # styles
+        bold       = "\033[1m",
+        underline  = "\033[4m",
+        blink      = "\033[5m",
+        reverse    = "\033[7m",
+        concealed  = "\033[8m",
+        # font colors
+        black      = "\033[30m",
+        red        = "\033[31m",
+        green      = "\033[32m",
+        yellow     = "\033[33m",
+        blue       = "\033[34m",
+        magenta    = "\033[35m",
+        cyan       = "\033[36m",
+        white      = "\033[37m",
+        # background colors
+        on_black   = "\033[40m",
+        on_red     = "\033[41m",
+        on_green   = "\033[42m",
+        on_yellow  = "\033[43m",
+        on_blue    = "\033[44m",
+        on_magenta = "\033[45m",
+        on_cyan    = "\033[46m",
+        on_white   = "\033[47m"))
+
+
 
 class Session:
 
@@ -139,34 +167,51 @@ class Tree(object):
 
     boxes = {
       True: drug(
-        start     = u"\u2523\u2501\u2533\u00bb",
+        start     = u"\u2500\u252c\u00bb",
+        branch    = u"\u251c",
+        last      = u"\u2514",
         end       = u"\u00ab",
-        subtree   = u"\u2503",
-        file      = u"\u2520 " ),
+        subtree   = u"\u2502",
+        file      = u" " ),
       False: drug(
-        start     = "+-# ",
-        end       = " #",
-        subtree   = "|",
-        file      = "+- " ),
+        start     = u"# ",
+        branch    = u"+-",
+        last      = u"+-",
+        end       = u" #",
+        subtree   = u"|",
+        file      = u" " ),
     }
 
     def __init__(self, tree=DEFAULT_TREE, print_processes=True, show_all=True,
-                 utf = True):
+                 utf = True, color = False):
         self.tree = tree
         self.print_processes = print_processes
         self.show_all = show_all
         self.utf = utf
+        if color:
+            self.color = drug(
+                process = u"{0.yellow}{1}{0.default} {2}",
+                subtree = u"{0.bold}{0.black}{1}{0.default}",
+                tree    = u"{0.bold}{0.black}{1}{2}{3}{0.default}{0.green}" +
+                          u"{5}{0.bold}{0.black}{4}{0.default}",
+                file    = u"{0.bold}{0.black}{1}{2}{3}{0.default}{4}" )
+        else:
+            self.color = drug(
+                process = u"{1} {2}",
+                subtree = u"{1}",
+                tree    = u"{1}{2}{3}{5}{4}",
+                file    = u"{1}{2}{3}{4}" )
 
     def format_process(self, pid):
         try:
           fp = file(os.path.join("/proc", pid, "status"))
         except OSError:
           return None
-        output = unicode(pid)
+        output = self.color.process.format(style, pid, u"")
         for line in fp.readlines():
           chunks = line.split(":\t")
           if chunks[0] == 'Name':
-              output = u"{0} {1}".format(pid, chunks[1].strip())
+              output = self.color.process.format(style, pid, chunks[1].strip())
           if chunks[0] == 'Tgid':
               tgid = chunks[1]
           if chunks[0] == 'Pid':
@@ -177,11 +222,13 @@ class Tree(object):
         fp.close()
         return output
 
-    def print_tree(self, dir, padding):
-        print u"{0}{1}{3}{2}".format(padding[:-1],
-            self.boxes[self.utf].start, self.boxes[self.utf].end,
-            os.path.basename(os.path.abspath(dir)))
-        padding = padding + ' '
+    def print_tree(self, dir, padding, last=None):
+        print self.color.tree.format(style, padding[:-1],
+              last or self.boxes[self.utf].branch,
+              self.boxes[self.utf].start,
+              self.boxes[self.utf].end,
+              os.path.basename(os.path.abspath(dir)))
+        padding = padding + u" "
         files = []
         if self.print_processes:
             fp = file(os.path.join(dir, "tasks"), "r")
@@ -197,24 +244,29 @@ class Tree(object):
         for fname in files:
             count += 1
             path = dir + os.sep + fname
+            last = None
+            if count == len(files):
+                last = self.boxes[self.utf].last
             if os.path.isdir(path):
-                if count == len(files):
-                    self.print_tree(path, padding + ' ')
-                    print padding[:-1]
+                if last is None:
+                    subtree = padding + self.boxes[self.utf].subtree
+                    self.print_tree(path, subtree)
+                    print self.color.subtree.format(style, subtree)
                 else:
-                    self.print_tree(path, padding+self.boxes[self.utf].subtree)
-                    print padding + self.boxes[self.utf].subtree
+                    self.print_tree(path, padding + u" ", last)
             else:
-                print padding + self.boxes[self.utf].file + fname
+                print self.color.file.format(style, padding,
+                    last or self.boxes[self.utf].branch,
+                    self.boxes[self.utf].file, fname)
 
     def display(self):
-        path = "%s/%s" %(CGROUPS_PATH, self.tree)
+        path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
         print path
         if not os.path.exists(path):
             print "Tree does not exist"
             return
 
-        self.print_tree(path, ' ')
+        self.print_tree(path, u" ")
 
 
 
@@ -324,6 +376,8 @@ def main():
         default=False, help="enable gui")
     parser.add_option("--no-utf", dest="utf", action="store_false",
         default=True, help="disables utf8 for tree view")
+    parser.add_option("--no-color", dest="color", action="store_false",
+        default=True, help="enable color")
 
 
     options, args = parser.parse_args()
@@ -351,7 +405,7 @@ def main():
         if len(args) >= 1:
             tree = Tree(tree=args[1])
         else:
-            tree = Tree(utf = options.utf)
+            tree = Tree(utf = options.utf, color = options.color)
         tree.display()
 
 
