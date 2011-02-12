@@ -401,14 +401,19 @@ class QtGui(Gui):
         app.trayicon.setContextMenu(menu)
         quit.triggered.connect(app.quit)
         print "loaded."
-        ui.timer.start()
 
     def run(self):
         return self.app.exec_()
 
     def toggle_window(self, reason):
         if reason != self.app.trayicon.Context:
-            self.window.setVisible(not self.window.isVisible())
+            b = not self.window.isVisible()
+            self.window.setVisible(b)
+            if b:
+                self.update_tree()
+                self.window.ui.timer.start()
+            else:
+                self.window.ui.timer.stop()
 
     def update_tree(self):
         QTreeWidgetItem = self.QTreeWidgetItem
