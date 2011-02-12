@@ -2,6 +2,10 @@ add_executable(memleak memleak.c)
 SET_TARGET_PROPERTIES(memleak PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 
 
+add_executable(forkbomb forkbomb.c)
+SET_TARGET_PROPERTIES(forkbomb PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
+
+
 if(XCB_FOUND AND XAU_FOUND AND DBUS_FOUND AND ENABLE_DBUS)
   # FIXME needs rework
   #add_executable(test_xwatch test_xwatch.c)
