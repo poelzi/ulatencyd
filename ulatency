@@ -182,10 +182,10 @@ class Tree(object):
         file      = u" " ),
     }
 
-    def __init__(self, tree=DEFAULT_TREE, print_processes=True, show_all=True,
+    def __init__(self, tree=DEFAULT_TREE, processes=True, show_all=True,
                  utf = True, color = False):
         self.tree = tree
-        self.print_processes = print_processes
+        self.processes = processes
         self.show_all = show_all
         self.utf = utf
         if color:
@@ -230,7 +230,7 @@ class Tree(object):
               os.path.basename(os.path.abspath(dir)))
         padding = padding + u" "
         files = []
-        if self.print_processes:
+        if self.processes and os.path.exists(os.path.join(dir, "tasks")):
             fp = file(os.path.join(dir, "tasks"), "r")
             for line in fp.readlines():
                 proc = self.format_process(line.strip())
@@ -410,7 +410,7 @@ def main():
             tree = Tree(tree=args[1])
         else:
             tree = Tree(utf = options.utf, color = options.color,
-                show_all = options.all, print_processes = options.processes)
+                show_all = options.all, processes = options.processes)
         tree.display()
 
 
