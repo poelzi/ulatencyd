@@ -202,71 +202,91 @@ class Tree(object):
                 tree    = u"{1}{2}{3}{5}{4}",
                 file    = u"{1}{2}{3}{4}" )
 
-    def format_process(self, pid):
+    def get_process(self, pid):
         try:
-          fp = file(os.path.join("/proc", pid, "status"))
+            fp = file(os.path.join("/proc", pid, "status"))
         except OSError:
-          return None
-        output = self.color.process.format(style, pid, u"")
+            return None
+        name = u""
         for line in fp.readlines():
-          chunks = line.split(":\t")
-          if chunks[0] == 'Name':
-              output = self.color.process.format(style, pid, chunks[1].strip())
-          if chunks[0] == 'Tgid':
-              tgid = chunks[1]
-          if chunks[0] == 'Pid':
-              pid = chunks[1]
-
-        if not self.show_all and pid != tgid:
-          output = None
+            chunks = line.split(":\t")
+            if chunks[0] == 'Name':
+                name = chunks[1].strip()
+            if chunks[0] == 'Tgid':
+                tgid = chunks[1].strip()
+            if chunks[0] == 'Pid':
+                pid = chunks[1].strip()
         fp.close()
-        return output
+        if not self.show_all and pid != tgid:
+          return None
+        return pid, name
 
-    def print_tree(self, dir, padding, last=None):
-        print self.color.tree.format(style, padding[:-1],
-              last or self.boxes[self.utf].branch,
-              self.boxes[self.utf].start,
-              self.boxes[self.utf].end,
-              os.path.basename(os.path.abspath(dir)))
-        padding = padding + u" "
+    def generate(self, dir):
+        tree = drug(children = [], path = dir,
+            name = os.path.basename(os.path.abspath(dir)))
         files = []
         if self.processes and os.path.exists(os.path.join(dir, "tasks")):
             fp = file(os.path.join(dir, "tasks"), "r")
             for line in fp.readlines():
-                proc = self.format_process(line.strip())
+                proc = self.get_process(line.strip())
                 if proc:
                     files.append(proc)
+            fp.close()
         for x in os.listdir(dir):
             if os.path.isdir(dir + os.sep + x):
-                files.append(x)
+                files.append((None, x))
 
-        count = 0
-        for fname in files:
-            count += 1
-            path = dir + os.sep + fname
-            last = None
-            if count == len(files):
-                last = self.boxes[self.utf].last
+        for pid, fname in files:
+            path = os.path.join(dir, fname)
             if os.path.isdir(path):
-                if last is None:
-                    subtree = padding + self.boxes[self.utf].subtree
-                    self.print_tree(path, subtree)
-                    print self.color.subtree.format(style, subtree)
-                else:
-                    self.print_tree(path, padding + u" ", last)
+                tree.children.append(self.generate(path))
             else:
-                print self.color.file.format(style, padding,
-                    last or self.boxes[self.utf].branch,
-                    self.boxes[self.utf].file, fname)
+                tree.children.append(drug(pid = pid, name = fname, path = path))
+        return tree
 
     def display(self):
         path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
         print path
         if not os.path.exists(path):
-            print "Tree does not exist"
-            return
+            print "error: tree does not exist"
+            sys.exit(1)
 
-        self.print_tree(path, u" ")
+        def rec(branch, padding, islast=None):
+            if hasattr(branch, 'pid'):
+                process = self.color.process.format(
+                    style, branch.pid, branch.name)
+                print self.color.file.format(style, padding,
+                    islast or self.boxes[self.utf].branch,
+                    self.boxes[self.utf].file, process)
+                return
+            print self.color.tree.format(style, padding,
+                islast or self.boxes[self.utf].branch,
+                self.boxes[self.utf].start,
+                self.boxes[self.utf].end,
+                branch.name)
+            count = 0
+            for child in branch.children:
+                count += 1
+                last = None
+                p = padding
+                if count == len(branch.children):
+                    last = self.boxes[self.utf].last
+                    if os.path.isdir(branch.path):
+                        if islast:
+                            p = p + u" "
+                        else:
+                            p = p + self.boxes[self.utf].subtree
+                    p = p + u" "
+                else:
+                    if islast:
+                        p = p + u" "
+                    else:
+                        p = p + self.boxes[self.utf].subtree
+                    if os.path.isdir(branch.path):
+                        p = p + u" "
+                rec(child, p, last)
+
+        rec(self.generate(path), u"", self.boxes[self.utf].last)
 
 
 
@@ -406,11 +426,12 @@ def main():
         else: print(",".join(Session().gets.keys()))
 
     if not args or args[0] == 'tree':
+        kwargs = dict(utf = options.utf, color = options.color,
+            show_all = options.all, processes = options.processes)
         if len(args) >= 1:
-            tree = Tree(tree=args[1])
+            tree = Tree(tree=args[1], **kwargs)
         else:
-            tree = Tree(utf = options.utf, color = options.color,
-                show_all = options.all, processes = options.processes)
+            tree = Tree(**kwargs)
         tree.display()
 
 
