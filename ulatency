@@ -380,6 +380,8 @@ def main():
         default=True, help="disables color")
     parser.add_option("--all", dest="all", action="store_true",
         default=False, help="show complete tree")
+    parser.add_option("--no-processes", dest="processes", action="store_false",
+        default=True, help="hide all processes")
 
 
     options, args = parser.parse_args()
@@ -408,7 +410,7 @@ def main():
             tree = Tree(tree=args[1])
         else:
             tree = Tree(utf = options.utf, color = options.color,
-                show_all = options.all)
+                show_all = options.all, print_processes = options.processes)
         tree.display()
 
 
