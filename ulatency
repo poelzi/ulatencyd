@@ -322,6 +322,8 @@ def main():
         default=False, help="get value by key")
     parser.add_option("--gui", dest="gui", action="store_true",
         default=False, help="enable gui")
+    parser.add_option("--no-utf", dest="utf", action="store_false",
+        default=True, help="disables utf8 for tree view")
 
 
     options, args = parser.parse_args()
@@ -349,7 +351,7 @@ def main():
         if len(args) >= 1:
             tree = Tree(tree=args[1])
         else:
-            tree = Tree()
+            tree = Tree(utf = options.utf)
         tree.display()
 
 
