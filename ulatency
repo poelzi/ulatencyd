@@ -201,6 +201,13 @@ class Tree(object):
                 subtree = u"{1}",
                 tree    = u"{1}{2}{3}{5}{4}",
                 file    = u"{1}{2}{3}{4}" )
+        path = self.get_path()
+        if path:
+            self.cache = drug(children = [], path = path,
+                name = os.path.basename(os.path.abspath(path)))
+        else:
+            print "error: tree does not exist"
+            sys.exit(1)
 
     def get_process(self, pid):
         try:
@@ -242,6 +249,20 @@ class Tree(object):
                 tree.children.append(self.generate(path))
             else:
                 tree.children.append(drug(pid = pid, name = fname, path = path))
+        return tree
+
+    def get_path(self):
+        path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
+        if not os.path.exists(path):
+            return None
+        return path
+
+
+    def update(self):
+        path = self.get_path()
+        if not path: return
+        tree = self.generate(path)
+        self.cache = tree
         return tree
 
     def display(self):
@@ -302,13 +323,23 @@ class Gui:
 class QtGui(Gui):
 
     def __init__(self):
-        from PyQt4.Qt import QApplication, QSystemTrayIcon,\
-                             QIcon, QPixmap, QMenu
-        self.app = QApplication(sys.argv)
+        from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon,\
+                             QIcon, QPixmap, QMenu, QMainWindow,\
+                             QTreeWidget, QTreeWidgetItem
+        self.QTreeWidgetItem = QTreeWidgetItem
+        self.app = app = QApplication(sys.argv)
         self.session = Session()
+        self.tree = Tree()
         icon = QIcon(QPixmap(self.get_logo()))
-        self.app.trayicon = QSystemTrayIcon(icon, self.app)
-        self.app.trayicon.show()
+        app.trayicon = QSystemTrayIcon(icon, app)
+        app.trayicon.show()
+        self.window = win = QMainWindow()
+
+        win.ui = ui = drug(
+            treeview = QTreeWidget(win),
+        )
+        win.setCentralWidget(ui.treeview)
+        ui.treeview.setHeaderLabels(["pid", "process"])
 
         self.cur = self.session.get_config()
         configs = self.session.config_list()
@@ -328,11 +359,37 @@ class QtGui(Gui):
         menu.addSeparator()
         quit = menu.addAction("Quit")
 
-        self.app.trayicon.setContextMenu(menu)
-        quit.triggered.connect(self.app.quit)
+        self.update_tree()
+        app.trayicon.activated.connect(self.toggle_window)
+        app.trayicon.setContextMenu(menu)
+        quit.triggered.connect(app.quit)
+        print "loaded."
 
     def run(self):
         return self.app.exec_()
+
+    def toggle_window(self, reason):
+        if reason != self.app.trayicon.Context:
+            self.window.setVisible(not self.window.isVisible())
+
+    def update_tree(self):
+        QTreeWidgetItem = self.QTreeWidgetItem
+        tree = self.tree.update()
+
+        def rec(branch, parent):
+            pid = u""
+            if hasattr(branch, 'pid'):
+                pid = branch.pid
+            item = QTreeWidgetItem(parent, [pid, branch.name])
+            if hasattr(branch, 'children'):
+                for child in branch.children:
+                    if hasattr(child, 'children'):
+                        rec(child, item)
+                for child in branch.children:
+                    if not hasattr(child, 'children'):
+                        rec(child, item)
+
+        rec(tree, self.window.ui.treeview)
 
     def switch_config(self, new):
         self.config_action[self.cur].setChecked(False)
