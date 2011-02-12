@@ -414,7 +414,6 @@ pid_t read_pid(struct x_server *conn, int *err) {
   }
 
   g_free(rep3);
-  g_free(client);
 
   return rv;
 error:
