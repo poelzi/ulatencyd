@@ -231,7 +231,7 @@ function Scheduler:one(proc)
             group:commit()
           end
           --print("add task", proc.pid, group)
-          group:add_task(proc.pid)
+          group:add_task_list(proc.pid, proc:get_tasks(true))
           group:commit()
           proc:clear_changed()
         else

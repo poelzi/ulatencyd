@@ -19,6 +19,8 @@ PrintProcTest = {
       print("cf", proc.cmdfile)
       print("cmd", proc.cmd)
       print("exe", proc.exe)
+      print("tasks")
+      pprint(proc:get_tasks(true))
       pprint(proc.cmdline_match)
       --pprint(proc.environ)
       if proc.environ then

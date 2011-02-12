@@ -25,7 +25,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     check = function(proc)
               return ( proc.euid > 999 )
             end,
-    param = { ["cpu.shares"]="3048" },
+    param = { ["cpu.shares"]="3048",  ["cpu.rt_runtime_us"] = "550000" },
     children = {
       { 
         name = "poison",
@@ -45,12 +45,12 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "bg_high",
-        param = { ["cpu.shares"]="1000"},
+        param = { ["cpu.shares"]="1000",  ["cpu.rt_runtime_us"] = "450000"},
         label = { "user.bg_high" },
       },
       { 
         name = "media",
-        param = { ["cpu.shares"]="2600"},
+        param = { ["cpu.shares"]="2600", ["cpu.rt_runtime_us"] = "1"},
         label = { "user.media" },
       },
       { 
@@ -60,7 +60,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "active",
-        param = { ["cpu.shares"]="1500"},
+        param = { ["cpu.shares"]="1500", ["cpu.rt_runtime_us"] = "1"},
         check = function(proc)
             return proc.is_active
           end
@@ -71,7 +71,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "group",
-        param = { ["cpu.shares"]="600"},
+        param = { ["cpu.shares"]="600", ["cpu.rt_runtime_us"] = "1"},
         cgroups_name = "grp_${pgrp}",
         check = function(proc)
                   return true
@@ -98,7 +98,8 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
               -- don't put kernel threads into a cgroup
               return (proc.ppid ~= 0 or proc.pid == 1)
             end,
-    param = { ["cpu.shares"]="800"},
+    param = { ["cpu.shares"]="800",
+              ["cpu.rt_runtime_us"] = "250000"},
   },
   { 
     name = "kernel",

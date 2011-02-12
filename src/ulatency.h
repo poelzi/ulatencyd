@@ -150,6 +150,8 @@ typedef struct _u_proc {
   int           changed; // flags or main parameters of process like uid, gid, sid
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
+  GArray        *tasks; // pointer array of all task process pids. These are threads in userspace
+
   int           lua_data;
   // we don't use the libproc parsers here as we do not update these values
   // that often
@@ -329,6 +331,7 @@ enum ENSURE_WHAT {
   ENVIRONMENT,
   CMDLINE,
   EXE,
+  TASKS,
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);

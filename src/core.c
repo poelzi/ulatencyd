@@ -193,6 +193,9 @@ void u_proc_free(void *ptr) {
   }
   g_hash_table_destroy (proc->skip_filter);
 
+  if(proc->tasks)
+    g_array_free(proc->tasks, TRUE);
+
   u_proc_remove_child_nodes(proc);
 
   g_assert(g_node_n_children(proc->node) == 0);
@@ -228,7 +231,7 @@ u_proc* u_proc_new(proc_t *proc) {
   rv->node = g_node_new(rv);
 
   if(proc) {
-    rv->pid = proc->tgid;
+    rv->pid = proc->tid;
     U_PROC_SET_STATE(rv,UPROC_ALIVE);
     memcpy(&(rv->proc), proc, sizeof(proc_t));
   } else {
@@ -256,6 +259,40 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
       return TRUE;
     else
       return process_update_pid(proc->pid);
+
+  } else if(what == TASKS) {
+
+      if(!U_PROC_SET_STATE(proc, UPROC_ALIVE))
+        return FALSE;
+
+      if(!proc->tasks) {
+          proc->tasks = g_array_new(TRUE, TRUE, sizeof(pid_t));
+      } else if (update && proc->tasks->len) {
+          g_array_remove_range(proc->tasks, 0, proc->tasks->len);
+      }
+      if(!proc->tasks->len) {
+        DIR *dip;
+        struct dirent   *dit;
+        pid_t tpid;
+
+        char *path = g_strdup_printf("/proc/%d/task", proc->pid);
+        dip = opendir(path);
+        if(!dip) {
+          g_warning("can't open %s\n", path);
+          g_free(path);
+          return FALSE;
+        }
+        while ((dit = readdir(dip)) != NULL) {
+          if(!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, ".."))
+            continue;
+          tpid = (pid_t)atol(dit->d_name);
+          g_array_append_val(proc->tasks, tpid);
+        }
+        closedir(dip);
+        g_free(path);
+        return TRUE;
+      }
+
   } else if(what == ENVIRONMENT) {
       if(update && proc->environ) {
           g_hash_table_unref(proc->environ);
@@ -598,7 +635,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   }
   memset(&buf, 0, sizeof(proc_t));
   while(readproc(proctab, &buf)){
-    proc = proc_by_pid(buf.tgid);
+    proc = proc_by_pid(buf.tid);
     if(proc) {
       // free all changable allocated buffers
       freesupgrp(&(proc->proc));
@@ -788,7 +825,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     if(parent) {
       proc = u_proc_new(NULL);
       proc->pid = pid;
-      proc->proc.tgid = pid;
+      proc->proc.tid = pid;
       proc->proc.ppid = parent;
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
       // put it into the lists
@@ -1161,7 +1198,7 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
     g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt), flt_block);
   }
 
-  flt_block->pid = proc->proc.tgid;
+  flt_block->pid = proc->proc.tid;
 
   timeout = FILTER_TIMEOUT(rv);
   flags = FILTER_FLAGS(rv);

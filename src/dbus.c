@@ -37,6 +37,11 @@
 "          <arg name=\"property\" direction=\"in\" type=\"s\"/>\n" \
 "          <arg name=\"value\" direction=\"out\" type=\"v\"/>\n" \
 "       </method>\n" \
+"       <method name=\"Set\">\n" \
+"          <arg name=\"interface\" direction=\"in\" type=\"s\"/>\n" \
+"          <arg name=\"property\" direction=\"in\" type=\"s\"/>\n" \
+"          <arg name=\"value\" direction=\"in\" type=\"v\"/>\n" \
+"       </method>\n" \
 "    </interface>\n" \
 "    <interface name=\"org.freedesktop.DBus.Introspectable\">\n" \
 "       <method name=\"Introspect\">\n" \
@@ -64,7 +69,7 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 //"      <arg type=\"i\" name=\"pid\" direction=\"in\" />\n"
 //"      <arg type=\"i\" name=\"priority\" direction=\"in\" />\n"
 //"    </method>\n"
-"    <property name=\"activeList\" type=\"q\" access=\"readwrite\"/>\n"
+"    <property name=\"activeListLength\" type=\"q\" access=\"readwrite\"/>\n"
 "  </interface>\n"
 INTROSPECT
 "</node>\n";
@@ -191,7 +196,7 @@ static DBusHandlerResult dbus_user_handler(DBusConnection *c, DBusMessage *m, vo
             ua = get_userlist(caller, TRUE);
             ret = dbus_message_new_method_return(m);
 
-            if(g_strcmp0(property, "activeList") == 0) {
+            if(g_strcmp0(property, "activeListLength") == 0) {
                 dbus_message_append_args (ret,
                                           DBUS_TYPE_UINT32, &ua->max_processes,
                                           DBUS_TYPE_INVALID);

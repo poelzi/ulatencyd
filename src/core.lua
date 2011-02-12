@@ -193,7 +193,6 @@ end
 
 function ulatency.get_sysctl(name)
   local pname = string.gsub(name, "%.", "/")
-  print("open".."/proc/sys/" .. pname)
   local fp = io.open("/proc/sys/" .. pname)
   if not fp then
     return nil
@@ -484,29 +483,45 @@ end
 --end
 
 
-function CGroup:add_task(pid, instant)
-  nt = rawget(self, "new_tasks")
+function CGroup:add_task_list(pid, tasks, instant)
+  local nt = rawget(self, "new_tasks")
   if not nt then
     nt = {}
     rawset(self, "new_tasks", nt)
   end
-  nt[#nt+1] = pid
-  --pprint(nt)
+  for i,v in ipairs(tasks) do
+      nt[#nt+1] = v
+  end
   if instant then
-    --print("instant")
     local t_file = self:path("tasks")
     fp = io.open(t_file, "w")
-    --print(t_file)
     if fp then
-      fp:write(tostring(pid))
-    --  print("write")
-      ulatency.log_sched("Move "..pid.." to "..tostring(self))
+      for i,v in tasks do
+        fp:write(tostring(v)..'\n')
+        fp:flush()
+      end
+      ulatency.log_sched("Move "..pid.." to "..tostring(self).." tasks: "..table.concat(tasks, ","))
       fp:close()
     else
       cg_log("can't attach "..pid.." to group "..t_file)
     end
   end
 end
+
+function CGroup:add_task(pid, instant)
+  if instant then
+    return self:add_task_list(pid, {pid}, instant)
+  else
+    local nt = rawget(self, "new_tasks")
+    if not nt then
+      nt = {}
+      rawset(self, "new_tasks", nt)
+    end
+    nt[#nt+1] = pid
+    return
+  end
+end
+
 
 function CGroup:is_dirty()
   if #rawget(self, "uncommited") > 0 or
@@ -568,16 +583,14 @@ function CGroup:commit()
   if fp then
     local pids = rawget(self, "new_tasks")
     if pids then
-      while true do
-        pid = table.remove(pids, 1)
-        if not pid then
-          break
-        end
-        fp:write(pid)
-        ulatency.log_sched("Move "..pid.." to "..tostring(self))
+      for i, pid in ipairs(pids) do
+        fp:write(tostring(pid)..'\n')
+        fp:flush()
       end
-      fp:close()
+      ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
+      rawset(self, "new_tasks", {})
     end
+    fp:close()
   end
 end
 
@@ -590,20 +603,21 @@ function CGroup:add_children(proc, fnc)
       end
     end
     for i,v in pairs(list) do
-      add_childs(v.children)
+      add_childs(v:get_children())
     end
   end
-  add_childs(proc.children)
+  add_childs(proc:get_children())
 end
 
-function CGroup.create_isolation_group(proc, children)
+function CGroup.create_isolation_group(proc, children, fnc)
   ng = CGroup.new("iso_"..tostring(pid))
-  ng.commit()
-  ng.add_task(proc.pid)
+  ng:commit()
+  ng:add_task(proc.pid)
   proc:set_block_scheduler(1)
   if children then
-    ng:add_children(proc, true)
+    ng:add_children(proc, fnc)
   end
+  return ng
 end
 
 function CGroup:starve(what)
