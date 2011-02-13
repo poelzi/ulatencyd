@@ -380,7 +380,7 @@ class QtGui(Gui):
         ui.treeview.setAlternatingRowColors(True)
         ui.treeview.indexOfChild = ui.treeview.indexOfTopLevelItem
         ui.treeview.child = ui.treeview.topLevelItem
-        ui.timer.setInterval(3000)
+        ui.timer.setInterval(5000)
         ui.timer.timeout.connect(self.update_tree)
 
 
