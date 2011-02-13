@@ -1,10 +1,11 @@
 [Unit]
 Description=Latency reducing daemon for linux
-Wants=rsyslog.service display-manager.service
-After=rsyslog.service display-manager.service
+
+# due to Type=dbus this service automatically gets a dependency on dbus.target
 
 [Service]
-EnvironmentFile=/etc/default/ulatencyd
+Type=dbus
+BusName=org.quamquam.ulatencyd
 ExecStart=/usr/sbin/ulatencyd
 Restart=always
 UMask=022
