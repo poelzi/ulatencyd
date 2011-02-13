@@ -433,6 +433,7 @@ class QtGui(Gui):
             branch.item = item = QTreeWidgetItem(parent, [branch.name, pid])
             item.setBackground(0, background)
             item.setBackground(1, background)
+            item.setExpanded(True)
             if hasattr(branch, 'children'):
                 for child in branch.children:
                     if hasattr(child, 'children'):
