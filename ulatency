@@ -402,6 +402,7 @@ class QtGui(Gui):
         menu.addSeparator()
         quit = menu.addAction("Quit")
 
+        self.doomed_entries = []
         self.update_tree()
         app.trayicon.activated.connect(self.toggle_window)
         app.trayicon.setContextMenu(menu)
@@ -425,14 +426,19 @@ class QtGui(Gui):
         QTreeWidgetItem = self.QTreeWidgetItem
         tree = self.tree.update()
 
+        for parent, child in self.doomed_entries:
+            i = parent.indexOfChild(child)
+            parent.takeChild(i)
+        self.doomed_entries = []
+
         def add(branch, parent):
-            background = self.app.palette().highlight()
+            background = self.QColor(0, 200, 0, 100)
             pid = u""
             if hasattr(branch, 'pid'):
                 pid = branch.pid
             branch.item = item = QTreeWidgetItem(parent, [branch.name, pid])
-            item.setBackground(0, background)
-            item.setBackground(1, background)
+            item.setBackgroundColor(0, background)
+            item.setBackgroundColor(1, background)
             item.setExpanded(True)
             if hasattr(branch, 'children'):
                 for child in branch.children:
@@ -444,6 +450,7 @@ class QtGui(Gui):
 
         def update(branch, parent):
             background = self.QColor("transparent")
+            dead = self.QColor(200, 0, 0, 100)
             if branch.state == "update":
                 i = parent.indexOfChild(branch.item)
                 if i == -1:
@@ -456,8 +463,9 @@ class QtGui(Gui):
             if hasattr(branch, 'children'):
                 for child in branch.children:
                     if child.state == "delete":
-                        i = branch.item.indexOfChild(child.item)
-                        branch.item.takeChild(i)
+                        self.doomed_entries.append((branch.item, child.item))
+                        child.item.setBackgroundColor(0, dead)
+                        child.item.setBackgroundColor(1, dead)
                     elif child.state == "new":
                         add(child, branch.item)
                     else:
