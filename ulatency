@@ -371,7 +371,7 @@ class QtGui(Gui):
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
         self.session = Session()
-        self.tree = Tree()
+        self.tree = Tree(show_all = False)
         icon = QIcon(QPixmap(self.get_logo()))
         app.trayicon = QSystemTrayIcon(icon, app)
         app.trayicon.show()
