@@ -224,10 +224,26 @@ class Tree(object):
                 subtree = u"{1}",
                 tree    = u"{1}{2}{3}{5}{4}",
                 file    = u"{1}{2}{3}{4}" )
+        path = self.get_path()
+        if path:
+            self.cache = drug(children = [], path = path, state = None,
+                name = os.path.basename(os.path.abspath(path)))
+        else:
+            print "error: tree does not exist"
+            sys.exit(1)
+
+    def processes_(self, b):
+        self.processes = b
+
+    def show_all_(self, b):
+        self.show_all = b
 
     def get_process(self, pid):
         try:
-            fp = file(os.path.join("/proc", pid, "status"))
+            path = os.path.join("/proc", pid, "status")
+            if not os.path.exists(path):
+                return None
+            fp = file(path)
         except OSError:
             return None
         name = u""
@@ -245,7 +261,7 @@ class Tree(object):
         return pid, name
 
     def generate(self, dir):
-        tree = drug(children = [], path = dir,
+        tree = drug(children = [], path = dir, state = "",
             name = os.path.basename(os.path.abspath(dir)))
         files = []
         if self.processes and os.path.exists(os.path.join(dir, "tasks")):
@@ -264,8 +280,50 @@ class Tree(object):
             if os.path.isdir(path):
                 tree.children.append(self.generate(path))
             else:
-                tree.children.append(drug(pid = pid, name = fname, path = path))
+                tree.children.append(drug(
+                    state = "", pid = pid, name = fname, path = path))
         return tree
+
+    def get_path(self):
+        path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
+        if not os.path.exists(path):
+            return None
+        return path
+
+
+    def update(self):
+        path = self.get_path()
+        if not path: return
+        tree = self.generate(path)
+
+        def rec(old, new):
+            if old.state is None:
+                old.state = "new"
+            else: old.state = ""
+            if new.name != old.name:
+                old.name = new.name
+                if not old.state:
+                    old.state = "update"
+            if hasattr(old, 'children'):
+                children = dict([(child.name, child) for child in new.children])
+                doomed = []
+                for n, child in enumerate(old.children):
+                    if child.state == "delete":
+                        doomed.append(n)
+                        continue
+                    if child.name in children:
+                        rec(child, children[child.name])
+                        del children[child.name]
+                    else:
+                        child.state = "delete"
+                for n in sorted(doomed, reverse = True):
+                    del old.children[n]
+                for child in children.values():
+                    old.children.append(child)
+                    child.state = "new"
+
+        rec(self.cache, tree)
+        return self.cache
 
     def display(self):
         path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
@@ -325,13 +383,50 @@ class Gui:
 class QtGui(Gui):
 
     def __init__(self):
-        from PyQt4.Qt import QApplication, QSystemTrayIcon,\
-                             QIcon, QPixmap, QMenu
-        self.app = QApplication(sys.argv)
+        from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
+                             QIcon, QPixmap, QMenu, QMainWindow, \
+                             QTreeWidget, QTreeWidgetItem, QTimer,\
+                             QColor, QMenuBar, QKeySequence
+        self.QColor = QColor
+        self.QTreeWidgetItem = QTreeWidgetItem
+        self.app = app = QApplication(sys.argv)
         self.session = Session()
+        self.tree = Tree(show_all = False)
         icon = QIcon(QPixmap(self.get_logo()))
-        self.app.trayicon = QSystemTrayIcon(icon, self.app)
-        self.app.trayicon.show()
+        app.trayicon = QSystemTrayIcon(icon, app)
+        app.trayicon.show()
+        self.window = win = QMainWindow()
+
+        mb = QMenuBar(win)
+        win.setMenuBar(mb)
+        menu = mb.addMenu("client")
+        quit = menu.addAction("quit")
+        quit.setShortcut(QKeySequence("Ctrl+Q"))
+        quit.triggered.connect(app.quit)
+        menu = mb.addMenu("settings")
+        processes = menu.addAction("show all processes")
+        processes.setCheckable(True)
+        processes.setChecked(self.tree.processes)
+        processes.triggered.connect(lambda:
+            self.tree.processes_(processes.isChecked()) or self.update_tree())
+        show_all = menu.addAction("show threads")
+        show_all.setCheckable(True)
+        show_all.setChecked(self.tree.show_all)
+        show_all.triggered.connect(lambda:
+            self.tree.show_all_(show_all.isChecked()) or self.update_tree())
+
+        win.ui = ui = drug(
+            treeview = QTreeWidget(win),
+            timer = QTimer(),
+        )
+        win.setCentralWidget(ui.treeview)
+        ui.treeview.setHeaderLabels(["process", "pid"])
+        ui.treeview.setAlternatingRowColors(True)
+        ui.treeview.indexOfChild = ui.treeview.indexOfTopLevelItem
+        ui.treeview.child = ui.treeview.topLevelItem
+        ui.timer.setInterval(5000)
+        ui.timer.timeout.connect(self.update_tree)
+
 
         self.cur = self.session.get_config()
         configs = self.session.config_list()
@@ -351,11 +446,79 @@ class QtGui(Gui):
         menu.addSeparator()
         quit = menu.addAction("Quit")
 
-        self.app.trayicon.setContextMenu(menu)
-        quit.triggered.connect(self.app.quit)
+        self.doomed_entries = []
+        self.update_tree()
+        app.trayicon.activated.connect(self.toggle_window)
+        app.trayicon.setContextMenu(menu)
+        quit.triggered.connect(app.quit)
+        print "loaded."
 
     def run(self):
         return self.app.exec_()
+
+    def toggle_window(self, reason):
+        if reason != self.app.trayicon.Context:
+            b = not self.window.isVisible()
+            self.window.setVisible(b)
+            if b:
+                self.update_tree()
+                self.window.ui.timer.start()
+            else:
+                self.window.ui.timer.stop()
+
+    def update_tree(self):
+        QTreeWidgetItem = self.QTreeWidgetItem
+        tree = self.tree.update()
+
+        for parent, child in self.doomed_entries:
+            i = parent.indexOfChild(child)
+            parent.takeChild(i)
+        self.doomed_entries = []
+
+        def add(branch, parent):
+            background = self.QColor(0, 200, 0, 100)
+            pid = u""
+            if hasattr(branch, 'pid'):
+                pid = branch.pid
+            branch.item = item = QTreeWidgetItem(parent, [branch.name, pid])
+            item.setBackgroundColor(0, background)
+            item.setBackgroundColor(1, background)
+            item.setExpanded(True)
+            if hasattr(branch, 'children'):
+                for child in branch.children:
+                    if hasattr(child, 'children'):
+                        add(child, item)
+                for child in branch.children:
+                    if not hasattr(child, 'children'):
+                        add(child, item)
+
+        def update(branch, parent):
+            background = self.QColor("transparent")
+            dead = self.QColor(200, 0, 0, 100)
+            if branch.state == "update":
+                i = parent.indexOfChild(branch.item)
+                if i == -1:
+                    branch.state = "delete" # FIXME
+                    print "FIXME"
+                else:
+                    parent.child(i).setText(0, branch.name)
+            branch.item.setBackgroundColor(0, background)
+            branch.item.setBackgroundColor(1, background)
+            if hasattr(branch, 'children'):
+                for child in branch.children:
+                    if child.state == "delete":
+                        self.doomed_entries.append((branch.item, child.item))
+                        child.item.setBackgroundColor(0, dead)
+                        child.item.setBackgroundColor(1, dead)
+                    elif child.state == "new":
+                        add(child, branch.item)
+                    else:
+                        update(child, branch.item)
+
+        if tree.state == "new":
+            add(tree, self.window.ui.treeview)
+        else:
+            update(tree, self.window.ui.treeview)
 
     def switch_config(self, new):
         self.config_action[self.cur].setChecked(False)
