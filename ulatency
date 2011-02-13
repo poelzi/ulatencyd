@@ -67,19 +67,29 @@ class Session:
             }
 
     def init_system(self):
-        if hasattr(self, 'system'): return
-        self.system = self.bus.get_object(
-            'org.quamquam.ulatencyd',
-            '/org/quamquam/ulatencyd/System')
+        if hasattr(self, 'system'): return True
+        try:
+            self.system = self.bus.get_object(
+                'org.quamquam.ulatencyd',
+                '/org/quamquam/ulatencyd/System')
+        except dbus.exceptions.DBusException, e:
+            return False
+        return True
 
     def init_user(self):
-        if hasattr(self, 'user'): return
-        self.user = self.bus.get_object(
-            'org.quamquam.ulatencyd',
-            '/org/quamquam/ulatencyd/User')
+        if hasattr(self, 'user'): return True
+        try:
+            self.user = self.bus.get_object(
+                'org.quamquam.ulatencyd',
+                '/org/quamquam/ulatencyd/User')
+        except dbus.exceptions.DBusException, e:
+            return False
+        return True
 
     def config_list(self):
-        self.init_system()
+        if not self.init_system():
+          return []
+
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try: return list(map(unicode, system.listSchedulerConfigs()))
         except dbus.exceptions.DBusException as e:
@@ -93,6 +103,8 @@ class Session:
         return self.sets[key](*value)
 
     def set_config(self, config=None):
+        if not self.init_system():
+            return False
         configs = self.config_list()
         if config is None: return ",".join(configs)
         if config not in configs:
@@ -108,7 +120,8 @@ class Session:
         if pid is None:
             print("error: no pid given")
             sys.exit(1)
-        self.init_user()
+        if not self.init_user():
+            return False
         user = dbus.Interface(self.user, 'org.quamquam.ulatencyd.User')
         try: return user.setActive(pid)
         except dbus.exceptions.DBusException as e:
@@ -123,7 +136,8 @@ class Session:
         return self.gets[key](*value)
 
     def get_config(self):
-        self.init_system()
+        if not self.init_system():
+          return ""
         properties=dbus.Interface(self.system,'org.freedesktop.DBus.Properties')
         try:
             return unicode(properties.Get(
@@ -133,6 +147,9 @@ class Session:
             sys.exit(2)
 
     def get_desc(self, config=None):
+        if not self.init_system():
+            return None
+
         configs = self.config_list()
         if config is None: return ",".join(configs)
         if config not in configs:
@@ -145,7 +162,8 @@ class Session:
             sys.exit(2)
 
     def get_systemflags(self):
-        self.init_system()
+        if not self.init_system():
+            return []
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try:
             return list(map(unicode, system.listSystemFlags()))
@@ -154,7 +172,9 @@ class Session:
             sys.exit(2)
 
     def get_activelistlength(self):
-        self.init_user()
+        if not self.init_user():
+            return None
+
         properties = dbus.Interface(self.user,'org.freedesktop.DBus.Properties')
         try:
             return unicode(properties.Get(
