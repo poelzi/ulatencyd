@@ -359,7 +359,9 @@ class QtGui(Gui):
     def __init__(self):
         from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
                              QIcon, QPixmap, QMenu, QMainWindow, \
-                             QTreeWidget, QTreeWidgetItem, QTimer
+                             QTreeWidget, QTreeWidgetItem, QTimer,\
+                             QColor
+        self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
         self.session = Session()
@@ -424,10 +426,13 @@ class QtGui(Gui):
         tree = self.tree.update()
 
         def add(branch, parent):
+            background = self.app.palette().highlight()
             pid = u""
             if hasattr(branch, 'pid'):
                 pid = branch.pid
             branch.item = item = QTreeWidgetItem(parent, [branch.name, pid])
+            item.setBackground(0, background)
+            item.setBackground(1, background)
             if hasattr(branch, 'children'):
                 for child in branch.children:
                     if hasattr(child, 'children'):
@@ -437,6 +442,7 @@ class QtGui(Gui):
                         add(child, item)
 
         def update(branch, parent):
+            background = self.QColor("transparent")
             if branch.state == "update":
                 i = parent.indexOfChild(branch.item)
                 if i == -1:
@@ -444,6 +450,8 @@ class QtGui(Gui):
                     print "FIXME"
                 else:
                     parent.child(i).setText(0, branch.name)
+            branch.item.setBackgroundColor(0, background)
+            branch.item.setBackgroundColor(1, background)
             if hasattr(branch, 'children'):
                 for child in branch.children:
                     if child.state == "delete":
