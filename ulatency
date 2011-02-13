@@ -360,7 +360,7 @@ class QtGui(Gui):
         from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
                              QIcon, QPixmap, QMenu, QMainWindow, \
                              QTreeWidget, QTreeWidgetItem, QTimer,\
-                             QColor
+                             QColor, QMenuBar, QKeySequence
         self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
@@ -370,6 +370,14 @@ class QtGui(Gui):
         app.trayicon = QSystemTrayIcon(icon, app)
         app.trayicon.show()
         self.window = win = QMainWindow()
+
+        mb = QMenuBar(win)
+        win.setMenuBar(mb)
+        menu = mb.addMenu("client")
+        quit = menu.addAction("quit")
+        quit.setShortcut(QKeySequence("Ctrl+Q"))
+        quit.triggered.connect(app.quit)
+
 
         win.ui = ui = drug(
             treeview = QTreeWidget(win),
