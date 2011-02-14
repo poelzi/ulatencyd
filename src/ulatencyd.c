@@ -362,7 +362,7 @@ gboolean            g_spawn_sync                        ("/",
 static int do_dbus_init() {
   GError *error = NULL;
   DBusConnection *con;
-#ifdef DEVELOP_MODE
+#ifdef DEVELOP_DBUS_SESSION
   char *env_uid;
   uid_t target = 0;
   if(getuid() == 0) {

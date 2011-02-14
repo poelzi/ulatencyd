@@ -162,7 +162,9 @@ Scheduler = {C_FILTER = false, ITERATION = 1, TRACE = ulatency.get_config("loggi
 
 function Scheduler:all()
   local group
-  self.C_FILTER = not ulatency.get_flags_changed()
+  if not ulatency.get_flags_changed() then
+    self.C_FILTER = false
+  end
   for j, flag in pairs(ulatency.list_flags()) do
     if flag.name == "pressure" or flag.name == "emergency" then
       self.C_FILTER = false
@@ -270,7 +272,7 @@ function Scheduler:set_config(config)
   end
   local rv = self:load_config(config)
   if rv then
-    self.C_FILTER = true
+    self.C_FILTER = false
     ulatency.run_iteration()
   end
   return rv
