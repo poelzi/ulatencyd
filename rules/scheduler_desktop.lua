@@ -55,7 +55,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "ui",
-        param = { ["cpu.shares"]="2000"},
+        param = { ["cpu.shares"]="2000", ["cpu.rt_runtime_us"] = "1"},
         label = { "user.ui" }
       },
       { 
@@ -147,7 +147,6 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
       },
       { 
         name = "poison_group",
-        param = { ["cpu.shares"]="300" },
         cgroups_name = "pgr_${pgrp}",
         check = function(proc)
                   local rv = ulatency.find_flag(ulatency.list_flags(), {name = "user.poison.group",
