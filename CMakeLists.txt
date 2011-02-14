@@ -7,7 +7,7 @@ INCLUDE (CheckIncludeFiles)
 
 
 option(CONFIG_PREFIX "config prefix" "/etc")
-option(SYSTEMD_DIR "systemd service file directory" "/lib/systemd/system")
+#option(SYSTEMD_DIR "systemd service file directory" "/lib/systemd/system")
 
 option(DEVELOP_MODE "build for development" FALSE)
 option(LIBCGROUPS "add libcgroups support (BROKEN)" FALSE)
@@ -54,6 +54,8 @@ pkg_check_modules(GIO gio-2.0 REQUIRED)
 SET(CONFIG_PREFIX "/etc" CACHE STRING
       "Config prefix"
       FORCE)
+SET(SYSTEMD_DIR "/lib/systemd/system" CACHE STRING
+      "systemd service file directory")
 
 set(LIBPROC_INCLUDE_DIRS src)
 #set(LIBPROC_LIBRARY src/proc/libproc.a)
@@ -165,8 +167,10 @@ install(DIRECTORY rules
         DESTINATION ${CONFIG_PREFIX}/ulatencyd 
         FILES_MATCHING PATTERN "*.lua"
         PATTERN "test.lua" EXCLUDE)
-install(FILES conf/ulatencyd.service
-	DESTINATION ${SYSTEMD_DIR})
+if(NOT "${SYSTEMD_DIR}" STREQUAL "")
+  install(FILES conf/ulatencyd.service
+          DESTINATION ${SYSTEMD_DIR})
+endif (NOT "${SYSTEMD_DIR}" STREQUAL "")
 
 # FIXME how to find out where to put it ???
 install(FILES conf/org.quamquam.ulatencyd.conf
