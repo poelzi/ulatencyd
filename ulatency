@@ -619,7 +619,7 @@ def main():
     if not args or args[0] == 'tree':
         kwargs = dict(utf = options.utf, color = options.color,
             show_all = options.all, processes = options.processes)
-        if len(args) >= 1:
+        if len(args) > 1:
             tree = Tree(tree=args[1], **kwargs)
         else:
             tree = Tree(**kwargs)
