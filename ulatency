@@ -592,6 +592,11 @@ def main():
 
     options, args = parser.parse_args()
 
+    # if we run without any arguments and it doesn't look like we are in a
+    # terminal, we start the gui
+    if len(args) == 0 and not sys.stdout.isatty() and "DISPLAY" in os.environ:
+        options.gui = True
+
     if options.gui:
         sys.exit(QtGui().run())
 
