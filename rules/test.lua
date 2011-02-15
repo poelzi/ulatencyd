@@ -14,20 +14,24 @@ PrintProcTest = {
   --re_basename = "preload",
   check = function(self, proc)
     if proc.ppid > 0 then
-      print("---", proc.pid)
-      pprint(proc.cmdline)
-      print("cf", proc.cmdfile)
-      print("cmd", proc.cmd)
-      print("exe", proc.exe)
-      print("tasks")
-      pprint(proc:get_tasks(true))
-      pprint(proc.cmdline_match)
-      --pprint(proc.environ)
-      if proc.environ then
-        print("HOME", proc.environ.HOME)
+      --pprint(proc.cmdline)
+      --print("cf", proc.cmdfile)
+      print("cmd",proc, proc.sched, proc.rtprio, proc.cmd)
+      for i,v in ipairs(proc:get_tasks()) do
+        print(v.tid, v.rtprio, v.sched)
       end
-      print("groups:")
-      pprint(proc.groups)
+      print(proc.received_rt)
+      --print(proc:get_tasks()[1].tid)
+      --print("exe", proc.exe)
+      --print("tasks")
+      --pprint(proc:get_tasks(true))
+      --pprint(proc.cmdline_match)
+      --pprint(proc.environ)
+      --if proc.environ then
+      --  print("HOME", proc.environ.HOME)
+      --end
+      --print("groups:")
+      --pprint(proc.groups)
     end
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)
     return rv

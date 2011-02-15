@@ -158,11 +158,11 @@ local function map_to_group(proc, parts, subsys)
 end
 
 
-Scheduler = {C_FILTER = false, ITERATION = 1, TRACE = ulatency.get_config("logging", "trace_scheduler") == "true"}
+Scheduler = {C_FILTER = false, ITERATION = 1}
 
 function Scheduler:all()
   local group
-  if not ulatency.get_flags_changed() then
+  if ulatency.get_flags_changed() then
     self.C_FILTER = false
   end
   for j, flag in pairs(ulatency.list_flags()) do
@@ -175,8 +175,9 @@ function Scheduler:all()
     self.ITERATION = 1
   end
   -- list only changed processes
+  ulatency.log_debug("scheduler filter:".. tostring(self.C_FILTER))
   for k,proc in ipairs(ulatency.list_processes(self.C_FILTER)) do
---    print("sched", proc, proc.cmdline)
+    --print("sched", proc, proc.cmdline)
     self:one(proc)
   end
   self.C_FILTER = true
@@ -222,9 +223,6 @@ function Scheduler:one(proc)
         local mappings = run_list(proc, map)
         --pprint(mappings)
         group = map_to_group(proc, mappings, subsys)
-        if(self.TRACE) then
-          print(proc, group)
-        end
         --print(tostring(group))
         --pprint(mappings)
         --print(tostring(proc.pid) .. " : ".. tostring(group))
@@ -233,14 +231,18 @@ function Scheduler:one(proc)
             group:commit()
           end
           --print("add task", proc.pid, group)
-          group:add_task_list(proc.pid, proc:get_tasks(true))
-          group:commit()
-          proc:clear_changed()
+          -- get_current_tasks can fail if the process is already dead
+          local tasks = proc:get_current_task_pids(true)
+          if tasks then
+            group:add_task_list(proc.pid, tasks)
+            group:commit()
+          end
         else
           ulatency.log_debug("no group found for: "..tostring(proc))
         end
       end
     end
+    proc:clear_changed()
     --pprint(build_path_parts(proc, res))
   end
   return true

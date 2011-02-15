@@ -193,8 +193,8 @@ void u_proc_free(void *ptr) {
   }
   g_hash_table_destroy (proc->skip_filter);
 
-  if(proc->tasks)
-    g_array_free(proc->tasks, TRUE);
+  //if(proc->tasks)
+  g_ptr_array_free(proc->tasks, TRUE);
 
   u_proc_remove_child_nodes(proc);
 
@@ -204,6 +204,16 @@ void u_proc_free(void *ptr) {
   freeproc_light(&(proc->proc));
   g_slice_free(u_proc, proc);
 }
+
+void u_proc_free_task(void *ptr) {
+  proc_t *proc = ptr;
+  // the task group owner has the same pointers, so we shall not free them 
+  // when the task is removed
+  if(proc->tid != proc->tgid)
+    freesupgrp(proc);
+  g_slice_free(proc_t, proc);
+}
+
 
 /**
  * u_proc_new
@@ -226,6 +236,8 @@ u_proc* u_proc_new(proc_t *proc) {
   rv->skip_filter = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                          NULL, filter_block_free);
 
+  //rv->tasks = g_array_new(FALSE, TRUE, sizeof(proc_t));
+  rv->tasks = g_ptr_array_new_with_free_func(u_proc_free_task);
   rv->flags = NULL;
   rv->changed = TRUE;
   rv->node = g_node_new(rv);
@@ -261,38 +273,8 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
       return process_update_pid(proc->pid);
 
   } else if(what == TASKS) {
-
-      if(!U_PROC_SET_STATE(proc, UPROC_ALIVE))
-        return FALSE;
-
-      if(!proc->tasks) {
-          proc->tasks = g_array_new(TRUE, TRUE, sizeof(pid_t));
-      } else if (update && proc->tasks->len) {
-          g_array_remove_range(proc->tasks, 0, proc->tasks->len);
-      }
-      if(!proc->tasks->len) {
-        DIR *dip;
-        struct dirent   *dit;
-        pid_t tpid;
-
-        char *path = g_strdup_printf("/proc/%d/task", proc->pid);
-        dip = opendir(path);
-        if(!dip) {
-          g_warning("can't open %s\n", path);
-          g_free(path);
-          return FALSE;
-        }
-        while ((dit = readdir(dip)) != NULL) {
-          if(!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, ".."))
-            continue;
-          tpid = (pid_t)atol(dit->d_name);
-          g_array_append_val(proc->tasks, tpid);
-        }
-        closedir(dip);
-        g_free(path);
-        return TRUE;
-      }
-
+      // FIXME
+      return TRUE;
   } else if(what == ENVIRONMENT) {
       if(update && proc->environ) {
           g_hash_table_unref(proc->environ);
@@ -364,6 +346,39 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
       return TRUE;
   }
   return FALSE;
+}
+
+GArray *u_proc_get_current_task_pids(u_proc *proc) {
+    if(!U_PROC_SET_STATE(proc, UPROC_ALIVE))
+      return FALSE;
+
+    GArray *rv = g_array_new(TRUE, TRUE, sizeof(pid_t));
+
+    DIR *dip;
+    struct dirent   *dit;
+    pid_t tpid;
+
+    char *path = g_strdup_printf("/proc/%d/task", proc->pid);
+    dip = opendir(path);
+
+    if(!dip) {
+        g_warning("can't open %s\n", path);
+        goto out;
+    }
+    while ((dit = readdir(dip)) != NULL) {
+        if(!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, ".."))
+            continue;
+        tpid = (pid_t)atol(dit->d_name);
+        g_array_append_val(rv, tpid);
+    }
+    closedir(dip);
+
+    g_free(path);
+    return rv;
+out:
+    g_free(path);
+    g_array_unref(rv);
+    return NULL;
 }
 
 /**
@@ -500,7 +515,8 @@ static void rebuild_tree() {
 static int detect_changed(proc_t *old, proc_t *new) {
   // detects changes of main paramenters
   if(old->euid != new->euid || old->session != new->session ||
-     old->egid != new->egid || old->pgrp != new->pgrp)
+     old->egid != new->egid || old->pgrp != new->pgrp ||
+     old->sched != new->sched || old->rtprio != new->rtprio)
      return 1;
   return 0;
 }
@@ -616,12 +632,14 @@ static void process_workarrounds(u_proc *proc, u_proc *parent) {
  */
 int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
+  proc_t buf_task;
   u_proc *proc;
   u_proc *parent;
   time_t timeout = time(NULL);
   gboolean full_update = FALSE;
   static int run = 0;
   int removed;
+  int rrt;
   int rv = 0;
   int i;
   GList *updated = NULL;
@@ -645,6 +663,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
       // we save the origin of cgroups for scheduler constrains
     }
+    // must still have the process allocated
+    if(proc->tasks->len)
+      g_ptr_array_remove_range(proc->tasks, 0, proc->tasks->len);
+
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
     // remove it from delay stack
@@ -652,7 +674,19 @@ int update_processes_run(PROCTAB *proctab, int full) {
     if(full)
       proc->last_update = run;
     // we can simply steal the pointer of the current allocated buffer
+    rrt = proc->received_rt;
+
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
+
+    proc->received_rt |= proc->proc.sched;
+
+
+    while(readtask(proctab,&buf,&buf_task)) {
+      g_ptr_array_add(proc->tasks, g_slice_dup(proc_t, &buf_task));
+      proc->received_rt |= buf_task.sched;
+    }
+    if(rrt != proc->received_rt)
+      proc->changed = 1;
 
     if(!proc->cgroup_origin)
       proc->cgroup_origin = g_strdupv(proc->proc.cgroup);

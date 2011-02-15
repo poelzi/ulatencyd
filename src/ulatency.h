@@ -49,7 +49,7 @@
 
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP)
+  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP | PROC_LOOSE_TASKS)
 
 #define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
 
@@ -150,7 +150,8 @@ typedef struct _u_proc {
   int           changed; // flags or main parameters of process like uid, gid, sid
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
-  GArray        *tasks; // pointer array of all task process pids. These are threads in userspace
+  GPtrArray     *tasks; // pointer array to all task proc_t's 
+  int           received_rt;
 
   int           lua_data;
   // we don't use the libproc parsers here as we do not update these values
@@ -335,6 +336,7 @@ enum ENSURE_WHAT {
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);
+GArray *u_proc_get_current_task_pids(u_proc *proc);
 
 
 u_filter *filter_new();

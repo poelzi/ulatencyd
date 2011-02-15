@@ -14,6 +14,15 @@ SCHEDULER_MAPPING_DESKTOP.description = "a good default desktop configuration"
 SCHEDULER_MAPPING_DESKTOP["cpu"] =
 {
   {
+    name = "rt_tasks",
+    cgroups_name = "rt_tasks",
+    param = { ["cpu.shares"]="3048", ["cpu.rt_runtime_us"] = "950000" },
+    check = function(proc)
+          print(proc, proc.received_rt)
+          return proc.received_rt
+        end,
+  },
+  {
     name = "system_essential",
     cgroups_name = "sys_essential",
     param = { ["cpu.shares"]="3048" },
@@ -45,7 +54,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "bg_high",
-        param = { ["cpu.shares"]="1000",  ["cpu.rt_runtime_us"] = "450000"},
+        param = { ["cpu.shares"]="1000",  ["cpu.rt_runtime_us"] = "1"},
         label = { "user.bg_high" },
       },
       { 
