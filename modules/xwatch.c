@@ -418,7 +418,7 @@ pid_t read_pid(struct x_server *conn, int *err) {
   return rv;
 error:
   // error in connection. free x_server connection
-  if(error->response_type == 0 && error->error_code == 3)
+  if(error && error->response_type == 0 && error->error_code == 3)
     return 0;
   *err = 1;
   g_debug("xcb error: %d %d\n", error->response_type, error->error_code);
