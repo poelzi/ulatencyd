@@ -361,10 +361,9 @@ GArray *u_proc_get_current_task_pids(u_proc *proc) {
     char *path = g_strdup_printf("/proc/%d/task", proc->pid);
     dip = opendir(path);
 
-    if(!dip) {
-        g_warning("can't open %s\n", path);
+    if(!dip)
         goto out;
-    }
+
     while ((dit = readdir(dip)) != NULL) {
         if(!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, ".."))
             continue;
