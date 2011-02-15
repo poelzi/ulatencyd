@@ -421,7 +421,8 @@ error:
   if(error && error->response_type == 0 && error->error_code == 3)
     return 0;
   *err = 1;
-  g_debug("xcb error: %d %d\n", error->response_type, error->error_code);
+  if(error)
+    g_debug("xcb error: %d %d\n", error->response_type, error->error_code);
   return 0;
 }
 
