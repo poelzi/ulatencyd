@@ -45,7 +45,7 @@ ul_group_cpu:commit()
 -- WARNING: don't use non alpha numeric characters in name
 -- FIXME: build validator
 
-local function check_label(labels, proc)
+function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags()) do
     for k, slabel in pairs(labels) do
       if flag.name == slabel then

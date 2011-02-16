@@ -18,8 +18,8 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     cgroups_name = "rt_tasks",
     param = { ["cpu.shares"]="3048", ["cpu.rt_runtime_us"] = "950000" },
     check = function(proc)
-          print(proc, proc.received_rt)
-          return proc.received_rt
+          local rv = proc.received_rt or check_label({"sched.rt"}, proc)
+          return rv
         end,
   },
   {
