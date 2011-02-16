@@ -8,7 +8,7 @@
 
 DesktopBG = {
   name = "UserBG",
-  re_basename = "pulseaudio|mpd|xmms2d",
+  re_basename = "mpd|xmms2d",
   check = function(self, proc)
     local flag = ulatency.new_flag{name="user.bg_high", inherit=true}
     proc:add_flag(flag)

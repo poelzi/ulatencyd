@@ -21,10 +21,10 @@ MediaPlayer = {
 
 Jackd = {
   name = "Jackd",
-  re_cmdline = "jackd",
+  re_cmdline = "jackd|pulseaudio",
   --re_basename = "metacity",
   check = function(self, proc)
-    local flag = ulatency.new_flag("user.bg_high")
+    local flag = ulatency.new_flag("sched.rt")
     proc:add_flag(flag)
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)
     return rv

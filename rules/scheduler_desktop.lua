@@ -16,7 +16,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
   {
     name = "rt_tasks",
     cgroups_name = "rt_tasks",
-    param = { ["cpu.shares"]="3048", ["cpu.rt_runtime_us"] = "950000" },
+    param = { ["cpu.shares"]="3048", ["cpu.rt_runtime_us"] = "949500" },
     check = function(proc)
           local rv = proc.received_rt or check_label({"sched.rt"}, proc)
           return rv
@@ -34,7 +34,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     check = function(proc)
               return ( proc.euid > 999 )
             end,
-    param = { ["cpu.shares"]="3048",  ["cpu.rt_runtime_us"] = "550000" },
+    param = { ["cpu.shares"]="3048",  ["cpu.rt_runtime_us"] = "100" },
     children = {
       { 
         name = "poison",
@@ -108,7 +108,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
               return (proc.ppid ~= 0 or proc.pid == 1)
             end,
     param = { ["cpu.shares"]="800",
-              ["cpu.rt_runtime_us"] = "250000"},
+              ["cpu.rt_runtime_us"] = "1"},
   },
   { 
     name = "kernel",
