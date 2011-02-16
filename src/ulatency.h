@@ -204,6 +204,7 @@ typedef struct _FLAG {
 //  FLAG_BEHAVIOUR age;
   char          *name;         // label name
   char          *reason;       // why the flag was set. This makes most sense with emergency flags
+  int64_t        tid;           // task id, if != 0 belongs to a process task
   time_t         timeout;       // timeout when the flag will disapear
   int32_t        priority;      // custom data: priority
   int64_t        value;         // custom data: value
@@ -217,9 +218,10 @@ void u_flag_free(void *data);
 
 int u_flag_add(u_proc *proc, u_flag *flag);
 int u_flag_del(u_proc *proc, u_flag *flag);
-int u_flag_clear_source(u_proc *proc, void *source);
+int u_flag_clear_source(u_proc *proc, const void *source);
 int u_flag_clear_name(u_proc *proc, const char *name);
 int u_flag_clear_all(u_proc *proc);
+int u_flag_clear_flag(u_proc *proc, const void *flag);
 int u_flag_clear_timeout(u_proc *proc, time_t timeout);
 
 struct u_cgroup {

@@ -1097,6 +1097,16 @@ static gint u_flag_match_source(gconstpointer a, gconstpointer match) {
   return -1;
 }
 
+static gint u_flag_match_flag(gconstpointer a, gconstpointer match) {
+  u_flag *flg = (u_flag *)a;
+
+  if(flg == match)
+    return 0;
+
+  return -1;
+}
+
+
 static int u_flag_match_name(gconstpointer a, gconstpointer name) {
   u_flag *flg = (u_flag *)a;
 
@@ -1136,9 +1146,11 @@ int NAME (u_proc *proc, ARG ) { \
   return rv; \
 } 
 
-CLEAR_BUILD(u_flag_clear_source, void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_source))
+CLEAR_BUILD(u_flag_clear_source, const void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_source))
 
 CLEAR_BUILD(u_flag_clear_name, const char *name, g_list_find_custom(proc ? proc->flags : system_flags, name, u_flag_match_name))
+
+CLEAR_BUILD(u_flag_clear_flag, const void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_flag))
 
 CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc ? proc->flags : system_flags, GUINT_TO_POINTER(tm), u_flag_match_timeout))
 
