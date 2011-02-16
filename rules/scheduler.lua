@@ -170,7 +170,7 @@ function Scheduler:all()
       self.C_FILTER = false
     end
   end
-  if self.ITERATION > (tonumber(ulatency.get_config("scheduler", "mapping")) or 15) then
+  if self.ITERATION > (tonumber(ulatency.get_config("scheduler", "full_run")) or 15) then
     self.C_FILTER = false
     self.ITERATION = 1
   end
