@@ -62,6 +62,7 @@ static char *log_file = NULL;
 int          log_fd = -1;
 
 GKeyFile *config_data;
+static char *config_cgroup_root;
 
 /*
 static gint max_size = 8;
@@ -429,6 +430,8 @@ signal_logrotate (int signal)
 
 int timeout_long(gpointer data) {
 
+  static int run = 0;
+
   // check if dbus connection is still alive
 #ifdef ENABLE_DBUS
   if(U_dbus_connection) {
@@ -443,9 +446,12 @@ int timeout_long(gpointer data) {
   }
 #endif
 
-  // try the make current memory non swapalbe
-  if(mlockall(MCL_CURRENT) && getuid() == 0)
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
+  if(run == 0 && config_cgroup_root) {
+    g_debug("cleanup cgroup directory: %s", config_cgroup_root);
+    recursive_rmdir(config_cgroup_root, 2);
+  }
+  run = (run + 1)%10;
+
 
   return TRUE;
 }
@@ -528,7 +534,7 @@ int main (int argc, char *argv[])
 #endif
 
   g_atexit(cleanup);
-  
+
   if (signal (SIGABRT, signal_cleanup) == SIG_IGN)
     signal (SIGABRT, SIG_IGN);
   if (signal (SIGINT, signal_cleanup) == SIG_IGN)
@@ -542,9 +548,24 @@ int main (int argc, char *argv[])
 
 
 
-  
   //signal (SIGABRT, cleanup_on_abort);
   core_init();
+  // set the cgroups root path
+  lua_getfield(lua_main_state, LUA_GLOBALSINDEX, "CGROUP_ROOT"); /* function to be called */
+  config_cgroup_root = g_strdup(lua_tostring(lua_main_state, -1));
+  lua_pop(lua_main_state, 1);
+
+  if(!strcmp(config_cgroup_root, "/") || !strcmp(config_cgroup_root, "")) {
+      g_warning("bad cgroup root path: %s", config_cgroup_root);
+      g_free(config_cgroup_root);
+      config_cgroup_root = NULL;
+  }
+
+  if(config_cgroup_root) {
+      g_debug("cleanup cgroup directory: %s", config_cgroup_root);
+      recursive_rmdir(config_cgroup_root, 2);
+  }
+
   adj_oom_killer(getpid(), -1000);
   load_modules(modules_directory);
   load_rule_directory(rules_directory, load_pattern, TRUE);

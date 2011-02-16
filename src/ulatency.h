@@ -381,7 +381,7 @@ double get_last_percent();
 
 // misc stuff
 guint get_plugin_id();
-
+void recursive_rmdir(const char *path, int add_level);
 
 // lua_binding
 int l_filter_run_for_proc(u_proc *pr, u_filter *flt);

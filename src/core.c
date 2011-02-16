@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <glib.h>
 #include <stdio.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <fnmatch.h>
@@ -1404,6 +1405,9 @@ int iterate(gpointer rv) {
   g_timer_start(timer_scheduler);
   g_timer_stop(timer_scheduler);
 
+  // try the make current memory non swapalbe
+  if(mlockall(MCL_CURRENT) && getuid() == 0)
+    g_debug(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
 
 
   return GPOINTER_TO_INT(rv);
