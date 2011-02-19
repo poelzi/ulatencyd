@@ -14,6 +14,7 @@ BottleNeck = {
   history = {},
   -- list of entries to be ignored (partitions)
   ignored = {},
+  first_run = true,
   window = tonumber(ulatency.get_config("io", "window")) or 10,
   threshold = tonumber(ulatency.get_config("io", "threshold")) or 100000,
   percent = tonumber(ulatency.get_config("io", "percent")) or 50,
@@ -46,6 +47,10 @@ BottleNeck = {
       return
     end
 
+    if self.first_run == true then
+      self:set_scheduler(dev, ulatency.get_config("io", "scheduler"))
+    end
+
     if not self.history[dev] then
       if posix.access(ulatency.mountpoints["sysfs"] .. "/block/"..dev) == 0 then
         self.history[dev] = {}
@@ -57,6 +62,16 @@ BottleNeck = {
       self:calc_history(self.last_data[dev], chunks)
     end
     self.last_data[dev] = chunks
+  end,
+
+  set_scheduler = function(self, dev, scheduler)
+    local path = ulatency.mountpoints["sysfs"] .. "/block/" .. dev .. "/queue/scheduler"
+    local fp = io.open(path, "w")
+    if not fp then
+      return
+    end
+    fp:write(tostring(scheduler))
+    fp:close()
   end,
 
   set_isolation = function(self, dev, value)
@@ -83,6 +98,7 @@ BottleNeck = {
       local chunks = string.split(line, " ")
       self:add_entry(chunks)
     end
+    self.first_run = false
   end,
 
   decide = function(self)
