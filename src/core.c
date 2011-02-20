@@ -308,7 +308,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
               proc->cmdline_match = g_string_free(match, FALSE);
               // empty command line, for kernel threads for example
               if(!proc->cmdline->len)
-                return TRUE;
+                return FALSE;
               if(proc->cmdfile) {
                 g_free(proc->cmdfile);
                 proc->cmdfile = NULL;
@@ -341,6 +341,9 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
         out = readlink(path, (char *)&buf, PATH_MAX);
         if(out > 0) {
             proc->exe = g_strndup((char *)&buf, out);
+        } else {
+            g_free(path);
+            return FALSE;
         }
         g_free(path);
       }
@@ -1407,7 +1410,7 @@ int iterate(gpointer rv) {
 
   // try the make current memory non swapalbe
   if(mlockall(MCL_CURRENT) && getuid() == 0)
-    g_debug(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "can't mlock memory");
+    g_debug("can't mlock memory");
 
 
   return GPOINTER_TO_INT(rv);

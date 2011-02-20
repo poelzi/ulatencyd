@@ -77,6 +77,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       { 
         name = "idle",
         param = { ["cpu.shares"]="200"},
+        label = { "user.idle" },
       },
       { 
         name = "group",
