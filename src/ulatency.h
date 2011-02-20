@@ -94,7 +94,7 @@ enum FILTER_FLAGS {
 
 #define FILTER_TIMEOUT(v) ( v & 0xFFFF)
 #define FILTER_FLAGS(v) ( v >> 16)
-#define FILTER_MIX(flages,timeout) (( flags << 16 ) | timeout )
+#define FILTER_MIX(flags,timeout) (( flags << 16 ) | timeout )
 
 
 enum FILTER_PRIORITIES {
