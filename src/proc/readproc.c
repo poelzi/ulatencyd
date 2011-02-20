@@ -723,7 +723,7 @@ static proc_t* simple_readtask(PROCTAB *restrict const PT, const proc_t *restric
         }
     }
 
-    if (flags & PROC_FILLSUPGRP && t->nsupgid > 0){
+    if (flags & PROC_TASKSUPGRP && t->nsupgid > 0){
         allocsupgrp(t);
         int i;
         for (i=0; i < t->nsupgid; i++)
@@ -999,10 +999,14 @@ void freeproc_light(proc_t* p) {
   if (p->environ)
     free((void*)*p->environ);
   if (p->cgroup)
-  	free((void*)*p->cgroup);
+    free((void*)*p->cgroup);
+
+  if (p->supgid)
+  	free(p->supgid);
   p->cmdline = NULL;
   p->environ = NULL;
   p->cgroup = NULL;
+  p->supgid = NULL;
   
   //printf("frp: %p\n", p);
 }

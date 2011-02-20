@@ -249,6 +249,7 @@ extern proc_t * get_proc_stats(pid_t pid, proc_t *p);
 #define PROC_FILLARG         0x0100 // alloc and fill in `cmdline'
 #define PROC_FILLCGROUP      0x0200 // alloc and fill in `cgroup`
 #define PROC_FILLSUPGRP      0x0400 // resolve supplementary group id number -> group name
+#define PROC_TASKSUPGRP      0x0800 // resolve supplementary group id number -> group name
 
 #define PROC_LOOSE_TASKS     0x2000 // threat threads as if they were processes
 

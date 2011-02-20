@@ -210,8 +210,12 @@ void u_proc_free_task(void *ptr) {
   proc_t *proc = ptr;
   // the task group owner has the same pointers, so we shall not free them 
   // when the task is removed
-  if(proc->tid != proc->tgid)
-    freesupgrp(proc);
+  //if(proc->tid != proc->tgid)
+  //  freesupgrp(proc);
+  //if((proc->tid != proc->tgid) && (proc->nsupgid > 0))
+  //   freesupgrp(proc);
+  if (proc->supgid)
+  	free(proc->supgid);
   g_slice_free(proc_t, proc);
 }
 
