@@ -332,7 +332,7 @@ struct x_server *add_connection(const char *name, uid_t uid, const char *display
 pid_t read_pid(struct x_server *conn, int *err) {
   xcb_generic_error_t *error;
   *err = 0;
-  pid_t rv;
+  pid_t rv = 0;
 
   dprint("dsp: %s xs: %p conn: %p\n", conn->display, conn, conn->connection);
 
