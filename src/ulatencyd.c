@@ -52,7 +52,7 @@ DBusGConnection *U_dbus_connection_system;
 #include <sys/mman.h>
 #include <error.h>
 
-static gchar *config_file = QUOTEME(CONFIG_FILE);
+static gchar *config_file = QUOTEME(CONFIG_PATH)"/ulatencyd.conf";
 static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);
 static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
@@ -299,7 +299,7 @@ void load_config() {
   if(!g_key_file_load_from_file(config_data, config_file, 
                                 G_KEY_FILE_KEEP_COMMENTS|G_KEY_FILE_KEEP_TRANSLATIONS,
                                 &error)) {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not load config file: %s: %s", config_file, error->message);
+    g_error("could not load config file: %s: %s", config_file, error->message);
   }
 
   filter_interval = g_key_file_get_integer(config_data, CONFIG_CORE, "interval", NULL);

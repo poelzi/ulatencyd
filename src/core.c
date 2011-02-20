@@ -954,7 +954,7 @@ int process_new_list(GArray *list, int update) {
   int i, j = 0;
   pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
   //int pid_t = malloc(sizeof(pid_t)*(list->len+1));
-  for(; i < list->len; i++) {
+  for(i = 0; i < list->len; i++) {
     if(update || !proc_by_pid(g_array_index(list,pid_t,i))) {
       pids[j] = g_array_index(list,pid_t,i);
       j++;

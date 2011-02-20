@@ -8,7 +8,7 @@
 
 MediaPlayer = {
   name = "MediaPlayer",
-  re_cmdline = "mplayer|xine|vlc",
+  re_cmdline = "mplayer|xine|vlc|clementine",
   --re_basename = "metacity",
   check = function(self, proc)
     local flag = ulatency.new_flag("user.media")

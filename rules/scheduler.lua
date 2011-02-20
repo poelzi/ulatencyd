@@ -170,7 +170,7 @@ function Scheduler:all()
       self.C_FILTER = false
     end
   end
-  if self.ITERATION > (tonumber(ulatency.get_config("scheduler", "full_run")) or 15) then
+  if self.ITERATION > (tonumber(ulatency.get_config("scheduler", "full_run") or 15)) then
     self.C_FILTER = false
     self.ITERATION = 1
   end
@@ -189,6 +189,9 @@ end
 function Scheduler:load_config(name)
   if not name then
     name = ulatency.get_config("scheduler", "mapping")
+    if not name then
+      ulatency.log_error("no default scheduler config specified in config file")
+    end
   end
   ulatency.log_info("Scheduler use mapping: "..name)
   local mapping_name = "SCHEDULER_MAPPING_"..string.upper(name)

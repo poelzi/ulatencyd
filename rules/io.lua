@@ -15,9 +15,9 @@ BottleNeck = {
   -- list of entries to be ignored (partitions)
   ignored = {},
   first_run = true,
-  window = tonumber(ulatency.get_config("io", "window")) or 10,
-  threshold = tonumber(ulatency.get_config("io", "threshold")) or 100000,
-  percent = tonumber(ulatency.get_config("io", "percent")) or 50,
+  window = tonumber(ulatency.get_config("io", "window") or 10),
+  threshold = tonumber(ulatency.get_config("io", "threshold") or 100000),
+  percent = tonumber(ulatency.get_config("io", "percent") or 50) ,
   last_set = {},
 
   calc_history = function(self, old, new)
@@ -48,7 +48,7 @@ BottleNeck = {
     end
 
     if self.first_run == true then
-      self:set_scheduler(dev, ulatency.get_config("io", "scheduler"))
+      self:set_scheduler(dev, ulatency.get_config("io", "scheduler") or "cfq")
     end
 
     if not self.history[dev] then

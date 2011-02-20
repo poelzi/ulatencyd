@@ -31,13 +31,13 @@
 #cmakedefine DEVELOP_MODE
 #ifdef DEVELOP_MODE
 #define RELEASE_AGENT ${CMAKE_CURRENT_BINARY_DIR}/src/ulatencyd_cleanup.lua
-#define CONFIG_FILE conf/ulatencyd.conf
+#define CONFIG_PATH conf
 #define RULES_DIRECTORY rules
 #define MODULES_DIRECTORY modules
 #define LUA_CORE_FILE src/core.lua
 #else
 #define RELEASE_AGENT ${INSTALL_PREFIX}/lib/ulatencyd/ulatencyd_cleanup.lua
-#define CONFIG_FILE ${CONFIG_PREFIX}/ulatencyd/ulatencyd.conf
+#define CONFIG_PATH ${CONFIG_PREFIX}/ulatencyd
 #define RULES_DIRECTORY ${CONFIG_PREFIX}/ulatencyd/rules
 #define MODULES_DIRECTORY ${INSTALL_PREFIX}/lib/ulatencyd/modules
 #define LUA_CORE_FILE ${INSTALL_PREFIX}/lib/ulatencyd/core.lua

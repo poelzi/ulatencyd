@@ -19,6 +19,9 @@ local swapout_stats = {}
 
 function num_or_percent(conf, value, default)
   local rv = false
+  if not conf then
+    conf = "100%"
+  end
   if not conf and default then
     conf = default
   end
@@ -142,13 +145,13 @@ ProtectorMemory = {
       )
       if not added then
         ulatency.add_flag(flag)
-        flag.threshold = math.ceil(top_targets[v][2]*(tonumber(ulatency.get_config("memory", "group_downsize")) or 0.95))
+        flag.threshold = math.ceil(top_targets[v][2]*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95)))
       end
     end
     local flag = ulatency.new_flag{name="user.poison", reason="memory", 
                                    timeout=ulatency.get_time(pressure_timeout)}
     local added = 0
-    local min_add = tonumber(ulatency.get_config("memory", "min_add_targets"))
+    local min_add = tonumber(ulatency.get_config("memory", "min_add_targets") or 0)
     for i,proc in ipairs(self.sure_targets) do
       if proc.is_valid then
         proc:clear_flag_source()
