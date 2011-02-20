@@ -343,6 +343,13 @@ static int l_list_processes (lua_State *L) {
 }
 
 
+static int l_get_number_of_processes(lua_State *L) {
+
+  lua_pushinteger(L, get_number_of_processes());
+
+  return 1;
+}
+
 static int l_set_active_pid(lua_State *L) {
   lua_Integer uid = luaL_checkinteger (L, 1);
   lua_Integer pid = luaL_checkinteger (L, 2);
@@ -2060,6 +2067,7 @@ static const luaL_reg R[] = {
   {"list_processes",  l_list_processes},
   {"add_timeout", l_add_interval},
   {"register_filter", l_register_filter},
+  {"get_number_of_processes", l_get_number_of_processes},
   // flag code
   {"new_flag", l_flag_new},
   // system flag manipulation

@@ -232,6 +232,27 @@ GPtrArray* search_user_env(uid_t uid, const char *name, int update) {
     return rv;
 }
 
+uint64_t get_number_of_processes() {
+    uint64_t rv = 0;
+    DIR             *dip = opendir("/proc");
+    struct dirent   *dit;
+
+    if(!dip)
+        return 0;
+
+    while ((dit = readdir(dip)) != NULL) {
+        if(!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, ".."))
+            continue;
+        if(likely( likely(*dit->d_name > '0') && likely(*dit->d_name <= '9') )) {
+            rv++;
+        }
+    }
+    closedir(dip);
+
+    return rv;
+}
+
+
 #ifdef ENABLE_DBUS
 
 // things would be so much easier here when consolekit would just emit a 
@@ -304,30 +325,35 @@ static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
                             &sess->idle, G_TYPE_INVALID)) {
         g_warning ("CK Error: %s\n", error->message);
         g_error_free(error);
+        error = NULL;
     }
     if(!dbus_g_proxy_call (sess->proxy, "IsActive", &error, G_TYPE_INVALID,
                             G_TYPE_BOOLEAN,
                             &sess->active, G_TYPE_INVALID)) {
         g_warning ("CK Error: %s\n", error->message);
         g_error_free(error);
+        error = NULL;
     }
     if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
                             G_TYPE_UINT,
                             &sess->uid, G_TYPE_INVALID)) {
       g_warning ("CK Error: %s\n", error->message);
       g_error_free(error);
+      error = NULL;
     }
     if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
                             G_TYPE_STRING,
                             &sess->X11Display, G_TYPE_INVALID)) {
       g_warning ("CK Error: %s\n", error->message);
       g_error_free(error);
+      error = NULL;
     }
     if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
                             G_TYPE_STRING,
                             &sess->X11Device, G_TYPE_INVALID)) {
       g_warning ("CK Error: %s\n", error->message);
       g_error_free(error);
+      error = NULL;
     }
 
 }

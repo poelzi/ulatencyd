@@ -844,7 +844,7 @@ unsigned int getdiskstat(struct disk_stat **disks, struct partition_stat **parti
       break;
     }
     fields = sscanf(buff, " %*d %*d %15s %*u %*u %*u %*u %*u %*u %*u %*u %*u %*u %u",
-            &devname, &dummy);
+            &devname[0], &dummy);
     if (fields == 2 && is_disk(devname)){
       (*disks) = realloc(*disks, (cDisk+1)*sizeof(struct disk_stat));
       sscanf(buff,  "   %*d    %*d %15s %u %u %llu %u %u %u %llu %u %u %u %u",

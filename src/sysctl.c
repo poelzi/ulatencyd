@@ -137,7 +137,7 @@ int adj_oom_killer(pid_t pid, int adj)
 
   oomfd = open(path, O_NOFOLLOW | O_WRONLY);
   if (oomfd >= 0) {
-    (void)write(oomfd, &aval, strlen(&aval[0]));
+    if(write(oomfd, &aval, strlen(&aval[0])) < 1) {} // stupid warning :-)
     close(oomfd);
     free(path);
     return 0;

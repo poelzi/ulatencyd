@@ -406,7 +406,7 @@ GHashTable * u_read_env_hash (pid_t pid);
 char *       u_pid_get_env (pid_t pid, const char *var);
 GPtrArray *  search_user_env(uid_t uid, const char *name, int update);
 GPtrArray *  u_read_0file (pid_t pid, const char *what);
-
+uint64_t     get_number_of_processes();
 
 // dbus consts
 #define U_DBUS_SERVICE_NAME     "org.quamquam.ulatencyd"
