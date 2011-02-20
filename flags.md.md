@@ -1,6 +1,7 @@
 # Flag system
 
 Processes are usually scheduled according their attached flags. Flags must contain a name and can optionally have some other values attached to it. The name can be any asciinumeric string, please don't use non ascii based strings as lua does not have the knowledge of unicode. The name is based on convention, having a top level category and subcategories separated by `.`, like `user.ui`, `user.media`,...
+A flags once added stays until the process dies, flag got removed or the optional timeout hits.
 
 Possible values are:
 
