@@ -43,7 +43,7 @@ GnomeFix = RunnerFix.new("GnomeFix", {"gnome-panel", "x-session-manager", "gnome
 
 -- on start we have to fix all processes that have descented from kde
 local function cleanup_gnome_mess()
-  cleanup_desktop_mess({"x-session-manager", "gnome-session"})
+  cleanup_desktop_mess({"x-session-manager", "gnome-session", "gnome-panel"})
   return false
 end
 

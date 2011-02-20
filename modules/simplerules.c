@@ -168,8 +168,6 @@ int load_simple_file(const char *path) {
 
     g_debug("load simple rule file: %s", path);
 
-    printf("%s\n", content);
-
     lines = g_strsplit_set(content, "\n", -1);
     for(i = 0; lines[i]; i++) {
         line = lines[i];
@@ -310,7 +308,7 @@ void simple_add_flag(u_filter *filter, u_proc *proc, struct simple_rule *rule) {
     nf->threshold   = t->threshold;
     nf->inherit     = t->inherit;
 
-//    printf("add flag %s %d\n", nf->name, proc->pid); 
+    u_trace("add flag %s to %d", nf->name, proc->pid); 
 
     u_flag_add(proc, nf);
 }
