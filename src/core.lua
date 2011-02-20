@@ -279,6 +279,7 @@ end
 -- try mounting the mountpoints
 if not is_mounted(CGROUP_ROOT) then
   -- try mounting a tmpfs there
+  mkdirp(CGROUP_ROOT)
   local prog = "/bin/mount -n -t tmpfs none "..CGROUP_ROOT.."/"
   ulatency.log_info("mount cgroups root: "..prog)
   fd = io.popen(prog, "r")
