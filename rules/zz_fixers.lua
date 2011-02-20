@@ -5,7 +5,6 @@ MediaIO = {
   check = function(self, proc)
     -- we give processes marked with media flags good io prio
     if ulatency.find_flag(proc:list_flags(), {name="user.media"}) then
-      print("set nice", proc)
       proc:set_ioprio(7, ulatency.IOPRIO_CLASS_BE)
     end
 
