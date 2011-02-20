@@ -9,7 +9,7 @@ macro(add_module LNAME)
   SET_TARGET_PROPERTIES(${LNAME} PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 endmacro(add_module)
 
-add_module(test test.c)
+add_module(simplerules simplerules.c)
 
 pkg_check_modules(XCB xcb)
 pkg_check_modules(XAU xau)
