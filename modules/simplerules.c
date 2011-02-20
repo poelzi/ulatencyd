@@ -53,7 +53,7 @@ struct simple_rule {
 
 
 int parse_line(char *line, int lineno) {
-    char **chunks;
+    char **chunks = NULL;
     GError *error = NULL;
     gint chunk_len;
     struct simple_rule *rule = NULL;
@@ -132,9 +132,7 @@ int parse_line(char *line, int lineno) {
             rule->template->value = (int64_t)atoll(value);
         } else if(strcmp(key, "threshold") == 0) {
             rule->template->threshold = (int64_t)atoll(value);
-        } else if(strcmp(key, "value") == 0) {
-            rule->template->value = (int64_t)atoll(value);
-        } else if(strcmp(key, "value") == 0) {
+        } else if(strcmp(key, "inherit") == 0) {
             tmp = atoi(value);
             rule->template->inherit = tmp;
         }
@@ -145,6 +143,7 @@ int parse_line(char *line, int lineno) {
     g_strfreev(chunks);
     return TRUE;
 error:
+    g_strfreev(chunks);
     g_slice_free(struct simple_rule, rule);
     g_error_free(error);
     return FALSE;
