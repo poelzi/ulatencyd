@@ -214,8 +214,8 @@ void u_proc_free_task(void *ptr) {
   //  freesupgrp(proc);
   //if((proc->tid != proc->tgid) && (proc->nsupgid > 0))
   //   freesupgrp(proc);
-  if (proc->supgid)
-  	free(proc->supgid);
+  //if (proc->supgid)
+  //	free(proc->supgid);
   g_slice_free(proc_t, proc);
 }
 
