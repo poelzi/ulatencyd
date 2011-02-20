@@ -389,7 +389,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
     DBusMessageIter imsg;
     uid_t caller;
     uint64_t tu64;
-    int is2;
+    int is2 = 0;
 
     dbus_error_init(&error);
     if(dbus_message_is_method_call(m, U_DBUS_SYSTEM_INTERFACE, "listSystemFlags")) {
