@@ -640,7 +640,7 @@ EPILOG="""commands:
   get [key]         get daemon setting
   set [key value]   set daemon value
   mounts            lists all mounted cgroups
-  clear cgroup      clears a cgroup
+  clear cgroup|ALL  clears a cgroup
 """
 
 def main():
@@ -714,8 +714,13 @@ def main():
         if not len(args) == 2:
             print("not enough arguments")
             sys.exit(1)
-        ct = Tree(tree=args[1])
-        ct.clear()
+        if args[1] == "ALL":
+            for tree in CGROUP_PATHS.iterkeys():
+                ct = Tree(tree=tree)
+                ct.clear()
+        else:
+            ct = Tree(tree=args[1])
+            ct.clear()
         return
 
 
