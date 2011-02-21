@@ -1,11 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
+
 import sys
-reload(sys)
-sys.setdefaultencoding('utf-8')
+
+
+try:
+  sys.setdefaultencoding('utf-8')
+except AttributeError:
+  pass
+
+PY3 = sys.version_info[0] != 2
 
 import os
-import dbus
+try:
+  import dbus
+except:
+  print("warning: dbus not available", file=sys.stderr)
 import subprocess
 from optparse import OptionParser
 from signal import signal, SIGINT, SIG_DFL
@@ -18,15 +30,21 @@ DEFAULT_TREE = "cpu"
 CGROUP_PATHS = {}
 CGROUP_SUBSYS = []
 
+if PY3:
+  u = str
+else:
+  def tounicode(x):
+    return unicode(x, "unicode_escape")
+  u = tounicode
 
-fp = file("/proc/cgroups", "r")
+fp = open("/proc/cgroups", "r")
 for line in fp:
     if line[0] == "#":
         continue
     chunks = line.split()
     CGROUP_SUBSYS.append(chunks[0])
 
-fp = file("/proc/mounts", "r")
+fp = open("/proc/mounts", "r")
 for line in fp:
     chunks = line.split()
     if chunks[2] == "cgroup":
@@ -91,7 +109,7 @@ class Session:
             self.system = self.bus.get_object(
                 'org.quamquam.ulatencyd',
                 '/org/quamquam/ulatencyd/System')
-        except dbus.exceptions.DBusException, e:
+        except dbus.exceptions.DBusException as e:
             return False
         return True
 
@@ -101,7 +119,7 @@ class Session:
             self.user = self.bus.get_object(
                 'org.quamquam.ulatencyd',
                 '/org/quamquam/ulatencyd/User')
-        except dbus.exceptions.DBusException, e:
+        except dbus.exceptions.DBusException as e:
             return False
         return True
 
@@ -209,19 +227,19 @@ class Tree(object):
 
     boxes = {
       True: drug(
-        start     = u"\u2500\u252c\u00bb",
-        branch    = u"\u251c",
-        last      = u"\u2514",
-        end       = u"\u00ab",
-        subtree   = u"\u2502",
-        file      = u" " ),
+        start     = u("\u2500\u252c\u00bb"),
+        branch    = u("\u251c"),
+        last      = u("\u2514"),
+        end       = u("\u00ab"),
+        subtree   = u("\u2502"),
+        file      = u(" ") ),
       False: drug(
-        start     = u"# ",
-        branch    = u"+-",
-        last      = u"+-",
-        end       = u" #",
-        subtree   = u"|",
-        file      = u" " ),
+        start     = u("# "),
+        branch    = u("+-"),
+        last      = u("+-"),
+        end       = u(" #"),
+        subtree   = u("|"),
+        file      = u(" ") ),
     }
 
     def __init__(self, tree=DEFAULT_TREE, processes=True, show_all=True,
@@ -232,23 +250,23 @@ class Tree(object):
         self.utf = utf
         if color:
             self.color = drug(
-                process = u"{0.yellow}{1}{0.default} {2}",
-                subtree = u"{0.bold}{0.black}{1}{0.default}",
-                tree    = u"{0.bold}{0.black}{1}{2}{3}{0.default}{0.green}" +
-                          u"{5}{0.bold}{0.black}{4}{0.default}",
-                file    = u"{0.bold}{0.black}{1}{2}{3}{0.default}{4}" )
+                process = u("{0.yellow}{1}{0.default} {2}"),
+                subtree = u("{0.bold}{0.black}{1}{0.default}"),
+                tree    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{0.green}") +
+                          u("{5}{0.bold}{0.black}{4}{0.default}"),
+                file    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{4}") )
         else:
             self.color = drug(
-                process = u"{1} {2}",
-                subtree = u"{1}",
-                tree    = u"{1}{2}{3}{5}{4}",
-                file    = u"{1}{2}{3}{4}" )
+                process = u("{1} {2}"),
+                subtree = u("{1}"),
+                tree    = u("{1}{2}{3}{5}{4}"),
+                file    = u("{1}{2}{3}{4}") )
         path = self.get_path()
         if path:
             self.cache = drug(children = [], path = path, state = None,
                 name = os.path.basename(os.path.abspath(path)))
         else:
-            print "error: tree does not exist"
+            print("error: tree does not exist")
             sys.exit(1)
 
     def processes_(self, b):
@@ -262,10 +280,10 @@ class Tree(object):
             path = os.path.join("/proc", pid, "status")
             if not os.path.exists(path):
                 return None
-            fp = file(path)
+            fp = open(path)
         except OSError:
             return None
-        name = u""
+        name = u("")
         for line in fp.readlines():
             chunks = line.split(":\t")
             if chunks[0] == 'Name':
@@ -284,7 +302,7 @@ class Tree(object):
             name = os.path.basename(os.path.abspath(dir)))
         files = []
         if self.processes and os.path.exists(os.path.join(dir, "tasks")):
-            fp = file(os.path.join(dir, "tasks"), "r")
+            fp = open(os.path.join(dir, "tasks"), "r")
             for line in fp.readlines():
                 proc = self.get_process(line.strip())
                 if proc:
@@ -346,24 +364,24 @@ class Tree(object):
 
     def display(self):
         path = self.get_path()
-        print path
+        print(path)
         if not os.path.exists(path):
-            print "error: tree does not exist"
+            print("error: tree does not exist")
             sys.exit(1)
 
         def rec(branch, padding, islast=None):
             if hasattr(branch, 'pid'):
                 process = self.color.process.format(
                     style, branch.pid, branch.name)
-                print self.color.file.format(style, padding,
+                print(self.color.file.format(style, padding,
                     islast or self.boxes[self.utf].branch,
-                    self.boxes[self.utf].file, process)
+                    self.boxes[self.utf].file, process))
                 return
-            print self.color.tree.format(style, padding,
+            print(self.color.tree.format(style, padding,
                 islast or self.boxes[self.utf].branch,
                 self.boxes[self.utf].start,
                 self.boxes[self.utf].end,
-                branch.name)
+                branch.name))
             count = 0
             for child in branch.children:
                 count += 1
@@ -373,20 +391,20 @@ class Tree(object):
                     last = self.boxes[self.utf].last
                     if os.path.isdir(branch.path):
                         if islast:
-                            p = p + u" "
+                            p = p + u(" ")
                         else:
                             p = p + self.boxes[self.utf].subtree
-                    p = p + u" "
+                    p = p + u(" ")
                 else:
                     if islast:
-                        p = p + u" "
+                        p = p + u(" ")
                     else:
                         p = p + self.boxes[self.utf].subtree
                     if os.path.isdir(branch.path):
-                        p = p + u" "
+                        p = p + u(" ")
                 rec(child, p, last)
 
-        rec(self.generate(path), u"", self.boxes[self.utf].last)
+        rec(self.generate(path), u(""), self.boxes[self.utf].last)
 
     def clear(self):
         """clears a cgroup mountpoint so it can be removed"""
@@ -397,7 +415,7 @@ class Tree(object):
             return
 
         try:
-            rootfp = file(os.path.join(path, "tasks"), "w")
+            rootfp = open(os.path.join(path, "tasks"), "w")
         except IOError:
             print("need to run as root")
             sys.exit(1)
@@ -411,7 +429,7 @@ class Tree(object):
 
         def clear(root):
             print("clear %s" %root)
-            fp = file(os.path.join(root, "tasks"), "r")
+            fp = open(os.path.join(root, "tasks"), "r")
             for line in fp:
                 move(line.strip())
 
@@ -511,7 +529,7 @@ class QtGui(Gui):
         app.trayicon.activated.connect(self.toggle_window)
         app.trayicon.setContextMenu(menu)
         quit.triggered.connect(self.quit)
-        print "gui started."
+        print("gui started.")
 
     def quit(self):
         self.settings.sync()
@@ -543,7 +561,7 @@ class QtGui(Gui):
 
         def add(branch, parent):
             background = self.QColor(0, 200, 0, 100)
-            pid = u""
+            pid = u("")
             if hasattr(branch, 'pid'):
                 pid = branch.pid
             branch.item = item = QTreeWidgetItem(parent, [branch.name, pid])
@@ -565,7 +583,7 @@ class QtGui(Gui):
                 i = parent.indexOfChild(branch.item)
                 if i == -1:
                     branch.state = "delete" # FIXME
-                    print "FIXME"
+                    print("FIXME")
                 else:
                     parent.child(i).setText(0, branch.name)
             branch.item.setBackgroundColor(0, background)
@@ -591,7 +609,7 @@ class QtGui(Gui):
         self.config_action[new].setChecked(True)
         cmd = " {0} set config {1}".format(sys.argv[0], new)
         if os.system("gtksudo" + cmd) == 32512:
-            print os.system("kdesudo" + cmd)
+            print(os.system("kdesudo" + cmd))
         self.cur = new
 
     def get_logo(self):
