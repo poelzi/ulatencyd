@@ -331,14 +331,14 @@ static void push_flag(DBusMessage *ret, u_proc *proc) {
     }
 
 
-    #define PUSH_VARIANT(NAME, VAR, TYPE) \
+    #define PUSH_VARIANT(NAME, VAR, TYPE) {\
         name = #NAME ; \
         dbus_message_iter_open_container(&entry, DBUS_TYPE_DICT_ENTRY, NULL, &dict); \
         dbus_message_iter_append_basic(&dict, DBUS_TYPE_STRING, &name); \
         dbus_message_iter_open_container(&dict, DBUS_TYPE_VARIANT, TYPE##_AS_STRING, &value); \
         dbus_message_iter_append_basic(&value, TYPE, VAR); \
         dbus_message_iter_close_container(&dict, &value); \
-        dbus_message_iter_close_container(&entry, &dict);
+        dbus_message_iter_close_container(&entry, &dict); }
 
 
     while(cur) {
@@ -360,7 +360,8 @@ static void push_flag(DBusMessage *ret, u_proc *proc) {
 
         PUSH_VARIANT(name, &fl->name, DBUS_TYPE_STRING);
         PUSH_VARIANT(tid, &tid, DBUS_TYPE_UINT64);
-        PUSH_VARIANT(reason, &fl->reason, DBUS_TYPE_STRING);
+        if(fl->reason)
+            PUSH_VARIANT(reason, &fl->reason, DBUS_TYPE_STRING);
         tu32 = (uint32_t)fl->timeout;
         PUSH_VARIANT(timeout, &tu32, DBUS_TYPE_UINT32);
         PUSH_VARIANT(priority, &fl->priority, DBUS_TYPE_INT32);
