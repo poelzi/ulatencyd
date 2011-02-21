@@ -241,7 +241,7 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
 
 
 -- io configuration. blkio does not support hirarchies
-SCHEDULER_MAPPING_DESKTOP["io"] =
+SCHEDULER_MAPPING_DESKTOP["blkio"] =
 {
 
   { 
