@@ -14,6 +14,7 @@ except AttributeError:
 PY3 = sys.version_info[0] != 2
 
 import os
+import re
 try:
   import dbus
 except:
@@ -87,6 +88,48 @@ style = drug(**dict(
         on_white   = "\033[47m"))
 
 
+def list_processes():
+    rv = []
+    for line in os.listdir("/proc"):
+        if re.match("\d+", line):
+            rv.append(line)
+    return rv
+
+def get_process_data(pid):
+    try:
+        path = os.path.join("/proc", pid, "status")
+        if not os.path.exists(path):
+            return None
+        fp = open(path)
+    except OSError:
+        return None
+    rv = {}
+    for line in fp.readlines():
+        chunks = line.split(":\t")
+        rv[chunks[0].strip().lower()] = chunks[1].strip()
+    fp.close()
+    return rv
+
+def print_process(pid, flags=None):
+    data = get_process_data(pid)
+    out = "%6s %s" %(data["pid"], data["name"].ljust(25))
+    if flags:
+        for flag in flags:
+            out += "[%s" %flag["name"]
+            for k,v in flag.iteritems():
+                if k == "name":
+                    continue
+                if isinstance(v, (int, long)):
+                    if v != 0:
+                        out += " %s=%s" %(unicode(k), unicode(v))
+                elif isinstance(v, (str, unicode)):
+                    if v != "":
+                        out += " %s=%s" %(unicode(k), unicode(v))
+                else:
+                    out += " %s=%s" %(unicode(k), unicode(v))
+            out += "]"
+        #print(flags)
+    print(out)
 
 class Session:
 
@@ -208,6 +251,24 @@ class Session:
             print(e)
             sys.exit(2)
 
+    def get_processflags(self, pid=None):
+        if not self.init_system():
+            return []
+        if pid is None:
+            print("error: no pid given")
+            sys.exit(1)
+        pid = int(pid)
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try:
+            rv = []
+            data = system.listFlags(pid)
+            for flag in data:
+              rv.append(dict((unicode(x),v) for x,v in flag[1].iteritems()))
+            return rv
+        except dbus.exceptions.DBusException as e:
+            return []
+
+
     def get_activelistlength(self):
         if not self.init_user():
             return None
@@ -276,26 +337,10 @@ class Tree(object):
         self.show_all = b
 
     def get_process(self, pid):
-        try:
-            path = os.path.join("/proc", pid, "status")
-            if not os.path.exists(path):
-                return None
-            fp = open(path)
-        except OSError:
-            return None
-        name = u("")
-        for line in fp.readlines():
-            chunks = line.split(":\t")
-            if chunks[0] == 'Name':
-                name = chunks[1].strip()
-            if chunks[0] == 'Tgid':
-                tgid = chunks[1].strip()
-            if chunks[0] == 'Pid':
-                pid = chunks[1].strip()
-        fp.close()
-        if not self.show_all and pid != tgid:
+        data = get_process_data(pid)
+        if not self.show_all and data["pid"] != data["tgid"]:
           return None
-        return pid, name
+        return data["pid"], data.get("name", "")
 
     def generate(self, dir):
         tree = drug(children = [], path = dir, state = "",
@@ -504,7 +549,7 @@ class QtGui(Gui):
             c.setChecked(self.tree.tree == subsys)
             c.triggered.connect(connect(subsys))
 
-        processes = menu.addAction("show all processes")
+        processes = menu.addAction("show processes")
         processes.setCheckable(True)
         processes.setChecked(self.tree.processes)
         processes.triggered.connect(lambda:
@@ -685,10 +730,13 @@ class QtGui(Gui):
         return header + color + background
 
 
+
+
 EPILOG="""commands:
   tree [cgroup]     show a cgroup tree
   get [key]         get daemon setting
   set [key value]   set daemon value
+  flags [process]   list flags of a process or all
   mounts            lists all mounted cgroups
   clear cgroup|ALL  clears a cgroup
 """
@@ -773,6 +821,14 @@ def main():
             ct.clear()
         return
 
+    if args[0] == 'flags':
+        session = Session()
+        if len(args) > 1:
+            print_process(args[1], flags=session.get_processflags(args[1]))
+        else:
+            for proc in list_processes():
+                print_process(proc, flags=session.get_processflags(proc))
+        return
 
     parser.print_usage()
     print(EPILOG)
