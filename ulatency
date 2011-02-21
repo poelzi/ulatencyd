@@ -6,15 +6,34 @@ sys.setdefaultencoding('utf-8')
 
 import os
 import dbus
+import subprocess
 from optparse import OptionParser
 from signal import signal, SIGINT, SIG_DFL
 
 
 signal(SIGINT, SIG_DFL)
 
+VERSION = '0.2'
 DEFAULT_TREE = "cpu"
-CGROUPS_PATH = "/sys/fs/cgroup"
+CGROUP_PATHS = {}
+CGROUP_SUBSYS = []
 
+
+fp = file("/proc/cgroups", "r")
+for line in fp:
+    if line[0] == "#":
+        continue
+    chunks = line.split()
+    CGROUP_SUBSYS.append(chunks[0])
+
+fp = file("/proc/mounts", "r")
+for line in fp:
+    chunks = line.split()
+    if chunks[2] == "cgroup":
+        opts = chunks[3].split(",")
+        for opt in opts:
+            if opt in CGROUP_SUBSYS:
+                CGROUP_PATHS[opt] = chunks[1]
 
 class drug():
     def __init__(self, **kwargs):
@@ -285,7 +304,7 @@ class Tree(object):
         return tree
 
     def get_path(self):
-        path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
+        path = CGROUP_PATHS.get(self.tree, None)
         if not os.path.exists(path):
             return None
         return path
@@ -326,7 +345,7 @@ class Tree(object):
         return self.cache
 
     def display(self):
-        path = u"{0}/{1}".format(CGROUPS_PATH, self.tree)
+        path = self.get_path()
         print path
         if not os.path.exists(path):
             print "error: tree does not exist"
@@ -369,7 +388,46 @@ class Tree(object):
 
         rec(self.generate(path), u"", self.boxes[self.utf].last)
 
+    def clear(self):
+        """clears a cgroup mountpoint so it can be removed"""
 
+        path = self.get_path()
+        if not path:
+            print("subsystem not mounted")
+            return
+
+        try:
+            rootfp = file(os.path.join(path, "tasks"), "w")
+        except IOError:
+            print("need to run as root")
+            sys.exit(1)
+
+        def move(pid):
+            rootfp.write("%s\n" %pid)
+            try:
+                rootfp.flush()
+            except IOError:
+                pass
+
+        def clear(root):
+            print("clear %s" %root)
+            fp = file(os.path.join(root, "tasks"), "r")
+            for line in fp:
+                move(line.strip())
+
+        for root, dirs, files in os.walk(path, topdown=False):
+            if root == path:
+                continue
+            for retry in xrange(5):
+                clear(root)
+                try:
+                    os.rmdir(root)
+                    break
+                except OSError:
+                    pass
+            else:
+                print("could not clear %s" %root)
+        print("cleared %s" %path)
 
 class Gui:
 
@@ -386,11 +444,13 @@ class QtGui(Gui):
         from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
                              QIcon, QPixmap, QMenu, QMainWindow, \
                              QTreeWidget, QTreeWidgetItem, QTimer,\
-                             QColor, QMenuBar, QKeySequence
+                             QColor, QMenuBar, QKeySequence, QSettings
         self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
         self.session = Session()
+        self.settings = QSettings("ulatencyd", "qtgui");
+
         self.tree = Tree(show_all = False)
         icon = QIcon(QPixmap(self.get_logo()))
         app.trayicon = QSystemTrayIcon(icon, app)
@@ -450,8 +510,12 @@ class QtGui(Gui):
         self.update_tree()
         app.trayicon.activated.connect(self.toggle_window)
         app.trayicon.setContextMenu(menu)
-        quit.triggered.connect(app.quit)
-        print "loaded."
+        quit.triggered.connect(self.quit)
+        print "gui started."
+
+    def quit(self):
+        self.settings.sync()
+        self.app.quit()
 
     def run(self):
         return self.app.exec_()
@@ -459,12 +523,14 @@ class QtGui(Gui):
     def toggle_window(self, reason):
         if reason != self.app.trayicon.Context:
             b = not self.window.isVisible()
-            self.window.setVisible(b)
             if b:
                 self.update_tree()
+                self.window.restoreGeometry(self.settings.value("main_window").toByteArray());
                 self.window.ui.timer.start()
             else:
+                self.settings.setValue("main_window", self.window.saveGeometry());
                 self.window.ui.timer.stop()
+            self.window.setVisible(b)
 
     def update_tree(self):
         QTreeWidgetItem = self.QTreeWidgetItem
@@ -553,13 +619,13 @@ class QtGui(Gui):
             "      xxxx      ",
             "                "]
         foreground = [
-            "      ",
-            "oo  oo",
+            "o    o",
+            "o    o",
             "o.  .o",
             "o....o",
             "oooo.o",
-            "   o.o",
-            "   ooo"]
+            "o.o   ",
+            "ooo   "]
         color = ["  c None"] + [char+" c "+col for char,col in zip(chars,color)]
         for y, line in enumerate(foreground):
             for x, char in enumerate(line):
@@ -569,9 +635,16 @@ class QtGui(Gui):
         return header + color + background
 
 
+EPILOG="""commands:
+  tree [cgroup]     show a cgroup tree
+  get [key]         get daemon setting
+  set [key value]   set daemon value
+  mounts            lists all mounted cgroups
+  clear cgroup      clears a cgroup
+"""
 
 def main():
-    parser = OptionParser( usage = "usage: %prog [options] [key [value]]" )
+    parser = OptionParser( usage = "usage: %prog [options] [command] [key [value]]", version="%prog " + VERSION, epilog="commands for a list of commands" )
     parser.add_option("--config-list", dest="list", action="store_true",
         default=False, help="list system configs")
     parser.add_option("-s", "--set", dest="set", action="store_true",
@@ -588,7 +661,6 @@ def main():
         default=False, help="show complete tree")
     parser.add_option("--no-processes", dest="processes", action="store_false",
         default=True, help="hide all processes")
-
 
     options, args = parser.parse_args()
 
@@ -609,12 +681,14 @@ def main():
             print(Session().set(*args[1:]))
             sys.exit(0)
         else: print(",".join(Session().sets.keys()))
+        return
 
     if options.get or args and args[0] == 'get':
         if len(args[1:]):
             print(Session().get(*args[1:]))
             sys.exit(0)
         else: print(",".join(Session().gets.keys()))
+        return
 
     if not args or args[0] == 'tree':
         kwargs = dict(utf = options.utf, color = options.color,
@@ -624,6 +698,29 @@ def main():
         else:
             tree = Tree(**kwargs)
         tree.display()
+        return
+
+    if args[0] == 'commands':
+        parser.print_usage()
+        print(EPILOG)
+        return
+
+    if args[0] == 'mounts':
+        for v,i in CGROUP_PATHS.iteritems():
+            print("%s %s" %(v.ljust(10, " "), i))
+        return
+
+    if args[0] == 'clear':
+        if not len(args) == 2:
+            print("not enough arguments")
+            sys.exit(1)
+        ct = Tree(tree=args[1])
+        ct.clear()
+        return
+
+
+    parser.print_usage()
+    print(EPILOG)
 
 
 if __name__ == "__main__":
