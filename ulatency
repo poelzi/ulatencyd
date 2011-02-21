@@ -459,15 +459,22 @@ class Gui:
 class QtGui(Gui):
 
     def __init__(self):
-        from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
-                             QIcon, QPixmap, QMenu, QMainWindow, \
-                             QTreeWidget, QTreeWidgetItem, QTimer,\
-                             QColor, QMenuBar, QKeySequence, QSettings
+        try:
+            from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
+                                 QIcon, QPixmap, QMenu, QMainWindow, \
+                                 QTreeWidget, QTreeWidgetItem, QTimer,\
+                                 QColor, QMenuBar, QKeySequence, QSettings, \
+                                 QActionGroup
+        except ImportError:
+            print("python qt4 bindings missing.")
+            sys.exit(1)
+
         self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
         self.session = Session()
-        self.settings = QSettings("ulatencyd", "qtgui");
+        self.settings = QSettings("ulatencyd", "qtgui")
+        self.first_fill = True
 
         self.tree = Tree(show_all = False)
         icon = QIcon(QPixmap(self.get_logo()))
@@ -482,6 +489,21 @@ class QtGui(Gui):
         quit.setShortcut(QKeySequence("Ctrl+Q"))
         quit.triggered.connect(app.quit)
         menu = mb.addMenu("settings")
+
+        tree_menu = menu.addMenu("tree")
+
+        self.config_tree = {}
+        def connect(con):
+            return lambda: self.switch_tree(con)
+        tree_group = QActionGroup(tree_menu)
+        for subsys in CGROUP_PATHS:
+            print(subsys)
+            self.config_tree[subsys] = c = tree_menu.addAction(subsys)
+            c.setCheckable(True)
+            c.setActionGroup(tree_group)
+            c.setChecked(self.tree.tree == subsys)
+            c.triggered.connect(connect(subsys))
+
         processes = menu.addAction("show all processes")
         processes.setCheckable(True)
         processes.setChecked(self.tree.processes)
@@ -530,6 +552,12 @@ class QtGui(Gui):
         app.trayicon.setContextMenu(menu)
         quit.triggered.connect(self.quit)
         print("gui started.")
+
+    def switch_tree(self, tree):
+        self.tree = Tree(tree=tree, show_all = self.tree.show_all)
+        self.doomed_entries = []
+        self.window.ui.treeview.clear()
+        self.update_tree()
 
     def quit(self):
         self.settings.sync()
@@ -603,6 +631,10 @@ class QtGui(Gui):
             add(tree, self.window.ui.treeview)
         else:
             update(tree, self.window.ui.treeview)
+
+        if self.first_fill:
+            self.window.ui.treeview.resizeColumnToContents(0)
+            self.first_fill = False
 
     def switch_config(self, new):
         self.config_action[self.cur].setChecked(False)
