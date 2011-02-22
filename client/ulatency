@@ -1,0 +1,862 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import print_function
+
+
+import sys
+
+
+try:
+  sys.setdefaultencoding('utf-8')
+except AttributeError:
+  pass
+
+PY3 = sys.version_info[0] != 2
+
+import os
+import re
+try:
+  import dbus
+except:
+  print("warning: dbus not available", file=sys.stderr)
+import subprocess
+from optparse import OptionParser
+from signal import signal, SIGINT, SIG_DFL
+
+
+signal(SIGINT, SIG_DFL)
+
+VERSION = '0.2'
+DEFAULT_TREE = "cpu"
+CGROUP_PATHS = {}
+CGROUP_SUBSYS = []
+
+if PY3:
+  u = str
+else:
+  def tounicode(x):
+    return unicode(x, "unicode_escape")
+  u = tounicode
+
+fp = open("/proc/cgroups", "r")
+for line in fp:
+    if line[0] == "#":
+        continue
+    chunks = line.split()
+    CGROUP_SUBSYS.append(chunks[0])
+
+fp = open("/proc/mounts", "r")
+for line in fp:
+    chunks = line.split()
+    if chunks[2] == "cgroup":
+        opts = chunks[3].split(",")
+        for opt in opts:
+            if opt in CGROUP_SUBSYS:
+                CGROUP_PATHS[opt] = chunks[1]
+
+class drug():
+    def __init__(self, **kwargs):
+        for k in kwargs:
+            setattr(self, k, kwargs[k])
+
+
+style = drug(**dict(
+        default    = "\033[m",
+        # styles
+        bold       = "\033[1m",
+        underline  = "\033[4m",
+        blink      = "\033[5m",
+        reverse    = "\033[7m",
+        concealed  = "\033[8m",
+        # font colors
+        black      = "\033[30m",
+        red        = "\033[31m",
+        green      = "\033[32m",
+        yellow     = "\033[33m",
+        blue       = "\033[34m",
+        magenta    = "\033[35m",
+        cyan       = "\033[36m",
+        white      = "\033[37m",
+        # background colors
+        on_black   = "\033[40m",
+        on_red     = "\033[41m",
+        on_green   = "\033[42m",
+        on_yellow  = "\033[43m",
+        on_blue    = "\033[44m",
+        on_magenta = "\033[45m",
+        on_cyan    = "\033[46m",
+        on_white   = "\033[47m"))
+
+
+def list_processes():
+    rv = []
+    for line in os.listdir("/proc"):
+        if re.match("\d+", line):
+            rv.append(line)
+    return rv
+
+def get_process_data(pid):
+    try:
+        path = os.path.join("/proc", pid, "status")
+        if not os.path.exists(path):
+            return None
+        fp = open(path)
+    except OSError:
+        return None
+    rv = {}
+    for line in fp.readlines():
+        chunks = line.split(":\t")
+        rv[chunks[0].strip().lower()] = chunks[1].strip()
+    fp.close()
+    return rv
+
+def flags_to_string(flags):
+    out = ""
+    for flag in flags:
+        if isinstance(flag, (tuple, list)):
+            flag = flag[1]
+        out += "[%s" %flag["name"]
+        for k,v in flag.iteritems():
+            if k == "name":
+                continue
+            if isinstance(v, (int, long)):
+                if v != 0:
+                    out += " %s=%s" %(unicode(k), unicode(v))
+            elif isinstance(v, (str, unicode)):
+                if v != "":
+                    out += " %s=%s" %(unicode(k), unicode(v))
+            else:
+                out += " %s=%s" %(unicode(k), unicode(v))
+        out += "]"
+    return out
+
+def print_process(pid, flags=None):
+    data = get_process_data(pid)
+    out = "%6s %s" %(data["pid"], data["name"].ljust(25))
+    if flags:
+        out += flags_to_string(flags)
+    print(out)
+
+class Session:
+
+    def __init__(self):
+        self.bus = dbus.SystemBus()
+        self.sets = {
+            'config':self.set_config,
+            'active':self.set_active,
+            }
+        self.gets = {
+            'config':self.get_config,
+            'desc':self.get_desc,
+            'systemflags':self.get_systemflags,
+            'activelistlength':self.get_activelistlength,
+            }
+
+    def init_system(self):
+        if hasattr(self, 'system'): return True
+        try:
+            self.system = self.bus.get_object(
+                'org.quamquam.ulatencyd',
+                '/org/quamquam/ulatencyd/System')
+        except dbus.exceptions.DBusException as e:
+            return False
+        return True
+
+    def init_user(self):
+        if hasattr(self, 'user'): return True
+        try:
+            self.user = self.bus.get_object(
+                'org.quamquam.ulatencyd',
+                '/org/quamquam/ulatencyd/User')
+        except dbus.exceptions.DBusException as e:
+            return False
+        return True
+
+    def config_list(self):
+        if not self.init_system():
+          return []
+
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try: return list(map(unicode, system.listSchedulerConfigs()))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def set(self, key, *value):
+        if key not in self.sets:
+            print("error: key '{0}' not available".format(key))
+            sys.exit(1)
+        return self.sets[key](*value)
+
+    def set_config(self, config=None):
+        if not self.init_system():
+            return False
+        configs = self.config_list()
+        if config is None: return ",".join(configs)
+        if config not in configs:
+            print("error: config '{0}' not available".format(config))
+            sys.exit(1)
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try: return system.setSchedulerConfig(config)
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def set_active(self, pid=None):
+        if pid is None:
+            print("error: no pid given")
+            sys.exit(1)
+        if not self.init_user():
+            return False
+        user = dbus.Interface(self.user, 'org.quamquam.ulatencyd.User')
+        try: return user.setActive(pid)
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+
+    def get(self, key, *value):
+        if key not in self.gets:
+            print("error: key '{0}' not available".format(key))
+            sys.exit(1)
+        return self.gets[key](*value)
+
+    def get_config(self):
+        if not self.init_system():
+          return ""
+        properties=dbus.Interface(self.system,'org.freedesktop.DBus.Properties')
+        try:
+            return unicode(properties.Get(
+                'org.quamquam.ulatencyd.System', 'config'))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def get_desc(self, config=None):
+        if not self.init_system():
+            return None
+
+        configs = self.config_list()
+        if config is None: return ",".join(configs)
+        if config not in configs:
+            print("error: config '{0}' not available".format(config))
+            sys.exit(1)
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try: return system.getSchedulerConfigDescription(config)
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def get_systemflags(self):
+        if not self.init_system():
+            return []
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try:
+            return list(map(unicode, system.listSystemFlags()))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+    def get_processflags(self, pid=None):
+        if not self.init_system():
+            return []
+        if pid is None:
+            print("error: no pid given")
+            sys.exit(1)
+        pid = int(pid)
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try:
+            rv = []
+            data = system.listFlags(pid)
+            for flag in data:
+              rv.append([flag[0],dict((unicode(x),v) for x,v in flag[1].iteritems())])
+            return rv
+        except dbus.exceptions.DBusException as e:
+            return []
+
+
+    def get_activelistlength(self):
+        if not self.init_user():
+            return None
+
+        properties = dbus.Interface(self.user,'org.freedesktop.DBus.Properties')
+        try:
+            return unicode(properties.Get(
+                'org.quamquam.ulatencyd.User', 'activeList'))
+        except dbus.exceptions.DBusException as e:
+            print(e)
+            sys.exit(2)
+
+
+
+class Tree(object):
+    """Displays a cgroup tree"""
+
+    boxes = {
+      True: drug(
+        start     = u("\u2500\u252c\u00bb"),
+        branch    = u("\u251c"),
+        last      = u("\u2514"),
+        end       = u("\u00ab"),
+        subtree   = u("\u2502"),
+        file      = u(" ") ),
+      False: drug(
+        start     = u("# "),
+        branch    = u("+-"),
+        last      = u("+-"),
+        end       = u(" #"),
+        subtree   = u("|"),
+        file      = u(" ") ),
+    }
+
+    def __init__(self, tree=DEFAULT_TREE, processes=True, show_all=True,
+                 utf = True, color = False, flags = False):
+        self.tree = tree
+        self.processes = processes
+        self.show_all = show_all
+        self.utf = utf
+        self.flags = flags
+        if flags:
+            self.session = Session()
+        if color:
+            self.color = drug(
+                process = u("{0.yellow}{1}{0.default} {2}"),
+                subtree = u("{0.bold}{0.black}{1}{0.default}"),
+                tree    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{0.green}") +
+                          u("{5}{0.bold}{0.black}{4}{0.default}"),
+                file    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{4}{5}{0.magenta}{6}{0.default}") )
+        else:
+            self.color = drug(
+                process = u("{1} {2}"),
+                subtree = u("{1}"),
+                tree    = u("{1}{2}{3}{5}{4}"),
+                file    = u("{1}{2}{3}{4}{5}{6}") )
+        path = self.get_path()
+        if path:
+            self.cache = drug(children = [], path = path, state = None,
+                name = os.path.basename(os.path.abspath(path)))
+        else:
+            print("error: tree does not exist")
+            sys.exit(1)
+
+    def processes_(self, b):
+        self.processes = b
+
+    def show_all_(self, b):
+        self.show_all = b
+
+    def get_process(self, pid):
+        data = get_process_data(pid)
+        if not self.show_all and data["pid"] != data["tgid"]:
+          return None
+        return data["pid"], data.get("name", "")
+
+    def generate(self, dir):
+        tree = drug(children = [], path = dir, state = "",
+            name = os.path.basename(os.path.abspath(dir)))
+        files = []
+        if self.processes and os.path.exists(os.path.join(dir, "tasks")):
+            fp = open(os.path.join(dir, "tasks"), "r")
+            for line in fp.readlines():
+                proc = self.get_process(line.strip())
+                if proc:
+                    files.append(proc)
+            fp.close()
+        for x in os.listdir(dir):
+            if os.path.isdir(dir + os.sep + x):
+                files.append((None, x))
+
+        for pid, fname in files:
+            path = os.path.join(dir, fname)
+            if os.path.isdir(path):
+                tree.children.append(self.generate(path))
+            else:
+                tree.children.append(drug(
+                    state = "", pid = pid, name = fname, path = path))
+        return tree
+
+    def get_path(self):
+        path = CGROUP_PATHS.get(self.tree, None)
+        if not os.path.exists(path):
+            return None
+        return path
+
+
+    def update(self):
+        path = self.get_path()
+        if not path: return
+        tree = self.generate(path)
+
+        def rec(old, new):
+            if old.state is None:
+                old.state = "new"
+            else: old.state = ""
+            if new.name != old.name:
+                old.name = new.name
+                if not old.state:
+                    old.state = "update"
+            if hasattr(old, 'children'):
+                children = dict([(child.name, child) for child in new.children])
+                doomed = []
+                for n, child in enumerate(old.children):
+                    if child.state == "delete":
+                        doomed.append(n)
+                        continue
+                    if child.name in children:
+                        rec(child, children[child.name])
+                        del children[child.name]
+                    else:
+                        child.state = "delete"
+                for n in sorted(doomed, reverse = True):
+                    del old.children[n]
+                for child in children.values():
+                    old.children.append(child)
+                    child.state = "new"
+
+        rec(self.cache, tree)
+        return self.cache
+
+    def display(self):
+        path = self.get_path()
+        print(path)
+        if not os.path.exists(path):
+            print("error: tree does not exist")
+            sys.exit(1)
+
+        def rec(branch, padding, islast=None):
+            if hasattr(branch, 'pid'):
+                if self.flags:
+                    fpad = " "*(max(28-len(branch.name)-len(str(branch.pid)), 3))
+                    flags = flags_to_string(self.session.get_processflags(branch.pid))
+                else:
+                    flags = ""
+                    fpad = ""
+                process = self.color.process.format(
+                    style, branch.pid, branch.name)
+                print(self.color.file.format(style, padding,
+                    islast or self.boxes[self.utf].branch,
+                    self.boxes[self.utf].file, process, fpad, flags))
+                return
+            print(self.color.tree.format(style, padding,
+                islast or self.boxes[self.utf].branch,
+                self.boxes[self.utf].start,
+                self.boxes[self.utf].end,
+                branch.name))
+            count = 0
+            for child in branch.children:
+                count += 1
+                last = None
+                p = padding
+                if count == len(branch.children):
+                    last = self.boxes[self.utf].last
+                    if os.path.isdir(branch.path):
+                        if islast:
+                            p = p + u(" ")
+                        else:
+                            p = p + self.boxes[self.utf].subtree
+                    p = p + u(" ")
+                else:
+                    if islast:
+                        p = p + u(" ")
+                    else:
+                        p = p + self.boxes[self.utf].subtree
+                    if os.path.isdir(branch.path):
+                        p = p + u(" ")
+                rec(child, p, last)
+
+        rec(self.generate(path), u(""), self.boxes[self.utf].last)
+
+    def clear(self):
+        """clears a cgroup mountpoint so it can be removed"""
+
+        path = self.get_path()
+        if not path:
+            print("subsystem not mounted")
+            return
+
+        try:
+            rootfp = open(os.path.join(path, "tasks"), "w")
+        except IOError:
+            print("need to run as root")
+            sys.exit(1)
+
+        def move(pid):
+            rootfp.write("%s\n" %pid)
+            try:
+                rootfp.flush()
+            except IOError:
+                pass
+
+        def clear(root):
+            print("clear %s" %root)
+            fp = open(os.path.join(root, "tasks"), "r")
+            for line in fp:
+                move(line.strip())
+
+        for root, dirs, files in os.walk(path, topdown=False):
+            if root == path:
+                continue
+            for retry in xrange(5):
+                clear(root)
+                try:
+                    os.rmdir(root)
+                    break
+                except OSError:
+                    pass
+            else:
+                print("could not clear %s" %root)
+        print("cleared %s" %path)
+
+class Gui:
+
+    def __init__(self):
+        pass
+
+    def run(self):
+        return 0
+
+
+class QtGui(Gui):
+
+    def __init__(self):
+        try:
+            from PyQt4.Qt import Qt, QApplication, QSystemTrayIcon, \
+                                 QIcon, QPixmap, QMenu, QMainWindow, \
+                                 QTreeWidget, QTreeWidgetItem, QTimer,\
+                                 QColor, QMenuBar, QKeySequence, QSettings, \
+                                 QActionGroup
+        except ImportError:
+            print("python qt4 bindings missing.")
+            sys.exit(1)
+
+        self.QColor = QColor
+        self.QTreeWidgetItem = QTreeWidgetItem
+        self.app = app = QApplication(sys.argv)
+        self.session = Session()
+        self.settings = QSettings("ulatencyd", "qtgui")
+        self.first_fill = True
+
+        self.tree = Tree(show_all = False)
+        icon = QIcon(QPixmap(self.get_logo()))
+        app.trayicon = QSystemTrayIcon(icon, app)
+        app.trayicon.show()
+        self.window = win = QMainWindow()
+
+        mb = QMenuBar(win)
+        win.setMenuBar(mb)
+        menu = mb.addMenu("client")
+        quit = menu.addAction("quit")
+        quit.setShortcut(QKeySequence("Ctrl+Q"))
+        quit.triggered.connect(app.quit)
+        menu = mb.addMenu("settings")
+
+        tree_menu = menu.addMenu("tree")
+
+        self.config_tree = {}
+        def connect(con):
+            return lambda: self.switch_tree(con)
+        tree_group = QActionGroup(tree_menu)
+        for subsys in CGROUP_PATHS:
+            print(subsys)
+            self.config_tree[subsys] = c = tree_menu.addAction(subsys)
+            c.setCheckable(True)
+            c.setActionGroup(tree_group)
+            c.setChecked(self.tree.tree == subsys)
+            c.triggered.connect(connect(subsys))
+
+        processes = menu.addAction("show processes")
+        processes.setCheckable(True)
+        processes.setChecked(self.tree.processes)
+        processes.triggered.connect(lambda:
+            self.tree.processes_(processes.isChecked()) or self.update_tree())
+        show_all = menu.addAction("show threads")
+        show_all.setCheckable(True)
+        show_all.setChecked(self.tree.show_all)
+        show_all.triggered.connect(lambda:
+            self.tree.show_all_(show_all.isChecked()) or self.update_tree())
+
+        win.ui = ui = drug(
+            treeview = QTreeWidget(win),
+            timer = QTimer(),
+        )
+        win.setCentralWidget(ui.treeview)
+        ui.treeview.setHeaderLabels(["process", "pid"])
+        ui.treeview.setAlternatingRowColors(True)
+        ui.treeview.indexOfChild = ui.treeview.indexOfTopLevelItem
+        ui.treeview.child = ui.treeview.topLevelItem
+        ui.timer.setInterval(5000)
+        ui.timer.timeout.connect(self.update_tree)
+
+
+        self.cur = self.session.get_config()
+        configs = self.session.config_list()
+
+        self.app.menu = QMenu()
+        menu = self.app.menu.addMenu("set config")
+        self.config_action = {}
+        def connect(con):
+            return lambda: self.switch_config(con)
+        for config in configs:
+            self.config_action[config] = c = menu.addAction(config)
+            c.setCheckable(True)
+            c.setChecked(self.cur == config)
+            c.setToolTip(unicode(self.session.get_desc(config)))
+            c.triggered.connect(connect(config))
+        menu = self.app.menu
+        menu.addSeparator()
+        quit = menu.addAction("Quit")
+
+        self.doomed_entries = []
+        self.update_tree()
+        app.trayicon.activated.connect(self.toggle_window)
+        app.trayicon.setContextMenu(menu)
+        quit.triggered.connect(self.quit)
+        print("gui started.")
+
+    def switch_tree(self, tree):
+        self.tree = Tree(tree=tree, show_all = self.tree.show_all)
+        self.doomed_entries = []
+        self.window.ui.treeview.clear()
+        self.update_tree()
+
+    def quit(self):
+        self.settings.sync()
+        self.app.quit()
+
+    def run(self):
+        return self.app.exec_()
+
+    def toggle_window(self, reason):
+        if reason != self.app.trayicon.Context:
+            b = not self.window.isVisible()
+            if b:
+                self.update_tree()
+                self.window.restoreGeometry(self.settings.value("main_window").toByteArray());
+                self.window.ui.timer.start()
+            else:
+                self.settings.setValue("main_window", self.window.saveGeometry());
+                self.window.ui.timer.stop()
+            self.window.setVisible(b)
+
+    def update_tree(self):
+        QTreeWidgetItem = self.QTreeWidgetItem
+        tree = self.tree.update()
+
+        for parent, child in self.doomed_entries:
+            i = parent.indexOfChild(child)
+            parent.takeChild(i)
+        self.doomed_entries = []
+
+        def add(branch, parent):
+            background = self.QColor(0, 200, 0, 100)
+            pid = u("")
+            if hasattr(branch, 'pid'):
+                pid = branch.pid
+            branch.item = item = QTreeWidgetItem(parent, [branch.name, pid])
+            item.setBackgroundColor(0, background)
+            item.setBackgroundColor(1, background)
+            item.setExpanded(True)
+            if hasattr(branch, 'children'):
+                for child in branch.children:
+                    if hasattr(child, 'children'):
+                        add(child, item)
+                for child in branch.children:
+                    if not hasattr(child, 'children'):
+                        add(child, item)
+
+        def update(branch, parent):
+            background = self.QColor("transparent")
+            dead = self.QColor(200, 0, 0, 100)
+            if branch.state == "update":
+                i = parent.indexOfChild(branch.item)
+                if i == -1:
+                    branch.state = "delete" # FIXME
+                    print("FIXME")
+                else:
+                    parent.child(i).setText(0, branch.name)
+            branch.item.setBackgroundColor(0, background)
+            branch.item.setBackgroundColor(1, background)
+            if hasattr(branch, 'children'):
+                for child in branch.children:
+                    if child.state == "delete":
+                        self.doomed_entries.append((branch.item, child.item))
+                        child.item.setBackgroundColor(0, dead)
+                        child.item.setBackgroundColor(1, dead)
+                    elif child.state == "new":
+                        add(child, branch.item)
+                    else:
+                        update(child, branch.item)
+
+        if tree.state == "new":
+            add(tree, self.window.ui.treeview)
+        else:
+            update(tree, self.window.ui.treeview)
+
+        if self.first_fill:
+            self.window.ui.treeview.resizeColumnToContents(0)
+            self.first_fill = False
+
+    def switch_config(self, new):
+        self.config_action[self.cur].setChecked(False)
+        self.config_action[new].setChecked(True)
+        cmd = " {0} set config {1}".format(sys.argv[0], new)
+        if os.system("gtksudo" + cmd) == 32512:
+            print(os.system("kdesudo" + cmd))
+        self.cur = new
+
+    def get_logo(self):
+        header = ["16 16 5 1"]
+        chars = ["#","x","o","."]
+        color = ["black",
+            "gray25",
+            "gray50",
+            "white"]
+        background = [
+            "                ",
+            "      xxxx      ",
+            "    xx####xx    ",
+            "   x##xxxx##x   ",
+            "  x#xx    xx#x  ",
+            "  x#x      x#x  ",
+            " x#x        x#x ",
+            " x#x        x#x ",
+            " x#x        x#x ",
+            " x#x        x#x ",
+            "  x#x      x#x  ",
+            "  x#xx    xx#x  ",
+            "   x##xxxx##x   ",
+            "    xx####xx    ",
+            "      xxxx      ",
+            "                "]
+        foreground = [
+            "o    o",
+            "o    o",
+            "o.  .o",
+            "o....o",
+            "oooo.o",
+            "o.o   ",
+            "ooo   "]
+        color = ["  c None"] + [char+" c "+col for char,col in zip(chars,color)]
+        for y, line in enumerate(foreground):
+            for x, char in enumerate(line):
+                if char != " ":
+                    s = background[y+4]
+                    background[y+4] = s[:x+5] + char + s[x+6:]
+        return header + color + background
+
+
+
+
+EPILOG="""commands:
+  tree [cgroup]     show a cgroup tree
+  get [key]         get daemon setting
+  set [key value]   set daemon value
+  flags [process]   list flags of a process or all
+  sysflags          list system flags
+  mounts            lists all mounted cgroups
+  clear cgroup|ALL  clears a cgroup
+"""
+
+def main():
+    parser = OptionParser( usage = "usage: %prog [options] [command] [key [value]]", version="%prog " + VERSION, epilog="commands for a list of commands" )
+    parser.add_option("--config-list", dest="list", action="store_true",
+        default=False, help="list system configs")
+    parser.add_option("-s", "--set", dest="set", action="store_true",
+        default=False, help="set key value pair")
+    parser.add_option("-g", "--get", dest="get", action="store_true",
+        default=False, help="get value by key")
+    parser.add_option("--gui", dest="gui", action="store_true",
+        default=False, help="enable gui")
+    parser.add_option("--no-utf", dest="utf", action="store_false",
+        default=True, help="disables utf8 for tree view")
+    parser.add_option("--no-color", dest="color", action="store_false",
+        default=True, help="disables color")
+    parser.add_option("--all", dest="all", action="store_true",
+        default=False, help="show complete tree")
+    parser.add_option("--flags", dest="flags", action="store_true",
+        default=False, help="show flags on tree output")
+    parser.add_option("--no-processes", dest="processes", action="store_false",
+        default=True, help="hide all processes")
+
+    options, args = parser.parse_args()
+
+    # if we run without any arguments and it doesn't look like we are in a
+    # terminal, we start the gui
+    if len(args) == 0 and not sys.stdout.isatty() and "DISPLAY" in os.environ:
+        options.gui = True
+
+    if options.gui:
+        sys.exit(QtGui().run())
+
+    if options.list:
+        print("\n".join(Session().config_list()))
+        sys.exit(0)
+
+    if options.set or args and args[0] == 'set':
+        if len(args[1:]):
+            print(Session().set(*args[1:]))
+            sys.exit(0)
+        else: print(",".join(Session().sets.keys()))
+        return
+
+    if options.get or args and args[0] == 'get':
+        if len(args[1:]):
+            print(Session().get(*args[1:]))
+            sys.exit(0)
+        else: print(",".join(Session().gets.keys()))
+        return
+
+    if not args or args[0] == 'tree':
+        kwargs = dict(utf = options.utf, color = options.color,
+            show_all = options.all, processes = options.processes,
+            flags = options.flags)
+        if len(args) > 1:
+            tree = Tree(tree=args[1], **kwargs)
+        else:
+            tree = Tree(**kwargs)
+        tree.display()
+        return
+
+    if args[0] == 'commands':
+        parser.print_usage()
+        print(EPILOG)
+        return
+
+    if args[0] == 'mounts':
+        for v,i in CGROUP_PATHS.iteritems():
+            print("%s %s" %(v.ljust(10, " "), i))
+        return
+
+    if args[0] == 'clear':
+        if not len(args) == 2:
+            print("not enough arguments")
+            sys.exit(1)
+        if args[1] == "ALL":
+            for tree in CGROUP_PATHS.iterkeys():
+                ct = Tree(tree=tree)
+                ct.clear()
+        else:
+            ct = Tree(tree=args[1])
+            ct.clear()
+        return
+
+    if args[0] == 'flags':
+        session = Session()
+        if len(args) > 1:
+            print_process(args[1], flags=session.get_processflags(args[1]))
+        else:
+            for proc in list_processes():
+                print_process(proc, flags=session.get_processflags(proc))
+        return
+
+    if args[0] == 'sysflags':
+        session = Session()
+        print(flags_to_string(session.get_systemflags()))
+        return
+
+    parser.print_usage()
+    print(EPILOG)
+
+
+if __name__ == "__main__":
+    main()
