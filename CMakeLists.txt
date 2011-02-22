@@ -166,6 +166,11 @@ install(DIRECTORY rules
         DESTINATION ${CONFIG_PREFIX}/ulatencyd 
         FILES_MATCHING PATTERN "*.lua"
         PATTERN "test.lua" EXCLUDE)
+install(FILES client/ulatency
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
+                    GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+        DESTINATION bin)
+
 if(NOT "${SYSTEMD_DIR}" STREQUAL "")
   install(FILES conf/ulatencyd.service
           DESTINATION ${SYSTEMD_DIR})
