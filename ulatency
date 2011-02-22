@@ -110,25 +110,31 @@ def get_process_data(pid):
     fp.close()
     return rv
 
+def flags_to_string(flags):
+    out = ""
+    for flag in flags:
+        if isinstance(flag, (tuple, list)):
+            flag = flag[1]
+        out += "[%s" %flag["name"]
+        for k,v in flag.iteritems():
+            if k == "name":
+                continue
+            if isinstance(v, (int, long)):
+                if v != 0:
+                    out += " %s=%s" %(unicode(k), unicode(v))
+            elif isinstance(v, (str, unicode)):
+                if v != "":
+                    out += " %s=%s" %(unicode(k), unicode(v))
+            else:
+                out += " %s=%s" %(unicode(k), unicode(v))
+        out += "]"
+    return out
+
 def print_process(pid, flags=None):
     data = get_process_data(pid)
     out = "%6s %s" %(data["pid"], data["name"].ljust(25))
     if flags:
-        for flag in flags:
-            out += "[%s" %flag["name"]
-            for k,v in flag.iteritems():
-                if k == "name":
-                    continue
-                if isinstance(v, (int, long)):
-                    if v != 0:
-                        out += " %s=%s" %(unicode(k), unicode(v))
-                elif isinstance(v, (str, unicode)):
-                    if v != "":
-                        out += " %s=%s" %(unicode(k), unicode(v))
-                else:
-                    out += " %s=%s" %(unicode(k), unicode(v))
-            out += "]"
-        #print(flags)
+        out += flags_to_string(flags)
     print(out)
 
 class Session:
@@ -263,7 +269,7 @@ class Session:
             rv = []
             data = system.listFlags(pid)
             for flag in data:
-              rv.append(dict((unicode(x),v) for x,v in flag[1].iteritems()))
+              rv.append([flag[0],dict((unicode(x),v) for x,v in flag[1].iteritems())])
             return rv
         except dbus.exceptions.DBusException as e:
             return []
@@ -304,24 +310,27 @@ class Tree(object):
     }
 
     def __init__(self, tree=DEFAULT_TREE, processes=True, show_all=True,
-                 utf = True, color = False):
+                 utf = True, color = False, flags = False):
         self.tree = tree
         self.processes = processes
         self.show_all = show_all
         self.utf = utf
+        self.flags = flags
+        if flags:
+            self.session = Session()
         if color:
             self.color = drug(
                 process = u("{0.yellow}{1}{0.default} {2}"),
                 subtree = u("{0.bold}{0.black}{1}{0.default}"),
                 tree    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{0.green}") +
                           u("{5}{0.bold}{0.black}{4}{0.default}"),
-                file    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{4}") )
+                file    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{4}{5}{0.magenta}{6}{0.default}") )
         else:
             self.color = drug(
                 process = u("{1} {2}"),
                 subtree = u("{1}"),
                 tree    = u("{1}{2}{3}{5}{4}"),
-                file    = u("{1}{2}{3}{4}") )
+                file    = u("{1}{2}{3}{4}{5}{6}") )
         path = self.get_path()
         if path:
             self.cache = drug(children = [], path = path, state = None,
@@ -416,11 +425,17 @@ class Tree(object):
 
         def rec(branch, padding, islast=None):
             if hasattr(branch, 'pid'):
+                if self.flags:
+                    fpad = " "*(max(28-len(branch.name)-len(str(branch.pid)), 3))
+                    flags = flags_to_string(self.session.get_processflags(branch.pid))
+                else:
+                    flags = ""
+                    fpad = ""
                 process = self.color.process.format(
                     style, branch.pid, branch.name)
                 print(self.color.file.format(style, padding,
                     islast or self.boxes[self.utf].branch,
-                    self.boxes[self.utf].file, process))
+                    self.boxes[self.utf].file, process, fpad, flags))
                 return
             print(self.color.tree.format(style, padding,
                 islast or self.boxes[self.utf].branch,
@@ -737,6 +752,7 @@ EPILOG="""commands:
   get [key]         get daemon setting
   set [key value]   set daemon value
   flags [process]   list flags of a process or all
+  sysflags          list system flags
   mounts            lists all mounted cgroups
   clear cgroup|ALL  clears a cgroup
 """
@@ -757,6 +773,8 @@ def main():
         default=True, help="disables color")
     parser.add_option("--all", dest="all", action="store_true",
         default=False, help="show complete tree")
+    parser.add_option("--flags", dest="flags", action="store_true",
+        default=False, help="show flags on tree output")
     parser.add_option("--no-processes", dest="processes", action="store_false",
         default=True, help="hide all processes")
 
@@ -790,7 +808,8 @@ def main():
 
     if not args or args[0] == 'tree':
         kwargs = dict(utf = options.utf, color = options.color,
-            show_all = options.all, processes = options.processes)
+            show_all = options.all, processes = options.processes,
+            flags = options.flags)
         if len(args) > 1:
             tree = Tree(tree=args[1], **kwargs)
         else:
@@ -828,6 +847,11 @@ def main():
         else:
             for proc in list_processes():
                 print_process(proc, flags=session.get_processflags(proc))
+        return
+
+    if args[0] == 'sysflags':
+        session = Session()
+        print(flags_to_string(session.get_systemflags()))
         return
 
     parser.print_usage()
