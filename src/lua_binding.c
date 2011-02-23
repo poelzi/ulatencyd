@@ -1791,11 +1791,11 @@ int l_filter_exit(u_proc *proc, u_filter *flt) {
 }
 
 
-inline int l_filter_precheck(u_filter *flt) {
+int l_filter_precheck(u_filter *flt) {
   return l_filter_run_table(flt, "precheck");
 }
 
-inline int l_filter_postcheck(u_filter *flt) {
+int l_filter_postcheck(u_filter *flt) {
   return l_filter_run_table(flt, "postcheck");
 }
 

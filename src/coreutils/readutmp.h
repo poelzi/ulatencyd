@@ -213,4 +213,7 @@ char *extract_trimmed_name (const STRUCT_UTMP *ut);
 int read_utmp (char const *file, size_t *n_entries, STRUCT_UTMP **utmp_buf,
                int options);
 
+#ifdef UTMP_NAME_FUNCTION
+int UTMP_NAME_FUNCTION(char const *file);
+#endif
 #endif /* __READUTMP_H__ */

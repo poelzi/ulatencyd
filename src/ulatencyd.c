@@ -581,7 +581,6 @@ int main (int argc, char *argv[])
   g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "ulatencyd started successfull");
-  if(g_main_loop_is_running(main_loop));
-    g_main_loop_run(main_loop);
+  g_main_loop_run(main_loop);
   return 0;
 }

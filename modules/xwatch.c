@@ -111,18 +111,20 @@ get_localhost()
     if (buf) {
       buf_len += buf_len;
       if ((buf = realloc (buf, buf_len)) == NULL)
-        err(1, NULL);
+        g_warning("malloc failed");
     } else {
       buf_len = 128;        /* Initial guess */
       if ((buf = malloc (buf_len)) == NULL)
-        err(1, NULL);
+        g_warning("malloc failed");
       }
   } while (((myerror = gethostname(buf, buf_len)) == 0 && !memchr (buf, '\0', buf_len))
           || errno == ENAMETOOLONG);
 
   /* gethostname failed, abort. */
-  if (myerror)
-    err(1, NULL);
+  if (myerror) {
+    g_warning("can't get hostname");
+    return NULL;
+  }
 
   return buf;
 }
@@ -519,6 +521,8 @@ static gboolean update_all_server(gpointer data) {
 
 int xwatch_init() {
   localhost = get_localhost();
+  if(!localhost)
+    return 0;
   xwatch_id = get_plugin_id();
 #ifndef TEST_XWATCH
   GError *error = NULL;
