@@ -166,6 +166,19 @@ static void remove_proc_from_delay_stack(pid_t pid) {
   }
 }
 
+static int pid_in_delay_stack(pid_t pid) {
+  int i = 0;
+  struct delay_proc *cur;
+
+  for(i = 0; i < delay_stack->len; i++) {
+      cur = g_ptr_array_index(delay_stack, i);
+      if(cur->proc->pid == pid)
+          return TRUE;
+  }
+  return FALSE;
+}
+
+
 /**
  * u_proc_free
  * @ptr: pointer to #u_proc
@@ -587,14 +600,13 @@ static void clear_process_changed() {
 }
 
 
+// helper for process_clear_filter_block
 static gboolean _clear_skip_filters_types(gpointer key, gpointer value, gpointer user_data) {
   struct filter_block *fb = value;
   int *block_type = user_data;
 
   return !(fb->flags & *block_type);
 }
-
-
 
 /**
  * process_clear_filter_block
@@ -841,6 +853,8 @@ static int run_new_pid(gpointer ign) {
         if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
             u_trace("run filter for %d", cur->proc->pid);
             g_array_append_val(targets, cur->proc->pid);
+            // enforce the scheduler on run when moved from the delay queue
+            cur->proc->changed = TRUE;
         }
     }
     process_new_list(targets, TRUE, FALSE);
@@ -903,16 +917,36 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     lp->proc = proc;
     clock_gettime(CLOCK_MONOTONIC, &(lp->when));
     g_ptr_array_add(delay_stack, lp);
+    proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
+    if(proc->changed)
+      scheduler_run_one(proc);
+    proc->changed = TRUE;
   } else {
     // we got a exec event, so the process changed daramaticly.
     // clear all filter blocks that requested rerun on exec
     clear_process_skip_filters(proc, FILTER_RERUN_EXEC);
     // force update on basic data, they will be invalid anyway
+    int old_changed = proc->changed;
+
     u_proc_ensure(proc, CMDLINE, TRUE);
     u_proc_ensure(proc, BASIC, TRUE);
     u_proc_ensure(proc, EXE, TRUE);
-    filter_for_proc(proc, filter_fast_list);
+
+    // if a process is in the new stack, his changed settings will be true
+    // for sure, but we only want to schedule him, if the instant filters
+    // change something. 
+    // if the process is old, we run the filters and let the scheduler decide
+    if(pid_in_delay_stack(proc->pid)) {
+      proc->changed = FALSE;
+      filter_for_proc(proc, filter_fast_list);
+      if(proc->changed)
+        scheduler_run_one(proc);
+      proc->changed = old_changed;
+    } else {
+      filter_for_proc(proc, filter_fast_list);
+      scheduler_run_one(proc);
+    }
   }
 
   return TRUE;
