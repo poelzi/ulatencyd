@@ -1908,7 +1908,7 @@ static int l_register_filter (lua_State *L) {
   flt->precheck = l_filter_precheck;
   flt->postcheck = l_filter_postcheck;
   flt->exit = l_filter_exit;
-  filter_register(flt);
+  filter_register(flt, FALSE);
 
   return 0;
 }

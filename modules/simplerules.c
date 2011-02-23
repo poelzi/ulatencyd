@@ -37,8 +37,6 @@
 
 int simplerules_id;
 
-static GList *target_rules;
-
 struct simple_rule {
   gid_t     gid;
   uid_t     uid;
@@ -52,12 +50,28 @@ struct simple_rule {
 };
 
 
+struct filter_data {
+    GList *rules;
+};
+
+struct filter_data FILTERS[] = {
+    {NULL},
+    {NULL},
+    {NULL},
+};
+
+enum {
+    LIST_FAST,
+    LIST_NORMAL,
+    LIST_END
+};
+
 int parse_line(char *line, int lineno) {
     char **chunks = NULL;
     GError *error = NULL;
     gint chunk_len;
     struct simple_rule *rule = NULL;
-    int i;
+    int i, instant=0;
     char *value, *key;
     int tmp;
 
@@ -135,10 +149,15 @@ int parse_line(char *line, int lineno) {
         } else if(strcmp(key, "inherit") == 0) {
             tmp = atoi(value);
             rule->template->inherit = tmp;
+        } else if(strcmp(key, "instant") == 0) {
+            instant = !strcmp(value, "true") || atoi(value);
         }
     }
 
-    target_rules = g_list_append(target_rules, rule);
+    if(instant)
+        FILTERS[LIST_FAST].rules = g_list_append(FILTERS[LIST_FAST].rules, rule);
+    else
+        FILTERS[LIST_NORMAL].rules = g_list_append(FILTERS[LIST_NORMAL].rules, rule);
 
     g_strfreev(chunks);
     return TRUE;
@@ -249,6 +268,9 @@ void read_rules(void) {
 }
 
 int rule_applies(u_proc *proc, struct simple_rule *rule) {
+//    u_proc_ensure(proc, EXE, TRUE);
+//    printf("add proc %d to %s\n", proc->pid, proc->exe);
+
     if(rule->cmdline) {
         if(u_proc_ensure(proc, CMDLINE, FALSE) && 
            !strncmp(proc->cmdline_match, rule->cmdline, strlen(rule->cmdline))) {
@@ -258,6 +280,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
     }
     if(rule->basename) {
         if(u_proc_ensure(proc, CMDLINE, FALSE) && 
+           proc->cmdfile &&
            !strncmp(proc->cmdfile, rule->basename, strlen(rule->basename))) {
 //              printf("cmdfile %s  %s\n", proc->cmdfile, rule->basename);
               return TRUE;
@@ -313,7 +336,7 @@ void simple_add_flag(u_filter *filter, u_proc *proc, struct simple_rule *rule) {
 }
 
 int simplerules_run_proc(u_proc *proc, u_filter *filter) {
-    GList *cur = target_rules;
+    GList *cur = ((struct filter_data *)filter->data)->rules;
     struct simple_rule *rule;
 
     while(cur) {
@@ -324,22 +347,28 @@ int simplerules_run_proc(u_proc *proc, u_filter *filter) {
         }
         cur = g_list_next(cur);
     }
-    return FILTER_MIX(FILTER_STOP, 0);
+    return FILTER_MIX(FILTER_RERUN_EXEC | FILTER_STOP, 0);
 }
 
 
 int simplerules_init() {
+    int i = 0;
     simplerules_id = get_plugin_id();
     u_filter *filter;
-    target_rules = NULL;
+//    target_rules = NULL;
     read_rules();
-    if(target_rules) {
-        filter = filter_new();
-        filter->type = FILTER_C;
-        filter->name = g_strdup("simplerules");
-        filter->callback = simplerules_run_proc;
-        filter_register(filter);
+//    if(target_rules) {
+    for(i=0; i < LIST_END; i++) {
+        if(FILTERS[i].rules) {
+            filter = filter_new();
+            filter->type = FILTER_C;
+            filter->name = g_strdup("simplerules");
+            filter->callback = simplerules_run_proc;
+            filter->data = &FILTERS[i];
+            filter_register(filter, i == LIST_FAST);
+        }
     }
+//    }
     return 0;
 }
 

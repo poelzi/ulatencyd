@@ -88,7 +88,7 @@ void set_active_pid(guint uid, guint pid)
     proc = proc_by_pid(pid);
     if(proc) {
       proc->changed = 1;
-      process_run_one(proc, FALSE);
+      process_run_one(proc, FALSE, FALSE);
     }
   } else {
     up = ups->data;
@@ -104,7 +104,7 @@ void set_active_pid(guint uid, guint pid)
       ua->actives = g_list_remove(ua->actives, up);
       if(proc) {
         proc->changed = 1;
-        process_run_one(proc, FALSE);
+        process_run_one(proc, FALSE, FALSE);
       }
   }
 

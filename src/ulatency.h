@@ -88,8 +88,10 @@ enum FILTER_TYPES {
 };
 
 enum FILTER_FLAGS {
-  FILTER_STOP          = (1<<0),
+  FILTER_STOP         = (1<<0),
   FILTER_SKIP_CHILD   = (1<<1),
+  FILTER_RERUN_EXEC   = (1<<2),
+  FILTER_SKIP_THREADS = (1<<3),
 };
 
 #define FILTER_TIMEOUT(v) ( v & 0xFFFF)
@@ -129,9 +131,8 @@ struct lua_filter {
 };
 
 struct filter_block {
-  unsigned int pid;
   GTime timeout;
-  gboolean skip;
+  int flags;
 };
 
 
@@ -342,11 +343,11 @@ GArray *u_proc_get_current_task_pids(u_proc *proc);
 
 
 u_filter *filter_new();
-void filter_register(u_filter *filter);
+void filter_register(u_filter *filter, int instant);
 void filter_free(u_filter *filter);
 void filter_unregister(u_filter *filter);
 void filter_run();
-void filter_for_proc(u_proc *proc);
+void filter_for_proc(u_proc *proc, GList *list);
 
 int filter_run_for_proc(gpointer data, gpointer user_data);
 void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
@@ -354,13 +355,14 @@ void cp_proc_t(const struct proc_t *src, struct proc_t *dst);
 // notify system of a new pids/changed/dead pids
 int process_new(pid_t pid, int noupdate);
 int process_new_delay(pid_t pid, pid_t parent);
-int process_new_list(GArray *list, int noupdate);
+int process_new_list(GArray *list, int noupdate, int instant);
 int process_remove(u_proc *proc);
 int process_remove_by_pid(pid_t pid);
 // low level update api
 int process_update_pids(pid_t pids[]);
 int process_update_pid(pid_t pid);
-int process_run_one(u_proc *proc, int update);
+int process_run_one(u_proc *proc, int update, int instant);
+void clear_process_skip_filters(u_proc *proc, int block_types);
 
 int process_update_all();
 

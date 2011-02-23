@@ -961,7 +961,7 @@ void freesupgrp(proc_t *p) {
     if(!p->supgid)
       return;
     for (i=0; i<p->nsupgid; i++)
-      if (p->supgrp[i])
+      if (p->supgrp && p->supgrp[i])
         free(p->supgrp[i]);
     free(p->supgid);
     free(p->supgrp);

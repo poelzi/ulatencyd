@@ -46,6 +46,7 @@ DBusGConnection *U_dbus_connection;
 
 lua_State *lua_main_state;
 GList *filter_list;
+GList *filter_fast_list;
 GNode *processes_tree;
 GHashTable *processes;
 u_scheduler scheduler = {NULL};
@@ -210,12 +211,6 @@ void u_proc_free_task(void *ptr) {
   proc_t *proc = ptr;
   // the task group owner has the same pointers, so we shall not free them 
   // when the task is removed
-  //if(proc->tid != proc->tgid)
-  //  freesupgrp(proc);
-  //if((proc->tid != proc->tgid) && (proc->nsupgid > 0))
-  //   freesupgrp(proc);
-  //if (proc->supgid)
-  //	free(proc->supgid);
   g_slice_free(proc_t, proc);
 }
 
@@ -422,7 +417,6 @@ static void processes_free_value(gpointer data) {
   DEC_REF(proc);
 }
 
-
 /**
  * parent_proc_by_pid:
  * @parent_pid: #proc_t of parent
@@ -591,6 +585,31 @@ static void clear_process_changed() {
   }
   return;
 }
+
+
+static gboolean _clear_skip_filters_types(gpointer key, gpointer value, gpointer user_data) {
+  struct filter_block *fb = value;
+  int *block_type = user_data;
+
+  return !(fb->flags & *block_type);
+}
+
+
+
+/**
+ * process_clear_filter_block
+ *
+ * clears all filter blocks of given types
+ *
+ * Returns: none
+ */
+void clear_process_skip_filters(u_proc *proc, int block_types) {
+  g_hash_table_foreach_remove(proc->skip_filter, 
+                              _clear_skip_filters_types,
+                              &block_types);
+
+}
+
 
 // copy the fake value of a parent pid to the child until the real value
 // of the child changes from the parent
@@ -824,7 +843,7 @@ static int run_new_pid(gpointer ign) {
             g_array_append_val(targets, cur->proc->pid);
         }
     }
-    process_new_list(targets, TRUE);
+    process_new_list(targets, TRUE, FALSE);
 
     // process_new_list removes the entries it processes from the delay stack
     // buf it the process is dead already, they stay here in the list. we make
@@ -884,7 +903,18 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     lp->proc = proc;
     clock_gettime(CLOCK_MONOTONIC, &(lp->when));
     g_ptr_array_add(delay_stack, lp);
+    filter_for_proc(proc, filter_fast_list);
+  } else {
+    // we got a exec event, so the process changed daramaticly.
+    // clear all filter blocks that requested rerun on exec
+    clear_process_skip_filters(proc, FILTER_RERUN_EXEC);
+    // force update on basic data, they will be invalid anyway
+    u_proc_ensure(proc, CMDLINE, TRUE);
+    u_proc_ensure(proc, BASIC, TRUE);
+    u_proc_ensure(proc, EXE, TRUE);
+    filter_for_proc(proc, filter_fast_list);
   }
+
   return TRUE;
 }
 
@@ -942,7 +972,8 @@ int process_new(int pid, int noupdate) {
   proc = proc_by_pid(pid);
   if(!proc)
     return FALSE;
-  filter_for_proc(proc);
+  filter_for_proc(proc, filter_fast_list);
+  filter_for_proc(proc, filter_list);
   scheduler_run_one(proc);
   return TRUE;
 }
@@ -956,7 +987,7 @@ int process_new(int pid, int noupdate) {
  *
  * Returns: boolean. Sucess
  */
-int process_new_list(GArray *list, int update) {
+int process_new_list(GArray *list, int update, int instant) {
   u_proc *proc;
   int i, j = 0;
   pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
@@ -976,7 +1007,9 @@ int process_new_list(GArray *list, int update) {
       continue;
     if(!u_proc_ensure(proc, BASIC, FALSE))
       continue;
-    filter_for_proc(proc);
+    if(instant)
+      filter_for_proc(proc, filter_fast_list);
+    filter_for_proc(proc, filter_list);
     scheduler_run_one(proc);
   }
   free(pids);
@@ -992,10 +1025,10 @@ int process_new_list(GArray *list, int update) {
  *
  * Returns: boolean. Sucess
  */
-int process_run_one(u_proc *proc, int update) {
+int process_run_one(u_proc *proc, int update, int instant) {
   if(update)
     process_update_pid(proc->pid);
-  filter_for_proc(proc);
+  filter_for_proc(proc, instant ? filter_fast_list : filter_list);
   scheduler_run_one(proc);
   return TRUE;
 }
@@ -1205,9 +1238,13 @@ u_filter* filter_new() {
   return rv;
 }
 
-void filter_register(u_filter *filter) {
+void filter_register(u_filter *filter, int instant) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "register new filter: %s", filter->name ? filter->name : "unknown");
-  filter_list = g_list_append(filter_list, filter);
+  if(instant) {
+      filter_fast_list = g_list_append(filter_fast_list, filter);
+  } else {
+      filter_list = g_list_append(filter_list, filter);
+  }
 }
 
 
@@ -1227,7 +1264,7 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
 
   //g_hash_table_lookup
   if(flt_block) {
-    if(flt_block->skip)
+    if(flt_block->flags & FILTER_STOP)
       return 0;
     time (&ttime);
     if(flt_block->timeout > ttime)
@@ -1251,18 +1288,14 @@ int filter_run_for_proc(gpointer data, gpointer user_data) {
     g_hash_table_insert(proc->skip_filter, GUINT_TO_POINTER(flt), flt_block);
   }
 
-  flt_block->pid = proc->proc.tid;
-
   timeout = FILTER_TIMEOUT(rv);
   flags = FILTER_FLAGS(rv);
-
   if(timeout) {
     if(!ttime)
       time (&ttime);
     flt_block->timeout = ttime + abs(timeout);
-  } else if(flags == FILTER_STOP) {
-    flt_block->skip = TRUE;
   }
+  flt_block->flags = flags;
 
   return rv;
 }
@@ -1325,10 +1358,10 @@ int scheduler_run_one(u_proc *proc) {
   return 1;
 }
 
-void filter_for_proc(u_proc *proc) {
+void filter_for_proc(u_proc *proc, GList *list) {
   /* run all filters on one proc */
   g_timer_continue(timer_filter);
-  GList *cur = g_list_first(filter_list);
+  GList *cur = g_list_first(list);
   while(cur) {
     filter_run_for_proc(proc, cur->data);
     cur = g_list_next(cur);

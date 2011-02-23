@@ -539,7 +539,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         ret = dbus_message_new_method_return(m);
 
-        int suc = process_run_one(proc, update);
+        int suc = process_run_one(proc, update, FALSE);
 
         dbus_message_append_args (ret,
                                   DBUS_TYPE_BOOLEAN, &suc,
