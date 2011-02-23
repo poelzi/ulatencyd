@@ -676,7 +676,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
   time_t timeout = time(NULL);
   gboolean full_update = FALSE;
   static int run = 0;
-  int removed;
   int rrt;
   int rv = 0;
   int i;
@@ -777,9 +776,9 @@ int update_processes_run(PROCTAB *proctab, int full) {
   g_list_free(updated);
 
   if(full) {
-    removed = g_hash_table_foreach_remove(processes, 
-                                          processes_is_last_changed,
-                                          &run);
+    g_hash_table_foreach_remove(processes, 
+                                processes_is_last_changed,
+                                &run);
     // we can completly clean the delay stack as all processes are now processed
     // missing so will cause scheduling for dead processes
     if(delay_stack->len)

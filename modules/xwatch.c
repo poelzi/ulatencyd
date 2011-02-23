@@ -110,12 +110,16 @@ get_localhost()
 
     if (buf) {
       buf_len += buf_len;
-      if ((buf = realloc (buf, buf_len)) == NULL)
-        g_warning("malloc failed");
+      if ((buf = realloc (buf, buf_len)) == NULL) {
+          g_warning("malloc failed");
+          return NULL;
+      }
     } else {
       buf_len = 128;        /* Initial guess */
-      if ((buf = malloc (buf_len)) == NULL)
-        g_warning("malloc failed");
+      buf = malloc(buf_len);
+      if (!buf)
+          g_warning("malloc failed");
+          return NULL;
       }
   } while (((myerror = gethostname(buf, buf_len)) == 0 && !memchr (buf, '\0', buf_len))
           || errno == ENAMETOOLONG);
@@ -166,7 +170,11 @@ int create_connection(struct x_server *xs) {
   setenv("HOME", pw->pw_dir, 1);
   unsetenv("XAUTHORITY");
   i = -1;
-  seteuid(xs->uid);
+  if(seteuid(xs->uid)) {
+      g_warning("can't seteuid to %d", xs->uid);
+      goto error;
+  }
+
   do {
     xs->connection = xcb_connect(xs->display, &screenNum);
 
@@ -186,7 +194,9 @@ int create_connection(struct x_server *xs) {
     setenv("XAUTHORITY", g_ptr_array_index(xauthptr, i), 1);
   } while(TRUE);
 
-  seteuid(0);
+  if((getuid() == 0) && seteuid(0)) {
+      g_error("can't switch back to root");
+  }
 
   g_ptr_array_unref(xauthptr);
 
@@ -462,7 +472,6 @@ static gboolean update_all_server(gpointer data) {
     } else {
       i++;
     }
-    csess = g_list_next(csess);
   }
   csess = g_list_first(U_session_list);
   while(csess) {

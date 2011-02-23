@@ -479,18 +479,18 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
 
         if (is2) {
-            if(!dbus_message_get_args(m, &error,
-                                        DBUS_TYPE_UINT64, &tpid,
-                                        DBUS_TYPE_INVALID) ||
-              !dbus_message_iter_init (m, &imsg))
-                  PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
+              if (!dbus_message_get_args(m, &error,
+                                         DBUS_TYPE_UINT64, &tpid,
+                                         DBUS_TYPE_UINT64, &id,
+                                         DBUS_TYPE_INVALID) ||
+                  !dbus_message_iter_init (m, &imsg))
+                      PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
 
-        } else if (!dbus_message_get_args(m, &error,
-                                      DBUS_TYPE_UINT64, &tpid,
-                                      DBUS_TYPE_UINT64, &id,
-                                      DBUS_TYPE_INVALID) ||
-            !dbus_message_iter_init (m, &imsg))
-                PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
+        } else if(!dbus_message_get_args(m, &error,
+                                         DBUS_TYPE_UINT64, &tpid,
+                                         DBUS_TYPE_INVALID) ||
+                  !dbus_message_iter_init (m, &imsg))
+                      PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
 
         pid_t pid = (pid_t)tpid;
 

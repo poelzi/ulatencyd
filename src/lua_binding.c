@@ -1717,7 +1717,6 @@ u_scheduler LUA_SCHEDULER = {
 int l_filter_run_table_proc(u_proc *proc, u_filter *flt, const char *key, int ignore) {
   gint rv;
   lua_State *L;
-  u_proc *nproc;
   struct lua_filter *lf = (struct lua_filter *)flt->data;
 
   g_assert(flt->type == FILTER_LUA);
@@ -1737,7 +1736,7 @@ int l_filter_run_table_proc(u_proc *proc, u_filter *flt, const char *key, int ig
     return FILTER_STOP;
   }
   lua_pushvalue(L, -2);
-  nproc = push_u_proc(L, proc);
+  push_u_proc(L, proc);
   //cp_proc_t(proc, nproc);
   if(docall(L, 2, 1)) {
     // execution error.
