@@ -356,12 +356,15 @@ class Tree(object):
             name = os.path.basename(os.path.abspath(dir)))
         files = []
         if self.processes and os.path.exists(os.path.join(dir, "tasks")):
-            fp = open(os.path.join(dir, "tasks"), "r")
-            for line in fp.readlines():
-                proc = self.get_process(line.strip())
-                if proc:
-                    files.append(proc)
-            fp.close()
+            try:
+                fp = open(os.path.join(dir, "tasks"), "r")
+                for line in fp.readlines():
+                    proc = self.get_process(line.strip())
+                    if proc:
+                        files.append(proc)
+                fp.close()
+            except IOError:
+                pass
         for x in os.listdir(dir):
             if os.path.isdir(dir + os.sep + x):
                 files.append((None, x))
@@ -489,9 +492,12 @@ class Tree(object):
 
         def clear(root):
             print("clear %s" %root)
-            fp = open(os.path.join(root, "tasks"), "r")
-            for line in fp:
-                move(line.strip())
+            try:
+                fp = open(os.path.join(root, "tasks"), "r")
+                for line in fp:
+                    move(line.strip())
+            except IOError:
+                pass
 
         for root, dirs, files in os.walk(path, topdown=False):
             if root == path:
