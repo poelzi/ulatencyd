@@ -61,9 +61,9 @@ static long int delay;
 static GPtrArray *delay_stack;
 
 // profiling timers
-GTimer *timer_filter;
-GTimer *timer_scheduler;
-GTimer *timer_parse;
+struct u_timer timer_filter;
+struct u_timer timer_scheduler;
+struct u_timer timer_parse;
 
 
 
@@ -430,6 +430,28 @@ static void processes_free_value(gpointer data) {
   DEC_REF(proc);
 }
 
+
+static int find_parent_caller_stack(GArray *array, pid_t pid) {
+    int i;
+    for(i = 0; i < array->len; i++) {
+        if(g_array_index(array, pid_t, i) == pid)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static int remove_parent_caller_stack(GArray *array, pid_t pid) {
+    int i;
+    for(i = 0; i < array->len; i++) {
+        if(g_array_index(array, pid_t, i) == pid) {
+            g_array_remove_index(array, i);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+
 /**
  * parent_proc_by_pid:
  * @parent_pid: #proc_t of parent
@@ -440,23 +462,39 @@ static void processes_free_value(gpointer data) {
  * Returns: @u_proc of parent
  */
 static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
+    pid_t update_pid;
+    static GArray *updates = NULL;
+    if(!updates)
+        updates = g_array_new(FALSE, FALSE, sizeof(pid_t));
     u_proc *parent = proc_by_pid(parent_pid);
     // this should't happen, but under fork stress init may not have
     // collected so the parent does not exist, or the parent just died. we try updating
     // the process first and try again.
     if(!parent) {
-      g_debug("parent missing: %d, force update", parent_pid);
-      process_update_pid(child->pid);
-      parent = proc_by_pid(child->proc.ppid);
-      if(!parent) {
-        g_debug("parent missing, second try: %d parent %d", child->pid, child->proc.ppid);
-        process_update_pid(child->proc.ppid);
+        g_debug("parent missing: %d, force update", parent_pid);
+        if(!find_parent_caller_stack(updates, child->pid)) {
+            update_pid = child->pid;
+            g_array_append_val(updates, update_pid);
+            process_update_pid(update_pid);
+            remove_parent_caller_stack(updates, update_pid);
+        } else if(!find_parent_caller_stack(updates, child->proc.ppid)) {
+            // we try to get the parent as last resort
+            update_pid = child->proc.ppid;
+            g_array_append_val(updates, update_pid);
+            process_update_pid(update_pid);
+            remove_parent_caller_stack(updates, update_pid);
+        }
+
         parent = proc_by_pid(child->proc.ppid);
-      }
+        if(!parent) {
+            g_debug("parent missing, second try: %d parent %d", child->pid, child->proc.ppid);
+            process_update_pid(child->proc.ppid);
+            parent = proc_by_pid(child->proc.ppid);
+        }
     }
     if(!parent) {
-      g_warning("pid: %d parent %d missing. attaching to pid 1", child->pid, parent_pid);
-      return proc_by_pid(1);
+        g_warning("pid: %d parent %d missing. attaching to pid 1", child->pid, parent_pid);
+        return proc_by_pid(1);
     }
     return parent;
 }
@@ -471,6 +509,7 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
  */
 static void rebuild_tree() {
   GHashTableIter iter;
+  GList *keys, *cur;
   gpointer key, value;
   u_proc *proc, *parent;
 
@@ -488,10 +527,13 @@ static void rebuild_tree() {
   }
 
   // now we can lookup the parents and attach the node to the parent
-  g_hash_table_iter_init (&iter, processes);
-  while (g_hash_table_iter_next (&iter, &key, &value)) 
+  //g_hash_table_iter_init (&iter, processes);
+  keys = g_hash_table_get_keys(processes);
+  cur = g_list_first(keys);
+  while(cur) 
   {
-    proc = (u_proc *)value;
+    proc = (u_proc *)g_hash_table_lookup(processes,cur->data);
+
     g_assert(proc->proc.ppid != proc->pid);
     if(proc->proc.ppid) {
       // get a parent, hopfully the real one
@@ -509,9 +551,10 @@ static void rebuild_tree() {
 
       U_PROC_UNSET_STATE(proc, UPROC_HAS_PARENT);
     }
+    cur = cur->next;
   }
 
-
+  g_list_free(keys);
 }
 
 /**
@@ -963,10 +1006,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
 int process_update_pids(pid_t pids[]) {
   int rv;
   PROCTAB *proctab;
-  g_timer_continue(timer_parse);
+  u_timer_start(&timer_parse);
   proctab = openproc(OPENPROC_FLAGS | PROC_PID, pids);
   rv = update_processes_run(proctab, FALSE);
-  g_timer_stop(timer_parse);
+  u_timer_stop(&timer_parse);
   closeproc(proctab);
   return rv;
 
@@ -1382,9 +1425,9 @@ int scheduler_run_one(u_proc *proc) {
   // FIXME make scheduler more flexible
   int rv;
   if(scheduler.one) {
-    g_timer_continue(timer_scheduler);
+    u_timer_start(&timer_scheduler);
     rv = scheduler.one(proc);
-    g_timer_stop(timer_scheduler);
+    u_timer_stop(&timer_scheduler);
     return rv;
   }
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "no scheduler.one set");
@@ -1393,13 +1436,13 @@ int scheduler_run_one(u_proc *proc) {
 
 void filter_for_proc(u_proc *proc, GList *list) {
   /* run all filters on one proc */
-  g_timer_continue(timer_filter);
+  u_timer_start(&timer_filter);
   GList *cur = g_list_first(list);
   while(cur) {
     filter_run_for_proc(proc, cur->data);
     cur = g_list_next(cur);
   }
-  g_timer_stop(timer_filter);
+  u_timer_stop(&timer_filter);
 }
 
 
@@ -1442,18 +1485,20 @@ int iterate(gpointer rv) {
   gdouble last, current, tparse, tfilter, tscheduler;
   gulong dump;
 
-  tparse = g_timer_elapsed(timer_parse, &dump);
-  tfilter = g_timer_elapsed(timer_filter, &dump);
-  tscheduler = g_timer_elapsed(timer_scheduler, &dump);
+  tparse = g_timer_elapsed(timer_parse.timer, &dump);
+  tfilter = g_timer_elapsed(timer_filter.timer, &dump);
+  tscheduler = g_timer_elapsed(timer_scheduler.timer, &dump);
 
   g_debug("spend between iterations: update=%0.2F filter=%0.2F scheduler=%0.2F total=%0.2F", 
           tparse, tfilter, tscheduler, (tparse + tfilter + tscheduler));
+
   g_timer_start(timer);
   u_flag_clear_timeout(NULL, timeout);
   iteration += 1;
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "start iteration %d:", iteration);
   update_caches();
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "update processes:");
+
   last = g_timer_elapsed(timer, &dump);
   process_update_all();
   current = g_timer_elapsed(timer, &dump);
@@ -1471,12 +1516,11 @@ int iterate(gpointer rv) {
   clear_process_changed();
   system_flags_changed = 0;
   // g_timer_reset causes strange effects...
-  g_timer_start(timer_parse);
-  g_timer_stop(timer_parse);
-  g_timer_start(timer_filter);
-  g_timer_stop(timer_filter);
-  g_timer_start(timer_scheduler);
-  g_timer_stop(timer_scheduler);
+  g_timer_destroy(timer);
+
+  u_timer_stop_clear(&timer_parse);
+  u_timer_stop_clear(&timer_filter);
+  u_timer_stop_clear(&timer_scheduler);
 
   // try the make current memory non swapalbe
   if(mlockall(MCL_CURRENT) && getuid() == 0)
@@ -1652,12 +1696,15 @@ int core_init() {
   smp_num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
   // initialize profiling timer
-  timer_filter = g_timer_new();
-  g_timer_stop(timer_filter);
-  timer_scheduler = g_timer_new();
-  g_timer_stop(timer_scheduler);
-  timer_parse = g_timer_new();
-  g_timer_stop(timer_parse);
+  timer_filter.timer = g_timer_new();
+  timer_filter.count = 0;
+  g_timer_stop(timer_filter.timer);
+  timer_scheduler.timer = g_timer_new();
+  timer_scheduler.count = 0;
+  g_timer_stop(timer_scheduler.timer);
+  timer_parse.timer = g_timer_new();
+  timer_parse.count = 0;
+  g_timer_stop(timer_parse.timer);
 
 
 #ifdef ENABLE_DBUS

@@ -1,6 +1,9 @@
+#include "config.h"
+#include "ulatency.h"
 #include <stdio.h>
 #include <fts.h>
 #include <unistd.h>
+#include <glib.h>
 
 
 void recursive_rmdir(const char *path, int add_level) {
@@ -33,4 +36,25 @@ void recursive_rmdir(const char *path, int add_level) {
       }
       fts_close(fts);
     }
+}
+
+
+void u_timer_start(struct u_timer *t) {
+    if(!t->count) {
+        g_timer_continue(t->timer);
+    };
+    t->count++;
+}
+
+void u_timer_stop(struct u_timer *t) {
+    t->count--;
+    g_assert(t->count >= 0);
+    if(!t->count) {
+        g_timer_stop(t->timer);
+    };
+}
+
+void u_timer_stop_clear(struct u_timer *t) {
+    g_timer_start(t->timer);
+    g_timer_stop(t->timer);
 }

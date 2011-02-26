@@ -383,7 +383,18 @@ double get_last_percent();
 
 // misc stuff
 guint get_plugin_id();
+
+// tools.c
+
+struct u_timer {
+  GTimer *timer;
+  int count;
+};
+
 void recursive_rmdir(const char *path, int add_level);
+void u_timer_start(struct u_timer *t);
+void u_timer_stop(struct u_timer *t);
+void u_timer_stop_clear(struct u_timer *t);
 
 // lua_binding
 int l_filter_run_for_proc(u_proc *pr, u_filter *flt);
