@@ -5,7 +5,7 @@ Welcome to the ulatencyd wiki!
 * [Mailinglist](http://groups.google.com/group/ulatencyd)
 
 # Package Repositories
-* [Ubuntu](https://launchpad.net/~poelzi/+archive/ulatencyd-stable)
+* [Ubuntu](https://launchpad.net/~ulatencyd/+archive/stable) **NEW LOCATION !!!**
 * [Arch](http://aur.archlinux.org/packages.php?O=0&K=ulatencyd&do_Search=Go)
 
 
