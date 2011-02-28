@@ -45,7 +45,7 @@
                                __VA_ARGS__)
 
 
-#define VERSION 0.4.6
+#define VERSION 0.4.8
 
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \

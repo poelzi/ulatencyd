@@ -1,3 +1,13 @@
+0.4.8
+=====
+  - cli/gui client called ulatency (requires python2.6+ and qt bindings for gui)
+  - simplerules module for easy to handle rules
+  - clang support
+  - instant rules that are executed without delay.
+  - enhancements to the dbus interface
+  - better realtime support
+  - different bugfixes
+
 0.4.5
 =====
   - Systemd compatibilty
