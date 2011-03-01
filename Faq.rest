@@ -11,13 +11,33 @@ FAQ
 How can I see if it's working ?
 -------------------------------
 
-   On the Terminal type:
+   With ulatencyd 0.4.8+ you can type in your console
+
+   ::
+
+      ulatency tree
+
+   And should get a nice tree like structure like this:
+
+   ::
+
+     /sys/fs/cgroup/cpu
+     └─┬»cpu«
+       ├ 2 kthreadd
+       ├─┬»s_ul«
+       │ └ 4975 ulatencyd
+       ├─┬»sys_bg«
+       │ └ 1928 cron
+       ├─┬»sys_idle«
+       │ └ 3036 preload
+
+
+   Alternatively type:
 
    ::
 
       ps xaf -eo pid,session,args,cgroup
-
-   
+  
    You should get an output like this:
 
    ::
