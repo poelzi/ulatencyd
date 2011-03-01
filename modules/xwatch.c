@@ -117,10 +117,11 @@ get_localhost()
     } else {
       buf_len = 128;        /* Initial guess */
       buf = malloc(buf_len);
-      if (!buf)
+      if (!buf) {
           g_warning("malloc failed");
           return NULL;
       }
+    }
   } while (((myerror = gethostname(buf, buf_len)) == 0 && !memchr (buf, '\0', buf_len))
           || errno == ENAMETOOLONG);
 
@@ -530,8 +531,10 @@ static gboolean update_all_server(gpointer data) {
 
 int xwatch_init() {
   localhost = get_localhost();
-  if(!localhost)
+  if(!localhost) {
+    g_warning("can't find localhost name\n");
     return 0;
+  }
   xwatch_id = get_plugin_id();
 #ifndef TEST_XWATCH
   GError *error = NULL;
