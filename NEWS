@@ -1,3 +1,7 @@
+0.4.9
+=====
+  - Bugfixes
+
 0.4.8
 =====
   - cli/gui client called ulatency (requires python2.6+ and qt bindings for gui)
