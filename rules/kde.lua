@@ -52,12 +52,12 @@ KdeCore = {
 
 -- filter that instantly sets a fake group on newly spawned processes from
 -- krunner und kdeinit4
-KdeRunnerFix = RunnerFix.new("KdeRunnerFix", {"kdeinit4", "krunner"})
+KdeRunnerFix = RunnerFix.new("KdeRunnerFix", {"kdeinit4: kdeinit4 Running...", "krunner"})
 
 -- on start we have to fix all processes that have descented from kde
 
 local function cleanup_kde_mess()
-  cleanup_desktop_mess({"kdeinit4", "krunner"})
+  cleanup_desktop_mess({"kdeinit4: kdeinit4 Running...", "krunner"})
   return false
 end
 
