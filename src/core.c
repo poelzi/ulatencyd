@@ -671,15 +671,17 @@ void clear_process_skip_filters(u_proc *proc, int block_types) {
 #define fake_var_fix(FAKE, ORG) \
   if(proc->FAKE && ((proc-> FAKE##_old != proc->proc.ORG) || (proc->FAKE == proc->proc.ORG))) { \
     /* when real value was set, the fake value disapears. */ \
+    /*printf("unset fake: %d %d %d %d\n", proc->pid, proc->proc.ORG, proc->FAKE##_old, proc-> FAKE);*/ \
     proc-> FAKE = 0; \
     proc->FAKE##_old = 0; \
     proc->changed = 1; \
-  } else if(parent-> FAKE && \
+  } else if(parent-> FAKE && !proc->FAKE && \
             parent->proc.ORG == proc->proc.ORG && \
             parent-> FAKE != proc->FAKE) { \
     proc-> FAKE = parent->FAKE; \
     proc->FAKE##_old = proc->proc.ORG; \
     proc->changed = 1; \
+    /*printf("set fake: pid:%d ppid:%d fake:%d fake_old:%d\n", proc->pid, parent->pid, proc->FAKE, proc->FAKE##_old);*/ \
   }
 
 /**

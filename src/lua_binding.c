@@ -876,8 +876,12 @@ static int u_proc_set_pgid (lua_State *L) {
   if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
-  proc->fake_pgrp_old = proc->proc.pgrp;
-  proc->fake_pgrp = value;
+  // we only set the fake value when it's differs from the original
+  if(proc->proc.pgrp != value) {
+    proc->fake_pgrp_old = proc->proc.pgrp;
+    proc->fake_pgrp = value;
+  }
+
   proc->changed = 1;
 
   lua_pushinteger(L, 0);
