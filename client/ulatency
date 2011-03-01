@@ -54,6 +54,8 @@ for line in fp:
             if opt in CGROUP_SUBSYS:
                 CGROUP_PATHS[opt] = chunks[1]
 
+
+
 class drug():
     def __init__(self, **kwargs):
         for k in kwargs:
@@ -337,7 +339,7 @@ class Tree(object):
                 name = os.path.basename(os.path.abspath(path)))
         else:
             print("error: tree does not exist")
-            sys.exit(1)
+            #sys.exit(1)
 
     def processes_(self, b):
         self.processes = b
@@ -380,7 +382,7 @@ class Tree(object):
 
     def get_path(self):
         path = CGROUP_PATHS.get(self.tree, None)
-        if not os.path.exists(path):
+        if not path or not os.path.exists(path):
             return None
         return path
 
@@ -647,6 +649,9 @@ class QtGui(Gui):
     def update_tree(self):
         QTreeWidgetItem = self.QTreeWidgetItem
         tree = self.tree.update()
+
+        if not tree:
+            return
 
         for parent, child in self.doomed_entries:
             i = parent.indexOfChild(child)
