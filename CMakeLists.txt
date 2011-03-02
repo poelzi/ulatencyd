@@ -162,6 +162,8 @@ install(FILES conf/ulatencyd.conf
         DESTINATION ${CONFIG_PREFIX}/ulatencyd)
 install(FILES conf/cgroups.conf 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd)
+install(FILES conf/simple.conf
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd)
 install(DIRECTORY rules 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd 
         FILES_MATCHING PATTERN "*.lua"
