@@ -139,9 +139,6 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
         name = "poison",
         label = { "user.poison" },
         cgroups_name = "psn_${pid}",
-        check = function(proc)
-                  return true
-                end,
         adjust_new = function(cgroup, proc)
                   cgroup:add_task(proc.pid)
                   cgroup:commit()
@@ -243,7 +240,12 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
 -- io configuration. blkio does not support hirarchies
 SCHEDULER_MAPPING_DESKTOP["blkio"] =
 {
-
+  {
+    name = "poison",
+    label = { "user.poison", "user.poison.group" },
+    cgroups_name = "psn_${pgrp}",
+    param = { ["blkio.weight"]="1" },
+  },
   { 
     name = "active",
     cgroups_name = "usr_${euid}_active",
