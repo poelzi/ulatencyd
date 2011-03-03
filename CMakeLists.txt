@@ -162,10 +162,14 @@ install(FILES conf/ulatencyd.conf
         DESTINATION ${CONFIG_PREFIX}/ulatencyd)
 install(FILES conf/cgroups.conf 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd)
+install(FILES conf/simple.conf
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd)
 install(DIRECTORY rules 
         DESTINATION ${CONFIG_PREFIX}/ulatencyd 
         FILES_MATCHING PATTERN "*.lua"
         PATTERN "test.lua" EXCLUDE)
+install(DIRECTORY conf/simple.d
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd )
 install(FILES client/ulatency
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
