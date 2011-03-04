@@ -17,23 +17,6 @@ local meminfo = ulatency.get_meminfo()
 local swapout_stats_last = vminfo.vm_pswpout
 local swapout_stats = {}
 
-function num_or_percent(conf, value, default)
-  local rv = false
-  if not conf then
-    conf = "100%"
-  end
-  if not conf and default then
-    conf = default
-  end
-  for w in string.gmatch(conf, "(%d+)%%") do
-     return ((value)/100)*tonumber(w)
-  end
-  if not conf then
-    return value
-  end
-  return conf
-end
-
 --pprint(meminfo)
 --pprint(vminfo)
 
@@ -48,9 +31,10 @@ function update_caches()
   for i,j in ipairs(swapout_stats) do
     if j == 0 then swap_memory_pressure = false end
   end
-  local min_free = num_or_percent(ulatency.get_config("memory", "min_free_ram"), 
+  local min_free = num_or_percent(ulatency.get_config("memory", "min_free_ram"),
                                   meminfo.kb_main_total)
 
+  --print("min free", min_free, tonumber(meminfo.kb_main_cached) + tonumber(meminfo.kb_main_free))
   if (tonumber(meminfo.kb_main_cached) + tonumber(meminfo.kb_main_free)) <= min_free then
     new_memory_pressure = true
   end
@@ -61,6 +45,8 @@ function update_caches()
   if(memory_pressure ~= new_memory_pressure and new_memory_pressure) then
     ulatency.log_warning("memory pressure detected !")
     ulatency.run_iteration()
+  elseif (memory_pressure ~= new_memory_pressure and not new_memory_pressure) then
+    ulatency.log_info("memory pressure ended")
   end
   memory_pressure = new_memory_pressure
   return true
@@ -74,9 +60,10 @@ if max_targets then
   max_targets = tonumber(max_targets)
 end
 
-local max_rss = num_or_percent(ulatency.get_config("memory", "rss_upper_limit"), 
+local target_max_rss = num_or_percent(ulatency.get_config("memory", "target_max_rss"), 
                                meminfo.kb_main_total,
                                false)
+
 
 ProtectorMemory = {
   name = "ProtectorMemory",
@@ -121,8 +108,8 @@ ProtectorMemory = {
                end)
     self.targets[max_targets+1] = nil
 
-    if max_rss then
-      if proc.rss >= max_rss then
+    if target_max_rss then
+      if proc.rss >= target_max_rss then
         self.sure_targets[#self.sure_targets+1] = proc
       end
     end
@@ -145,7 +132,7 @@ ProtectorMemory = {
       )
       if not added then
         ulatency.add_flag(flag)
-        flag.threshold = math.ceil(top_targets[v][2]*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95)))
+        flag.threshold = top_targets[v][2]
       end
     end
     local flag = ulatency.new_flag{name="user.poison", reason="memory", 

@@ -154,10 +154,12 @@ function Scheduler:all()
     self.ITERATION = 1
   end
   -- list only changed processes
+  self:update_caches()
+
   ulatency.log_debug("scheduler filter:".. tostring(self.C_FILTER))
   for k,proc in ipairs(ulatency.list_processes(self.C_FILTER)) do
     --print("sched", proc, proc.cmdline)
-    self:one(proc)
+    self:one(proc, false)
   end
   self.C_FILTER = true
   self.ITERATION = self.ITERATION + 1
@@ -189,9 +191,22 @@ function Scheduler:load_config(name)
   return true
 end
 
+function Scheduler:update_caches()
+  Scheduler.meminfo = ulatency.get_meminfo()
+  Scheduler.vminfo = ulatency.get_vminfo()
+end
+
 function Scheduler:one(proc)
+  return self:_one(proc, true)
+end
+
+function Scheduler:_one(proc, single)
   if not self.MAPPING then
     self:load_config()
+  end
+
+  if single then
+    self:update_caches()
   end
 
   if proc.block_scheduler == 0 then

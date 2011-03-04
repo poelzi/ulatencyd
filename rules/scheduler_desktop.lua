@@ -10,15 +10,16 @@ SCHEDULER_MAPPING_DESKTOP = {}
 
 SCHEDULER_MAPPING_DESKTOP.description = "a good default desktop configuration"
 
+
 -- cpu & memory configuration
 SCHEDULER_MAPPING_DESKTOP["cpu"] =
 {
   {
     name = "rt_tasks",
     cgroups_name = "rt_tasks",
-    param = { ["cpu.shares"]="3048", ["cpu.rt_runtime_us"] = "949500" },
+    param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "949500" },
     check = function(proc)
-          local rv = proc.received_rt or check_label({"sched.rt"}, proc)
+          local rv = proc.received_rt or check_label({"sched.rt"}, proc) or proc.vm_size == 0
           return rv
         end,
   },
@@ -34,7 +35,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     check = function(proc)
               return ( proc.euid > 999 )
             end,
-    param = { ["cpu.shares"]="3048",  ["cpu.rt_runtime_us"] = "100" },
+    param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
       { 
         name = "poison",
@@ -54,22 +55,22 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "bg_high",
-        param = { ["cpu.shares"]="1000",  ["cpu.rt_runtime_us"] = "1"},
+        param = { ["cpu.shares"]="1000",  ["?cpu.rt_runtime_us"] = "1"},
         label = { "user.bg_high" },
       },
       { 
         name = "media",
-        param = { ["cpu.shares"]="2600", ["cpu.rt_runtime_us"] = "1"},
+        param = { ["cpu.shares"]="2600", ["?cpu.rt_runtime_us"] = "1"},
         label = { "user.media" },
       },
       { 
         name = "ui",
-        param = { ["cpu.shares"]="2000", ["cpu.rt_runtime_us"] = "1"},
+        param = { ["cpu.shares"]="2000", ["?cpu.rt_runtime_us"] = "1"},
         label = { "user.ui" }
       },
       { 
         name = "active",
-        param = { ["cpu.shares"]="1500", ["cpu.rt_runtime_us"] = "1"},
+        param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
             return proc.is_active
           end
@@ -81,7 +82,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
       },
       { 
         name = "group",
-        param = { ["cpu.shares"]="600", ["cpu.rt_runtime_us"] = "1"},
+        param = { ["cpu.shares"]="600", ["?cpu.rt_runtime_us"] = "1"},
         cgroups_name = "grp_${pgrp}",
         check = function(proc)
                   return true
@@ -109,15 +110,8 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
               return (proc.ppid ~= 0 or proc.pid == 1)
             end,
     param = { ["cpu.shares"]="800",
-              ["cpu.rt_runtime_us"] = "1"},
-  },
-  { 
-    name = "kernel",
-    cgroups_name = "",
-    check = function(proc)
-              return (proc.vm_size == 0)
-            end
-  },
+              ["?cpu.rt_runtime_us"] = "1"},
+  }
 }
 
 SCHEDULER_MAPPING_DESKTOP["memory"] =
@@ -149,6 +143,16 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                   end
                   bytes = math.floor(bytes*(tonumber(ulatency.get_config("memory", "process_downsize")) or 0.95))
                   cgroup:set_value("memory.soft_limit_in_bytes", bytes)
+                  -- we use soft limit, but without limit we can't set the memsw limit
+                  local max_rss = math.floor(num_or_percent(ulatency.get_config("memory", "max_rss"),
+                                                 Scheduler.meminfo.kb_main_total,
+                                                 false) * 1024)
+                  local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"), 
+                                                   Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
+                                               max_rss)
+                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
+                  cgroup:set_value("memory.limit_in_bytes", max_rss)
+                  cgroup:set_value("memory.memsw.limit_in_bytes", total_limit, max_rss)
                   cgroup:commit()
                 end
       },
@@ -165,7 +169,17 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                                                     { name = "user.poison.group",
                                                       value = proc.pgrp })
                   cgroup:add_task(proc.pid)
-                  cgroup:set_value("memory.soft_limit_in_bytes", flag.threshold)
+                  cgroup:set_value("memory.soft_limit_in_bytes", math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95))))
+                  -- we use soft limit, but without limit we can't set the memsw limit
+                  local max_rss = math.floor(num_or_percent(ulatency.get_config("memory", "max_rss"),
+                                                 Scheduler.meminfo.kb_main_total,
+                                                 false) * 1024)
+                  local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"), 
+                                                   Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
+                                               max_rss)
+                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
+                  cgroup:set_value("memory.limit_in_bytes", max_rss)
+                  cgroup:set_value("memory.memsw.limit_in_bytes", total_limit, max_rss)
                   cgroup:commit()
                 end
       },
@@ -275,3 +289,4 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
             end
   },
 }
+

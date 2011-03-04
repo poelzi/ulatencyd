@@ -675,3 +675,21 @@ end
 function pprint(data)
   print(to_string(data))
 end
+
+
+function num_or_percent(conf, value, default)
+  local rv = false
+  if not conf and default then
+    conf = default
+  end
+  if not conf then
+    conf = "100%"
+  end
+  for w in string.gmatch(conf, "(%d+)%%") do
+     return ((value)/100)*tonumber(w)
+  end
+  if not conf then
+    return value
+  end
+  return conf
+end
