@@ -170,6 +170,8 @@ install(DIRECTORY rules
         PATTERN "test.lua" EXCLUDE)
 install(DIRECTORY conf/simple.d
         DESTINATION ${CONFIG_PREFIX}/ulatencyd )
+install(DIRECTORY conf/scheduler
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd )
 install(FILES client/ulatency
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE

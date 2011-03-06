@@ -1974,6 +1974,27 @@ static int user_load_lua_rule_file(lua_State *L) {
   return 1;
 }
 
+static int user_load_rule_directory(lua_State *L) {
+  char *full, *full2;
+  const char *name = luaL_checkstring(L, 1);
+  int abs = lua_toboolean(L, 2);
+  if(!abs) {
+    full = g_strconcat(QUOTEME(CONFIG_PATH), "/", name, NULL);
+    full2 = realpath(full, NULL);
+    if(!full2) {
+      g_warning("load_rule_file: realpath failed for %s", full);
+      g_free(full);
+      return 0;
+    }
+    lua_pushboolean(L, !load_rule_directory(full2, NULL, FALSE));
+    g_free(full);
+    g_free(full2);
+  } else {
+    lua_pushboolean(L, !load_rule_directory(name, NULL, FALSE));
+  }
+  return 1;
+}
+
 static int l_uid_stats(lua_State *L) {
     GList *cur = U_session_list;
     u_session *sess;
@@ -2101,6 +2122,7 @@ static const luaL_reg R[] = {
   {"get_time", l_get_time},
   {"quit_daemon", l_quit},
   {"load_rule", user_load_lua_rule_file},
+  {"load_rule_directory", user_load_rule_directory},
   {"process_update", l_process_update},
   {"run_iteration", l_run_interation},
 #ifdef DEVELOP_MODE
@@ -2142,6 +2164,8 @@ int luaopen_ulatency(lua_State *L) {
 	/* module version */
   PUSH_STR(version, QUOTEME(VERSION))
   PUSH_STR(release_agent, QUOTEME(RELEASE_AGENT))
+  PUSH_STR(path_rules_directory, QUOTEME(RULES_DIRECTORY))
+  PUSH_STR(path_config_directory, QUOTEME(CONFIG_PATH))
 
   //PUSH_INT(hertz, Hertz)
   PUSH_INT(smp_num_cpus, smp_num_cpus)

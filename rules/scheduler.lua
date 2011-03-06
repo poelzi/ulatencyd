@@ -286,3 +286,5 @@ end
 
 -- register scheduler
 ulatency.scheduler = Scheduler
+
+ulatency.load_rule_directory("scheduler/")

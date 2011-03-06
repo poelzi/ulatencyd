@@ -312,8 +312,8 @@ extern DBusGConnection *U_dbus_connection_system; // always the system bus
 
 // core.c
 int load_modules(char *path);
-int load_rule_directory(char *path, char *load_pattern, int fatal);
-int load_rule_file(char *name);
+int load_rule_directory(const char *path, const char *load_pattern, int fatal);
+int load_rule_file(const char *name);
 int load_lua_rule_file(lua_State *L, const char *name);
 
 /* u_proc* u_proc_new(proc_t proc)

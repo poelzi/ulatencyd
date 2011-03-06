@@ -1556,7 +1556,7 @@ u_scheduler *scheduler_get() {
  * rules and modules handling
  **************************************************************************/
 
-int load_rule_directory(char *path, char *load_pattern, int fatal) {
+int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
   char rpath[PATH_MAX+1];
   gsize  disabled_len;
   int i, j;
