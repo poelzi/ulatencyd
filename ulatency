@@ -376,7 +376,7 @@ class Tree(object):
 
     def get_process(self, pid):
         data = get_process_data(pid)
-        if not self.show_all and data["pid"] != data["tgid"]:
+        if not self.show_all and data and data["pid"] != data["tgid"]:
           return None
         if self.cmdline:
             cmdline = u(" ").join(data.get("cmdline", []))
