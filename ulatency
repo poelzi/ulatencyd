@@ -28,7 +28,7 @@ CGROUP_PATHS = {}
 CGROUP_SUBSYS = []
 
 def prnt(arg):
-  sys.stdout.write(arg.encode("utf-8"))
+  sys.stdout.write(PY3 and str(arg) or arg.encode("utf-8"))
   sys.stdout.write("\n")
 
 if PY3:
