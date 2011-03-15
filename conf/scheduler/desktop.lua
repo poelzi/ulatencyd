@@ -6,9 +6,11 @@
     License: GNU General Public License 3 or later
 ]]--
 
-SCHEDULER_MAPPING_DESKTOP = {}
-
-SCHEDULER_MAPPING_DESKTOP.description = "a good default desktop configuration"
+SCHEDULER_MAPPING_DESKTOP = {
+  info = {
+    description = "a good default desktop configuration"
+  }
+}
 
 
 -- cpu & memory configuration

@@ -235,7 +235,7 @@ function Scheduler:_one(proc, single)
             group:commit()
           end
         else
-          ulatency.log_debug("no group found for: "..tostring(proc))
+          ulatency.log_debug("no group found for: "..tostring(proc).." subsystem:"..tostring(subsys))
         end
       end
     end
@@ -250,7 +250,9 @@ function Scheduler:list_configs()
   for k,v in pairs(getfenv()) do
     if string.sub(k, 1, 18 ) == "SCHEDULER_MAPPING_" then
       name = string.lower(string.sub(k, 19))
-      rv[#rv+1] = name
+      if v.info and not v.info.hidden then
+        rv[#rv+1] = name
+      end
     end
   end
   return rv
@@ -259,8 +261,8 @@ end
 function Scheduler:get_config_description(name)
   name = string.upper(name)
   local mapping = getfenv()["SCHEDULER_MAPPING_" .. name]
-  if mapping then
-    return mapping.description
+  if mapping and mapping.info then
+    return mapping.info.description
   end
 end
 

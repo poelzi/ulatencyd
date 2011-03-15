@@ -1121,6 +1121,9 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "is_active" )) {
     lua_pushboolean(L, is_active_pid(proc));
     return 1;
+  } else if(!strcmp(key, "active_pos" )) {
+    lua_pushinteger(L, get_active_pos(proc));
+    return 1;
   } else if(!strcmp(key, "received_rt" )) {
     lua_pushboolean(L, proc->received_rt);
     return 1;
