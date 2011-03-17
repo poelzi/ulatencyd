@@ -526,40 +526,31 @@ static int u_proc_gc (lua_State *L)
   return 0;
 }
 
-
-typedef struct {
-  u_proc *proc;
-  proc_t *task;
-} l_task;
-
-static l_task *check_l_task (lua_State *L, int index)
+static u_task *check_u_task (lua_State *L, int index)
 {
-  l_task **p;
+  u_task **p;
   luaL_checktype(L, index, LUA_TUSERDATA);
-  p = (l_task **)luaL_checkudata(L, index, U_PROC_TASK_META);
+  p = (u_task **)luaL_checkudata(L, index, U_PROC_TASK_META);
   if (p == NULL) luaL_typerror(L, index, U_PROC_TASK);
   return *p;
 }
 
-static void push_l_task (lua_State *L, u_proc *proc, proc_t *task)
+static void push_u_task (lua_State *L, u_task *task)
 {
-  l_task *nt = g_slice_new(l_task);
-  l_task **p = (l_task **)lua_newuserdata(L, sizeof(l_task *));
+  u_task **p = (u_task **)lua_newuserdata(L, sizeof(u_task *));
 
-  INC_REF(proc);
-  nt->proc = proc;
-  nt->task = task;
+  INC_REF(task->proc);
 
-  *p = nt;
+  *p = task;
   luaL_getmetatable(L, U_PROC_TASK_META);
   lua_setmetatable(L, -2);
 
   return;
 }
 
-static int l_task_gc (lua_State *L)
+static int u_task_gc (lua_State *L)
 {
-  l_task *task = check_l_task(L, 1);
+  u_task *task = check_u_task(L, 1);
   //printf("goodbye proc_t (%p)\n", proc);
   DEC_REF(task->proc);
   return 0;
@@ -684,7 +675,7 @@ static int u_proc_get_tasks (lua_State *L) {
       lua_pushinteger(L, i+1);
       //lua_pushinteger(L, g_array_index(proc->tasks, proc_t, i).tid);
       //lua_pushinteger(L, ((proc_t *)g_ptr_array_index(proc->tasks, i))->tid);
-      push_l_task(L, proc, (proc_t *)g_ptr_array_index(proc->tasks, i));
+      push_u_task(L, (u_task *)g_ptr_array_index(proc->tasks, i));
       lua_settable(L, -3);
   }
   return 1;
@@ -1235,11 +1226,11 @@ static int u_proc_index (lua_State *L)
   return 0;
 }
 
-static int l_task_index (lua_State *L) {
-  l_task *task = check_l_task(L, 1);
+static int u_task_index (lua_State *L) {
+  u_task *task = check_u_task(L, 1);
   const char *key = luaL_checkstring(L, 2);
 
-  return handle_proc_t (L, task->task, key);
+  return handle_proc_t (L, &(task->task), key);
 }
 
 static int u_proc_tostring (lua_State *L)
@@ -1267,17 +1258,17 @@ static const luaL_reg u_proc_meta[] = {
 };
 
 /*********************************************
-   l_task setup                              */
+   u_task setup                              */
 
 
-static int l_task_tostring (lua_State *L)
+static int u_task_tostring (lua_State *L)
 {
-  l_task **task = lua_touserdata(L, 1);
-  lua_pushfstring(L, "l_task: <%p> pid:%d tid:%d %s", (*task), (*task)->task->tgid, (*task)->task->tid, &(*task)->task->cmd);
+  u_task **task = lua_touserdata(L, 1);
+  lua_pushfstring(L, "u_task: <%p> pid:%d tid:%d %s", (*task), (*task)->task.tgid, (*task)->task.tid, &(*task)->task.cmd);
   return 1;
 }
 
-static int l_task_eq (lua_State *L)
+static int u_task_eq (lua_State *L)
 {
   u_proc *proc = check_u_proc(L, 1);
   u_proc *proc2 = check_u_proc(L, 2);
@@ -1286,15 +1277,15 @@ static int l_task_eq (lua_State *L)
   return 1;
 }
 
-static const luaL_reg l_task_meta[] = {
-  {"__gc",       l_task_gc},
-  {"__tostring", l_task_tostring},
-  {"__index",    l_task_index},
-  {"__eq",       l_task_eq},
+static const luaL_reg u_task_meta[] = {
+  {"__gc",       u_task_gc},
+  {"__tostring", u_task_tostring},
+  {"__index",    u_task_index},
+  {"__eq",       u_task_eq},
   {NULL, NULL}
 };
 
-static const luaL_reg l_task_methods[] = {
+static const luaL_reg u_task_methods[] = {
   {NULL, NULL},
 };
 
@@ -2219,9 +2210,9 @@ int luaopen_ulatency(lua_State *L) {
   lua_pop(L, 1);
 
   // map u_proc
-  luaL_register(L, U_PROC_TASK, l_task_methods); 
+  luaL_register(L, U_PROC_TASK, u_task_methods); 
   luaL_newmetatable(L, U_PROC_TASK_META);
-  luaL_register(L, NULL, l_task_meta);
+  luaL_register(L, NULL, u_task_meta);
   //lua_pushliteral(L, "__index");
   //lua_pushvalue(L, -3);
   //lua_rawset(L, -3);                  /* metatable.__index = methods */

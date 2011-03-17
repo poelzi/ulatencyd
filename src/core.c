@@ -221,10 +221,16 @@ void u_proc_free(void *ptr) {
 }
 
 void u_proc_free_task(void *ptr) {
-  proc_t *proc = ptr;
+  u_task *task = ptr;
   // the task group owner has the same pointers, so we shall not free them 
   // when the task is removed
-  g_slice_free(proc_t, proc);
+  if(task->task.nsupgid > 0 && 
+     task->task.supgid &&
+     task->task.supgid != task->proc->proc.supgid) {
+     free(task->task.supgid);
+  }
+  //g_free(proc->supgid);
+  g_slice_free(u_task, task);
 }
 
 
@@ -737,6 +743,12 @@ int update_processes_run(PROCTAB *proctab, int full) {
   while(readproc(proctab, &buf)){
     proc = proc_by_pid(buf.tid);
     if(proc) {
+      // we need to clear the task array first to detect which dynamic mallocs
+      // need to be freed as readproc likes to reuse pointers on some dynamic
+      // allocations
+      if(proc->tasks->len)
+        g_ptr_array_remove_range(proc->tasks, 0, proc->tasks->len);
+
       // free all changable allocated buffers
       freesupgrp(&(proc->proc));
       freeproc_light(&(proc->proc));
@@ -746,8 +758,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
       // we save the origin of cgroups for scheduler constrains
     }
     // must still have the process allocated
-    if(proc->tasks->len)
-      g_ptr_array_remove_range(proc->tasks, 0, proc->tasks->len);
 
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
@@ -764,7 +774,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
 
     while(readtask(proctab,&buf,&buf_task)) {
-      g_ptr_array_add(proc->tasks, g_slice_dup(proc_t, &buf_task));
+      u_task *task = g_slice_new0(u_task);
+      task->proc = proc;
+      memcpy(&(task->task), &buf_task, sizeof(proc_t));
+      g_ptr_array_add(proc->tasks, task);
       proc->received_rt |= buf_task.sched;
     }
     if(rrt != proc->received_rt)

@@ -151,7 +151,7 @@ typedef struct _u_proc {
   int           changed; // flags or main parameters of process like uid, gid, sid
   void          *filter_owner;
   int           block_scheduler; // this should be respected by the scheduler
-  GPtrArray     *tasks; // pointer array to all task proc_t's 
+  GPtrArray     *tasks; // pointer array to all process tasks of type u_task 
   int           received_rt;
 
   int           lua_data;
@@ -169,6 +169,11 @@ typedef struct _u_proc {
   pid_t         fake_session;
   pid_t         fake_session_old;
 } u_proc;
+
+typedef struct {
+  u_proc *proc;
+  proc_t task;
+} u_task;
 
 typedef struct _filter {
   U_HEAD;
