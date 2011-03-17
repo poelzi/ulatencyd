@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <linux/sched.h>
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
@@ -399,7 +400,13 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
       if(!proc->exe) {
         path = g_strdup_printf ("/proc/%u/exe", (guint)proc->pid);
         out = readlink(path, (char *)&buf, PATH_MAX);
+        buf[out] = 0;
         if(out > 0) {
+            // strip out the ' (deleted)' suffix
+            if(out > 10 && !strncmp((char *)&buf[out-10], " (deleted)", 10)) {
+                buf[out-10] = 0;
+                out -= 10;
+            }
             proc->exe = g_strndup((char *)&buf, out);
         } else {
             g_free(path);
@@ -807,20 +814,20 @@ int update_processes_run(PROCTAB *proctab, int full) {
     remove_proc_from_delay_stack(proc->pid);
     if(full)
       proc->last_update = run;
-    // we can simply steal the pointer of the current allocated buffer
+
+    //save rt received flag
     rrt = proc->received_rt;
 
     memcpy(&(proc->proc), &buf, sizeof(proc_t));
 
-    proc->received_rt |= proc->proc.sched;
-
+    proc->received_rt |= (proc->proc.sched == SCHED_FIFO || proc->proc.sched == SCHED_RR);
 
     while(readtask(proctab,&buf,&buf_task)) {
       u_task *task = g_slice_new0(u_task);
       task->proc = proc;
       memcpy(&(task->task), &buf_task, sizeof(proc_t));
       g_ptr_array_add(proc->tasks, task);
-      proc->received_rt |= buf_task.sched;
+      proc->received_rt |= (buf_task.sched == SCHED_FIFO || buf_task.sched == SCHED_RR);
     }
     if(rrt != proc->received_rt)
       proc->changed = 1;
