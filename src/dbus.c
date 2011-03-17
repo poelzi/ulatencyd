@@ -311,7 +311,7 @@ finish:
 
 
 static void push_flag(DBusMessage *ret, u_proc *proc, int recrusive) {
-    GList *cur;
+    GList *cur, *lst;
     u_flag *fl;
     char *name = NULL;
     uint32_t tu32;
@@ -320,7 +320,8 @@ static void push_flag(DBusMessage *ret, u_proc *proc, int recrusive) {
     dbus_message_iter_init_append(ret, &imsg);
 
     if(proc) {
-        cur = g_list_first(proc->flags);
+        lst = u_proc_list_flags(proc, recrusive);
+        cur = lst;
         dbus_message_iter_open_container(&imsg, DBUS_TYPE_ARRAY,
             "(ta{sv})"
             , &array);
@@ -374,6 +375,7 @@ static void push_flag(DBusMessage *ret, u_proc *proc, int recrusive) {
         if(proc) {
            dbus_message_iter_close_container(&strukt, &entry);
            dbus_message_iter_close_container(&array, &strukt);
+           DEC_REF(fl);
         } else {
            dbus_message_iter_close_container(&array, &entry);
         }
@@ -382,6 +384,8 @@ static void push_flag(DBusMessage *ret, u_proc *proc, int recrusive) {
     }
     #undef PUSH_VARIANT
     dbus_message_iter_close_container(&imsg, &array);
+    if(proc)
+      g_list_free(lst);
     return;
 }
 
