@@ -288,10 +288,10 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
     }
     if(rule->exe) {
         if(u_proc_ensure(proc, EXE, FALSE) && 
-           !strncmp(proc->exe, rule->exe, strlen(rule->exe))) {
+           !strcmp(proc->exe, rule->exe)) {
 //              printf("exe %s  %s\n", proc->exe, rule->exe);
               return TRUE;
-           }
+        }
     }
     if(rule->re_exe) {
         if(u_proc_ensure(proc, EXE, FALSE) && 
