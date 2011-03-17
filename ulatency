@@ -288,7 +288,7 @@ class Session:
             prnt(e)
             sys.exit(2)
 
-    def get_processflags(self, pid=None):
+    def get_processflags(self, pid=None, recrusive=True):
         if not self.init_system():
             return []
         if pid is None:
@@ -298,7 +298,7 @@ class Session:
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try:
             rv = []
-            data = system.listFlags(pid)
+            data = system.listFlags(pid, recrusive)
             for flag in data:
               rv.append([flag[0],dict((unicode(x),v) for x,v in flag[1].iteritems())])
             return rv
@@ -395,8 +395,10 @@ class Tree(object):
 
     def get_process(self, pid):
         data = get_process_data(pid)
+        if not data:
+            return None
         if not self.show_all and data and data["pid"] != data["tgid"]:
-          return None
+            return None
         if self.cmdline:
             cmdline = u(" ").join(data.get("cmdline", []))
             return data["pid"], cmdline or data.get("name", "")
