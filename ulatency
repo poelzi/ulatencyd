@@ -885,11 +885,11 @@ def main():
     prog = os.path.basename(sys.argv[0])
 
     if prog[:4] in ("run-", "run_"):
+        if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+            prnt("Usage: %s COMMAND" %prog)
+            prnt("executes program under schduler config: %s" %prog[4:].replace("-", "_").upper())
+            sys.exit(1)
         command(sys.argv[1:], prog[4:].replace("-", "_"))
-        return
-
-    if prog == 'run_single_task':
-        command(sys.argv[1:], "single_task")
         return
 
     options, args = parser.parse_args()
