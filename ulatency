@@ -27,8 +27,11 @@ DEFAULT_TREE = "cpu"
 CGROUP_PATHS = {}
 CGROUP_SUBSYS = []
 
+CONFIG_SINGLE_TASK = "single_task"
+
+
 def prnt(arg):
-  sys.stdout.write(PY3 and str(arg) or arg.encode("utf-8"))
+  sys.stdout.write(PY3 and str(arg) or unicode(arg).encode("utf-8"))
   sys.stdout.write("\n")
 
 if PY3:
@@ -315,6 +318,22 @@ class Session:
             prnt(e)
             sys.exit(2)
 
+    def add_flag(self, pid, **values):
+        if not self.init_system():
+          return ""
+        system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
+        try:
+            rv = []
+            data = system.addFlag(pid, 0, values["name"], 
+                                          unicode(values.get("reason", "")),
+                                          long(values.get("timeout", 0)), 
+                                          int(values.get("priority", 0)), 
+                                          long(values.get("value", 0)), 
+                                          long(values.get("treshold", 0)),
+                                          bool(values.get("inherit", False)))
+        except dbus.exceptions.DBusException as e:
+            prnt(e)
+            raise e
 
 
 class Tree(object):
@@ -789,15 +808,51 @@ class QtGui(Gui):
 
 
 
+def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
+    pid = os.getpid()
+    uid = None
+    if os.getuid() == 0:
+        uid = (not as_root and int(os.environ.get("SUDO_UID", 0))) or os.getuid()
+        #prnt("you need to run: sudo comand")
+        #sys.exit(1)
+    session = Session()
+    old_config = session.get_config()
+    prnt("ulatency: old config %s" %old_config)
+    session.add_flag(pid, name="single_task", inherit=True)
+    #session.set_config(CONFIG_SINGLE_TASK)
+    prnt("ulatency: execute '%s'" %" ".join(args))
+    prnt("-"*30)
+    if uid is not None:
+        prnt("Execute as: %s", uid)
+        old_uid = os.getuid()
+        os.seteuid(uid)
+    try:
+        retcode = subprocess.call(args)
+        prnt("-"*30)
+        if retcode < 0:
+            print >>sys.stderr, "Child was terminated by signal", -retcode
+        else:
+            print >>sys.stderr, "Child returned", retcode
+    except OSError, e:
+        print >>sys.stderr, "Execution failed:", e
+    if uid is not None:
+        os.seteuid(old_uid)
+    prnt("ulatency: restore config %s" %old_config)
+    session.set_config(old_config)
+
+
 
 EPILOG="""commands:
-  tree [cgroup]     show a cgroup tree
-  get [key]         get daemon setting
-  set [key value]   set daemon value
-  flags [process]   list flags of a process or all
-  sysflags          list system flags
-  mounts            lists all mounted cgroups
-  clear cgroup|ALL  clears a cgroup
+  tree [cgroup]              show a cgroup tree
+  get [key]                  get daemon setting
+  set [key value]            set daemon value
+  flags [process]            list flags of a process or all
+  sysflags                   list system flags
+  mounts                     lists all mounted cgroups
+  clear cgroup|ALL           clears a cgroup
+  run -- [COMMAND]           run task under different scheduler config
+  game -- [COMMAND]          run task under game scheduler
+  single_task -- [COMMAND]   run task under single_task scheduler
 """
 
 def main():
@@ -820,8 +875,22 @@ def main():
         default=False, help="show flags on tree output")
     parser.add_option("--cmd", dest="cmdline", action="store_true",
         default=False, help="show cmdline")
+    parser.add_option("--as-root", dest="as_root", action="store_true",
+        default=False, help="run command as root")
     parser.add_option("--no-processes", dest="processes", action="store_false",
         default=True, help="hide all processes")
+    parser.add_option("--scheduler", dest="scheduler", action="store",
+        default=CONFIG_SINGLE_TASK, help="scheduler config to use")
+
+    prog = os.path.basename(sys.argv[0])
+
+    if prog[:4] in ("run-", "run_"):
+        command(sys.argv[1:], prog[4:].replace("-", "_"))
+        return
+
+    if prog == 'run_single_task':
+        command(sys.argv[1:], "single_task")
+        return
 
     options, args = parser.parse_args()
 
@@ -850,6 +919,12 @@ def main():
             sys.exit(0)
         else: prnt(",".join(Session().gets.keys()))
         return
+
+
+    if args and args[0] == 'run':
+        command(args[1:], options.scheduler, options.as_root)
+        return
+
 
     if not args or args[0] == 'tree':
         kwargs = dict(utf = options.utf, color = options.color,
