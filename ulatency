@@ -588,6 +588,16 @@ class QtGui(Gui):
             prnt("python qt4 bindings missing.")
             sys.exit(1)
 
+        class MainWindow(QMainWindow):
+            def __init__(self, app):
+                self.app = app
+                super(MainWindow, self).__init__()
+
+            def closeEvent(self, event):
+                self.app.toggle_window(event)
+                event.ignore()
+
+
         self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
@@ -599,7 +609,7 @@ class QtGui(Gui):
         icon = QIcon(QPixmap(self.get_logo()))
         app.trayicon = QSystemTrayIcon(icon, app)
         app.trayicon.show()
-        self.window = win = QMainWindow()
+        self.window = win = MainWindow(self)
 
         mb = QMenuBar(win)
         win.setMenuBar(mb)
@@ -679,6 +689,9 @@ class QtGui(Gui):
         self.update_tree()
 
     def quit(self):
+        if self.window.isVisible():
+            self.settings.setValue("main_window_geometry", self.window.saveGeometry());
+            self.settings.setValue("main_window_state", self.window.saveState());
         self.settings.sync()
         self.app.quit()
 
@@ -690,10 +703,12 @@ class QtGui(Gui):
             b = not self.window.isVisible()
             if b:
                 self.update_tree()
-                self.window.restoreGeometry(self.settings.value("main_window").toByteArray());
+                self.window.restoreGeometry(self.settings.value("main_window_geometry").toByteArray());
+                self.window.restoreState(self.settings.value("main_window_state").toByteArray());
                 self.window.ui.timer.start()
             else:
-                self.settings.setValue("main_window", self.window.saveGeometry());
+                self.settings.setValue("main_window_geometry", self.window.saveGeometry());
+                self.settings.setValue("main_window_state", self.window.saveState());
                 self.window.ui.timer.stop()
             self.window.setVisible(b)
 
@@ -896,7 +911,7 @@ def main():
 
     # if we run without any arguments and it doesn't look like we are in a
     # terminal, we start the gui
-    if len(args) == 0 and not sys.stdout.isatty() and "DISPLAY" in os.environ:
+    if prog == "ulatency-gui":
         options.gui = True
 
     if options.gui:
