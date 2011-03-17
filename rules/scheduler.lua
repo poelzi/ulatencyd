@@ -25,7 +25,7 @@ ul_group_cpu:commit()
 -- FIXME: build validator
 
 function check_label(labels, proc)
-  for j, flag in pairs(proc:list_flags()) do
+  for j, flag in pairs(proc:list_flags(true)) do
     for k, slabel in pairs(labels) do
       if flag.name == slabel then
         return true

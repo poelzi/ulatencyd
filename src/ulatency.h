@@ -344,6 +344,7 @@ enum ENSURE_WHAT {
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);
+GList *u_proc_list_flags (u_proc *proc, gboolean recrusive);
 GArray *u_proc_get_current_task_pids(u_proc *proc);
 
 

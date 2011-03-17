@@ -628,38 +628,29 @@ static int u_proc_get_children (lua_State *L)
 
 }
 
-static int u_proc_list_flags (lua_State *L) {
+static int l_proc_list_flags (lua_State *L) {
   int i = 1;
   u_proc *proc = check_u_proc(L, 1);
   int recr = lua_toboolean(L, 2);
   u_flag *fl;
-  GList *cur;
+  GList *cur, *lst;
+
+  lst = u_proc_list_flags(proc, recr);
+  cur = lst;
 
   lua_newtable(L);
-  do {
-    cur = g_list_first(proc->flags);
-    while(cur) {
-      fl = cur->data;
-      if(recr == 2 && !fl->inherit) {
-        cur = g_list_next (cur);
-        continue;
-      }
-      lua_pushinteger(L, i);
-      push_u_flag(L, fl, NULL, NULL);
-      lua_settable(L, -3);
-      i++;
-      cur = g_list_next (cur);
-    }
-    if(recr) {
-      if(!proc->node || !proc->node->parent || proc->node->parent == processes_tree) {
-        proc = NULL;
-        break;
-      }
-      proc = (u_proc *)(proc->node->parent->data);
-      if(recr == 1)
-        recr = 2;
-    }
-  } while (recr && proc);
+  while(cur) {
+    fl = cur->data;
+    lua_pushinteger(L, i);
+    push_u_flag(L, fl, NULL, NULL);
+    DEC_REF(fl);
+    lua_settable(L, -3);
+    i++;
+    cur = g_list_next (cur);
+  }
+
+  g_list_free(lst);
+
   return 1;
 }
 
@@ -951,7 +942,7 @@ static int u_proc_ioprio_get (lua_State *L) {
 static const luaL_reg u_proc_methods[] = {
   {"get_parent", u_proc_get_parent},
   {"get_children", u_proc_get_children},
-  {"list_flags", u_proc_list_flags},
+  {"list_flags", l_proc_list_flags},
   {"add_flag", u_proc_add_flag},
   {"del_flag", u_proc_del_flag},
   {"clear_flag_name", u_proc_clear_flag_name},

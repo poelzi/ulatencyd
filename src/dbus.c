@@ -106,6 +106,7 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "    </method>\n"
 "    <method name=\"listFlags\">\n"
 "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
+"      <arg type=\"b\" name=\"recrusive\" direction=\"in\" />\n"
 "      <arg type=\"a(ta{sv})\" name=\"flags\" direction=\"out\" />\n"
 "    </method>\n"
 "    <method name=\"delFlag\">\n"
@@ -309,7 +310,7 @@ finish:
 };
 
 
-static void push_flag(DBusMessage *ret, u_proc *proc) {
+static void push_flag(DBusMessage *ret, u_proc *proc, int recrusive) {
     GList *cur;
     u_flag *fl;
     char *name = NULL;
@@ -396,15 +397,17 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
     if(dbus_message_is_method_call(m, U_DBUS_SYSTEM_INTERFACE, "listSystemFlags")) {
 
         ret = dbus_message_new_method_return(m);
-        push_flag(ret, NULL);
+        push_flag(ret, NULL, FALSE);
         goto finish;
 
     } else if(dbus_message_is_method_call(m, U_DBUS_SYSTEM_INTERFACE, "listFlags")) {
         u_proc *proc;
         pid_t pid;
+        uint32_t recrusive;
 
         if (!dbus_message_get_args(m, &error,
                                       DBUS_TYPE_UINT64, &tu64,
+                                      DBUS_TYPE_BOOLEAN,&recrusive,
                                       DBUS_TYPE_INVALID) ||
             !dbus_message_iter_init (m, &imsg))
               PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
@@ -416,7 +419,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
           PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
 
         ret = dbus_message_new_method_return(m);
-        push_flag(ret, proc);
+        push_flag(ret, proc, recrusive);
         goto finish;
 
 

@@ -343,8 +343,10 @@ for n,v in pairs(CGROUP_MOUNTPOINTS) do
       end
     end
     local fp = io.open(path.."/notify_on_release", "w")
-    fp:write("1")
-    fp:close()
+    if fp then
+      fp:write("1")
+      fp:close()
+    end
   else
     ulatency.log_info("no cgroups subsystem found for group "..n..". disable group")
   end

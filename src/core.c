@@ -273,6 +273,48 @@ u_proc* u_proc_new(proc_t *proc) {
 }
 
 /**
+ * u_proc_list_flags:
+ * @proc: a #u_proc
+ * @recrusive: boolean if recrusive flags should be returned, too
+ *
+ * Returns a new allocated GList of all flags. Don't forgett to DECREF the
+ * result items and release the list
+ *
+ * Returns: @glist
+ */
+
+GList *u_proc_list_flags (u_proc *proc, gboolean recrusive) {
+  int i = 1;
+  u_flag *fl;
+  GList *cur, *rv = NULL;
+
+  do {
+    cur = g_list_first(proc->flags);
+    while(cur) {
+      fl = cur->data;
+      if(recrusive == 2 && !fl->inherit) {
+        cur = g_list_next (cur);
+        continue;
+      }
+      INC_REF(fl);
+      rv = g_list_append(rv, fl);
+      i++;
+      cur = g_list_next (cur);
+    }
+    if(recrusive) {
+      if(!proc->node || !proc->node->parent || proc->node->parent == processes_tree) {
+        proc = NULL;
+        break;
+      }
+      proc = (u_proc *)(proc->node->parent->data);
+      if(recrusive == 1)
+        recrusive = 2;
+    }
+  } while (recrusive && proc);
+  return rv;
+}
+
+/**
  * u_proc_ensure:
  * @proc: a #u_proc
  * @what: set of varibles to fill from #ENSURE_WHAT
