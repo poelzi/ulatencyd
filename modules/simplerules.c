@@ -36,17 +36,23 @@
 #include <fnmatch.h>
 
 int simplerules_id;
+int simplerules_debug;
 
 struct simple_rule {
-  gid_t     gid;
-  uid_t     uid;
-  char     *cmdline;
-  char     *exe;
-  char     *basename;
-  GRegex   *re_exe;
-  GRegex   *re_cmd;
-  GRegex   *re_basename;
-  u_flag   *template;
+  gid_t         gid;
+  uid_t         uid;
+/*  char          *cmdline;
+  char          *exe;
+  char          *basename;
+*/
+  char          *pattern;
+  GPatternSpec  *glob_exe;
+  GPatternSpec  *glob_basename;
+  GPatternSpec  *glob_cmd;
+  GRegex        *re_exe;
+  GRegex        *re_cmd;
+  GRegex        *re_basename;
+  u_flag        *template;
 };
 
 
@@ -65,6 +71,9 @@ enum {
     LIST_NORMAL,
     LIST_END
 };
+
+#define simple_debug(...) \
+    if(simplerules_debug) g_debug(__VA_ARGS__);
 
 int parse_line(char *line, int lineno) {
     char **chunks = NULL;
@@ -98,7 +107,10 @@ int parse_line(char *line, int lineno) {
     rule = g_slice_new0(struct simple_rule);
 
     if(chunks[0][0] == '/') {
-        rule->exe = g_strdup(chunks[0]);
+        rule->glob_exe = g_pattern_spec_new(chunks[0]);
+
+    } else if(!strncmp(chunks[0], "cmd:", 4)) {
+        rule->glob_cmd = g_pattern_spec_new(chunks[0]+4);
 
     } else if(!strncmp(chunks[0], "re_exe:", 7)) {
         rule->re_exe = g_regex_new(chunks[0] + 7, G_REGEX_OPTIMIZE, 0, &error);
@@ -119,8 +131,9 @@ int parse_line(char *line, int lineno) {
             goto error;
         }
     } else {
-        rule->basename = g_strdup(chunks[0]);
+        rule->glob_basename = g_pattern_spec_new(chunks[0]);
     }
+    rule->pattern = g_strdup(chunks[0]);
     rule->template = g_slice_new0(u_flag);
     rule->template->name = g_strdup(chunks[1]);
 
@@ -270,49 +283,54 @@ void read_rules(void) {
 int rule_applies(u_proc *proc, struct simple_rule *rule) {
 //    u_proc_ensure(proc, EXE, TRUE);
 //    printf("add proc %d to %s\n", proc->pid, proc->exe);
-
-    if(rule->cmdline) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && 
-           !strncmp(proc->cmdline_match, rule->cmdline, strlen(rule->cmdline))) {
-//              printf("cmdline %s  %s\n", proc->cmdline_match, rule->cmdline);
-              return TRUE;
-           }
-    }
-    if(rule->basename) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && 
-           proc->cmdfile &&
-           !strncmp(proc->cmdfile, rule->basename, strlen(rule->basename))) {
-//              printf("cmdfile %s  %s\n", proc->cmdfile, rule->basename);
+    gboolean match = FALSE;
+    if(rule->glob_cmd) {
+        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline_match) { 
+           match = g_pattern_match_string(rule->glob_cmd, proc->cmdline_match);
+           simple_debug("match pid:%d cmdline glob:'%s' cmdline:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
+           if(match)
               return TRUE;
         }
     }
-    if(rule->exe) {
-        if(u_proc_ensure(proc, EXE, FALSE) && 
-           !strcmp(proc->exe, rule->exe)) {
-//              printf("exe %s  %s\n", proc->exe, rule->exe);
+    if(rule->glob_basename) {
+        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) { 
+           match = g_pattern_match_string(rule->glob_basename, proc->cmdfile);
+           simple_debug("match pid:%d basename glob:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdfile, match)
+           if(match)
+              return TRUE;
+        }
+    }
+    if(rule->glob_exe) {
+        if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) { 
+           match = g_pattern_match_string(rule->glob_exe, proc->exe);
+           simple_debug("match pid:%d exe glob:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->exe, match)
+           if(match)
               return TRUE;
         }
     }
     if(rule->re_exe) {
-        if(u_proc_ensure(proc, EXE, FALSE) && 
-           g_regex_match(rule->re_exe, proc->exe, 0, NULL)) {
-//              printf("re_exe %s  %p\n", proc->exe, rule->re_exe);
+        if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) { 
+           match = g_regex_match(rule->re_exe, proc->exe, 0, NULL);
+           simple_debug("match pid:%d cmdline re:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
+           if(match)
               return TRUE;
         }
     }
     if(rule->re_cmd) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && 
-           g_regex_match(rule->re_cmd, proc->cmdline_match, 0, NULL)) {
-//              printf("re_cmd %s  %p\n", proc->cmdline_match, rule->re_cmd);
+        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline) {
+           match = g_regex_match(rule->re_cmd, proc->cmdline_match, 0, NULL);
+           simple_debug("match pid:%d cmdline re:'%s' cmdline:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
+           if(match)
               return TRUE;
-           }
+        }
     }
     if(rule->re_basename) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && 
-           g_regex_match(rule->re_basename, proc->cmdfile, 0, NULL)) {
-//              printf("re_base %s  %p\n", proc->exe, rule->re_basename);
+        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) {
+           match = g_regex_match(rule->re_basename, proc->cmdfile, 0, NULL);
+           simple_debug("match pid:%d cmdline re:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
+           if(match)
               return TRUE;
-           }
+        }
     }
     return FALSE;
 }
@@ -355,6 +373,7 @@ int simplerules_init() {
     int i = 0;
     simplerules_id = get_plugin_id();
     u_filter *filter;
+    simplerules_debug = g_key_file_get_boolean(config_data, "simplerules", "debug", NULL);
 //    target_rules = NULL;
     read_rules();
 //    if(target_rules) {
