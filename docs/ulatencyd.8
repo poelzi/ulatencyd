@@ -1,0 +1,41 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH ULATENCYD 8 "January 28, 2011"
+.SH NAME
+ulatencyd \- latency optimizing daemon
+.SH SYNOPSIS
+.B ulatencyd
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+\fBulatencyd\fP is a daemon that controls how the Linux kernel will spend
+it's resources on the running processes. It uses dynamic cgroups to give
+the kernel hints and limitations on processes.
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+Show help options
+.TP
+.B \-c, \-\-config
+Use config file
+.TP
+.B \-r, \-\-rules\-directory
+Path with
+.TP
+.B \-\-rule\-pattern
+Load only rules matching the pattern
+.TP
+.B \-v, \-\-verbose
+More verbose. Can be passed multiple times
+.TP
+.B \-q, \-\-quiet
+More quiet. Can be passed multiple times
+.TP
+.B \-f, \-\-log\-file
+Log to file
+.TP
+.B \-d, \-\-daemonize
+Run daemon in background
+.SH AUTHOR
+ulatencyd was written by Daniel Poelzleithner <poelzi@poelzi.org>.
+.PP
+This manual page was written by Alessandro Ghedini <al3xbio@gmail.com>,
+for the Debian project (and may be used by others).

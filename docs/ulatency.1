@@ -1,0 +1,54 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH ULATENCYD 1 "March 02, 2011"
+.SH NAME
+ulatency \- client for the ulatencyd daemon
+.SH SYNOPSIS
+.B ulatency
+.RI [ OPTIONS ]
+.RI [ COMMAND ]
+.RI [ KEY [ VALUE ] ]
+.SH DESCRIPTION
+\fBulatency\fP is a simple command-line\/qt4 client for the ulatencyd
+daemon. It can be used to show and tune the ulatencyd status.
+.SH OPTIONS
+.TP
+.B \-\-version
+show program's version number and exit
+.TP
+.B \-h, \-\-help
+show this help message and exit
+.TP
+.B \-\-config\-list
+list system configs
+.TP
+.B \-s, \-\-set
+set key value pair
+.TP
+.B \-g, \-\-get
+get value by key
+.TP
+.B \-\-gui
+enable gui
+.TP
+.B \-\-no\-utf
+disables utf8 for tree view
+.TP
+.B \-\-no\-color
+disables color
+.TP
+.B \-\-all
+show complete tree
+.TP
+.B \-\-flags
+show flags on tree output
+.TP
+.B \-\-cmd
+show cmdline
+.TP
+.B \-\-no-processes
+hide all processes
+.SH AUTHOR
+ulatencyd was written by Daniel Poelzleithner <poelzi@poelzi.org>.
+.PP
+This manual page was written by Alessandro Ghedini <al3xbio@gmail.com>,
+for the Debian project (and may be used by others).
