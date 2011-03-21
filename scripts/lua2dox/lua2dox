@@ -1,0 +1,12 @@
+#!/usr/bin/env perl
+use Cwd 'abs_path';
+use File::Basename;
+use lib dirname(__FILE__);
+
+use strict;
+use warnings;
+use Lua;
+
+my $input = $ARGV[0];
+my $p = Doxygen::Lua->new;
+print $p->parse($input);
