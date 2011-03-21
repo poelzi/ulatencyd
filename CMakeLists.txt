@@ -28,6 +28,7 @@ if(ENABLE_DBUS)
   if(DBUS_FOUND)
     set(ENABLE_DBUS 1)
     pkg_check_modules(GTHREAD gthread-2.0 REQUIRED)
+    pkg_check_modules(POLKIT polkit-gobject-1)
   endif(DBUS_FOUND)
 endif(ENABLE_DBUS)
 
@@ -101,7 +102,7 @@ configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${LIBCGROUP_INCLUDE_DIRS}
                      ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
-                     ${GIO_INCLUDE_DIRS})
+                     ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS})
 
 IF(LUA_JIT AND LUAJIT_FOUND)
   include_directories (${LUAJIT_INCLUDE_DIRS})

@@ -20,6 +20,7 @@
 #ifndef __ulatency_h__
 #define __ulatency_h__
 #include <glib.h>
+#include <gio/gio.h>
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -30,7 +31,13 @@
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
+#include <dbus/dbus.h>
 #endif
+
+#ifdef POLKIT_FOUND
+#include <polkit/polkit.h>
+#endif
+
 //#include <libcgroup.h>
 
 
@@ -310,8 +317,31 @@ extern int    system_flags_changed;
 #ifdef ENABLE_DBUS
 extern DBusGConnection *U_dbus_connection; // usully the system bus, but may differ on develop mode
 extern DBusGConnection *U_dbus_connection_system; // always the system bus
-#endif
 
+struct callback_data;
+
+struct callback_data {
+    GCancellable *cancellable;
+    DBusConnection *connection;
+    DBusMessage *message;
+    void (*callback)(struct callback_data *data);
+    void *user_data;
+};
+#endif
+#ifdef POLKIT_FOUND
+PolkitAuthority *U_polkit_authority;
+
+int check_polkit(const char *methode,
+             DBusConnection *connection,
+             DBusMessage *context,
+             char *action_id,
+             void (*callback)(struct callback_data *data),
+             void *user_data,
+             int allow_user_interaction,
+             u_proc *proc, char *config);
+#else
+#define check_polkit(...) FALSE
+#endif
 
 //extern gchar *load_pattern;
 

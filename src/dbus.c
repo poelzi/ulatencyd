@@ -389,6 +389,18 @@ static void push_flag(DBusMessage *ret, u_proc *proc, int recrusive) {
     return;
 }
 
+static void set_config_callback(struct callback_data *data) {
+    DBusMessage *ret = dbus_message_new_method_return(data->message);
+    u_scheduler *sched = scheduler_get();
+    g_message("DBUS: setSchedulerConfig(\"%s\") executed", (char *)data->user_data);
+    dbus_bool_t rv = (dbus_bool_t)sched->set_config((char *)data->user_data);
+    dbus_message_append_args (ret,
+                              DBUS_TYPE_BOOLEAN, &rv,
+                              DBUS_TYPE_INVALID);
+    dbus_connection_send(data->connection, ret, NULL);
+    dbus_message_unref(ret);
+}
+
 static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, void *userdata) {
     DBusError error;
     DBusMessage *ret = NULL;
@@ -570,8 +582,14 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
             ret = dbus_message_new_error(m, DBUS_ERROR_INVALID_ARGS , "wrong arguments");
             goto finish;
         }
+        if (!tmps) {
+            ret = dbus_message_new_error(m, DBUS_ERROR_INVALID_ARGS , "wrong arguments");
+            goto finish;
+        }
 
-        if(tmps) {
+        GET_CALLER()
+        if(caller == 0) {
+            //set_config_dbus(tmps);
             ret = dbus_message_new_method_return(m);
             g_message("DBUS: setSchedulerConfig(\"%s\") executed", tmps);
             dbus_bool_t rv = (dbus_bool_t)sched->set_config(tmps);
@@ -580,9 +598,23 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
                                       DBUS_TYPE_INVALID);
             goto finish;
         } else {
-            ret = dbus_message_new_error(m, DBUS_ERROR_INVALID_ARGS , "wrong arguments");
-            goto finish;
+            if(!check_polkit("org.quamquam.ulatencyd.setConfig",
+                             c,
+                             m,
+                             "org.quamquam.ulatencyd.setConfig",
+                             set_config_callback,
+                             tmps,
+                             TRUE,
+                             NULL, tmps))
+               PUSH_ERROR(DBUS_ERROR_ACCESS_DENIED, "access denied")
+
+            return DBUS_HANDLER_RESULT_HANDLED;
         }
+
+        if(tmps) {
+
+            goto finish;
+        } 
 
     } else if(dbus_message_is_method_call(m, U_DBUS_SYSTEM_INTERFACE, "listSchedulerConfigs")) {
         u_scheduler *sched = scheduler_get();

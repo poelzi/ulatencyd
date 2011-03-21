@@ -1776,6 +1776,9 @@ int core_init() {
     g_warning("failed to setup dbus");
 #endif
 
+#ifdef POLKIT_FOUND
+  U_polkit_authority = polkit_authority_get_sync (NULL, NULL);
+#endif
   // delay stack 
   delay_stack = g_ptr_array_new_with_free_func(free);
   delay = g_key_file_get_integer(config_data, CONFIG_CORE, "delay_new_pid", NULL);

@@ -42,10 +42,9 @@ SCHEDULER_MAPPING_SINGLE_TASK["cpu"] =
     children = {
       {
         name = "task",
-        param = { ["cpu.shares"]="100", ["?cpu.rt_runtime_us"] = "1"},
-        label = { "user.single_task" },
+        param = { ["cpu.shares"]="3000", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.active_pos == 1
+            return proc.active_pos == 1 or check_label({"cmd.config.single_task"}, proc)
           end
       },
       {
@@ -64,6 +63,13 @@ SCHEDULER_MAPPING_SINGLE_TASK["cpu"] =
                 end,
       },
     },
+  },
+  {
+    name = "task",
+    param = { ["cpu.shares"]="3000", ["?cpu.rt_runtime_us"] = "1"},
+    check = function(proc)
+        return proc.active_pos == 1 or check_label({"cmd.config.single_task"}, proc)
+      end
   },
   {
     name = "system",
