@@ -170,9 +170,11 @@ install(DIRECTORY rules
         FILES_MATCHING PATTERN "*.lua"
         PATTERN "test.lua" EXCLUDE)
 install(DIRECTORY conf/simple.d
-        DESTINATION ${CONFIG_PREFIX}/ulatencyd )
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd
+        PATTERN "*~" EXCLUDE)
 install(DIRECTORY conf/scheduler
-        DESTINATION ${CONFIG_PREFIX}/ulatencyd )
+        DESTINATION ${CONFIG_PREFIX}/ulatencyd
+        PATTERN "*~" EXCLUDE)
 install(FILES client/ulatency
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
@@ -184,8 +186,16 @@ if(NOT "${SYSTEMD_DIR}" STREQUAL "")
 endif (NOT "${SYSTEMD_DIR}" STREQUAL "")
 
 # FIXME how to find out where to put it ???
-install(FILES conf/org.quamquam.ulatencyd.conf
+IF(DBUS_FOUND AND ENABLE_DBUS)
+  install(FILES conf/org.quamquam.ulatencyd.conf
         DESTINATION /etc/dbus-1/system.d)
+ENDIF(DBUS_FOUND AND ENABLE_DBUS)
+
+if(POLKIT_FOUND)
+  install(FILES conf/org.quamquam.ulatencyd.policy
+          DESTINATION ${POLKIT_PREFIX}/share/polkit-1/actions)
+endif(POLKIT_FOUND)
+
 
 #install(TARGETS mySharedLib DESTINATION /some/full/path)
 
