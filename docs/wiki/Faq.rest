@@ -1,0 +1,168 @@
+FAQ
+===
+
+.. sectnum::
+
+.. contents:: Table of Contents
+   :depth: 2
+
+
+
+How can I see if it's working ?
+-------------------------------
+
+   With ulatencyd 0.4.8+ you can type in your console
+
+   ::
+
+      ulatency tree
+
+   And should get a nice tree like structure like this:
+
+   ::
+
+     /sys/fs/cgroup/cpu
+     └─┬»cpu«
+       ├ 2 kthreadd
+       ├─┬»s_ul«
+       │ └ 4975 ulatencyd
+       ├─┬»sys_bg«
+       │ └ 1928 cron
+       ├─┬»sys_idle«
+       │ └ 3036 preload
+
+
+   Alternatively type:
+
+   ::
+
+      ps xaf -eo pid,session,args,cgroup
+  
+   You should get an output like this:
+
+   ::
+
+      8127  2824 /usr/bin/python /usr/lib/ub  3:memory,cpu,cpuset:/u_1000/g_2824?2:blkio:/ps_2824 
+      8131  3171 /usr/bin/konsole             3:memory,cpu,cpuset:/u_1000/active?2:blkio:/active 
+      8133  8133  \_ /usr/bin/fish            \_  3:memory,cpu,cpuset:/u_1000/g_8133?2:blkio:/ps_8133 
+      9843  9843  \_ /usr/bin/fish            \_  3:memory,cpu,cpuset:/u_1000/g_9843?2:blkio:/ps_9843 
+
+   As you can see in the last column, these are the groups the process was placed in.
+   To test if the X11 plugin (xwatch) is working, then there should be processes in the active group.
+
+   If your ps does not support cgroup output, you can type:
+
+   ::
+
+     cat /proc/self/cgroup
+
+   And should get an output like this:
+
+   ::
+     
+     2:memory,cpu,cpuset:/usr_1000/grp_26561
+     1:blkio:/ps_26561
+
+Are you trying to do scheduling in userspace ?
+----------------------------------------------
+
+   NO. That would be nuts. You can't write a scheduler in userspace.
+   ulatencyd just uses the interfaces the Linux kernel already provides
+   to adjust the parameters of the scheduler and other subsystems. 
+   Adjustment is something that should be done in userspace and does not need to be done very
+   often, so the resources required by ulatencyd are quite low.
+
+
+What causes conflicts ?
+-----------------------
+
+   You will not be able to run a different cgroups agent in parallel.
+
+     * cgrulesengd (from libcgroup/cgroup-bin)
+
+
+Does it work with systemd
+-------------------------
+
+   Since Version 0.4.5 ulatencyd works with systemd under two conditions:
+
+     * DefaultControllers should be unset. In `/etc/systemd/system.conf` set `DefaultControllers=`
+     * The PAM-systemd module should be disabled, or set "controllers="
+
+   Both options would cause constant moving of processes as the layout of systemd and ulatencyd (in the default 
+   configuration) differs.
+
+What kernel options are required ?
+----------------------------------
+
+   At least those are very useful:
+   
+   ::
+
+     PROC_EVENTS=y
+     CONFIG_CGROUPS=y
+     CONFIG_CGROUP_FREEZER=y
+     CONFIG_CGROUP_DEVICE=y
+     CONFIG_CGROUP_MEM_RES_CTLR=y
+     CONFIG_CGROUP_MEM_RES_CTLR_SWAP=y
+     CONFIG_CGROUP_MEM_RES_CTLR_SWAP_ENABLED=y
+     CONFIG_CGROUP_SCHED=y
+     CONFIG_FAIR_GROUP_SCHED=y
+     CONFIG_RT_GROUP_SCHED=y
+     CONFIG_BLK_CGROUP=y
+     CONFIG_CFQ_GROUP_IOSCHED=y
+
+I get WARNING: binding sk_nl error: Bad file descriptor
+-------------------------------------------------------
+
+    You are missing the `PROC_EVENTS` option in your Kernel.
+    
+    Enable it here: `Device Drivers -> Connector ... -> Report process events to userspace`
+
+I don't have a swap
+-------------------
+
+    Having no swap device is not a problem, but the memory protector which runs in a 1 second interval
+    may not have the chance to detect memory pressure in time and therefore the OOM will kick in or the system
+    will freeze. Due the new dynamic swapiness of groups, having a swap is now a very good idea and will not cause
+    a laggy behaviour after long periods of idle.
+
+Does ulatencyd support my cgroups mount points
+----------------------------------------------
+
+   The problem with the custom mountpoints is, that not each subsystem supports 
+   hierarchies. For example, the blkio subsystem only allows flag groups, 
+   while the cpu and memory do. As cpu and memory are the most important 
+   systems and using different mount points would be possible but not that 
+   useful, ulatenyd uses a default schema:
+   
+     */dev/cgroup/[MOUNTPOINT]/*
+   
+   Where the current subsys are:
+   
+   +------------+--------------------+
+   | Mountpoint | Subsystems         | 
+   +============+====================+
+   |  cm        | cpu and memory     |
+   +------------+--------------------+
+   |  io        | block io           |
+   +------------+--------------------+ 
+   
+   Changing the layout is possible but requires adjustments to the
+   scheduler config in rules/scheduler_[MAPPING].lua and is not advised.
+   When you only want to change the mount point you can do that in ulatencyd.conf
+
+Building a Debian package without upstart
+-----------------------------------------
+
+   You can simply delete the upstart file before building the Debian package.
+
+   ::
+
+     rm debian/ulatencyd.upstart
+     dpkg-buildpackage
+
+Doesn't build on Mandriva
+-------------------------
+
+   I looks like the lua package of Mandriva is heavily broken. Install lua5.1 from hand and try again.

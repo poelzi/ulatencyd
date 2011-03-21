@@ -1,0 +1,46 @@
+We need a generic interface between user UI and a scheduling daemon.
+This should later run under an generic namespace of freedesktop.org
+
+This is work in progress. If you can think of anything that may be usefull
+and generic enough, please add.
+
+Suggested systembus name: 
+  optimizer.freedesktop.org
+
+# API
+
+/optimizer
+ - listModes
+   in:
+   out: as
+   desc: list of all user activatable modes
+ - getMode
+   in:
+   out: s
+   desc: returns the current mode set
+
+/user1/
+Methodes
+ - enableTracking
+   in: b
+   out:
+   desc: tells the optimizer that a user driven program is controlling the 
+         active list
+ - setActivePid
+   in: i
+   out:
+   desc: adds the given pid to the users active list
+ - getActives
+   in:
+   out: a[i,i]
+   desc: returns a list of tuples. First entry is a pid, second the timestamp 
+         when last added
+ - setActiveList
+   in: a[i,i]
+   out:
+   desc: sets the active list
+Properties:
+  - activeLength
+    type: i
+    desc: maximum number of entries in the actives list
+
