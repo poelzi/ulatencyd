@@ -219,16 +219,13 @@ class Session:
             sys.exit(1)
         return self.sets[key](*value)
 
-    def set_config(self, config=None):
+    def set_config(self, config=None, timeout=600):
         if not self.init_system():
             return False
         configs = self.config_list()
         if config is None: return ",".join(configs)
-        if config not in configs:
-            prnt("error: config '{0}' not available".format(config))
-            sys.exit(1)
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
-        try: return system.setSchedulerConfig(config)
+        try: return system.setSchedulerConfig(config, timeout=timeout)
         except dbus.exceptions.DBusException as e:
             prnt(e)
             sys.exit(2)
@@ -835,15 +832,29 @@ def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
     session = Session()
     old_config = session.get_config()
     prnt("ulatency: old config %s" %old_config)
-    session.add_flag(pid, name="single_task", inherit=True)
-    #session.set_config(CONFIG_SINGLE_TASK)
+    session.add_flag(pid, name="cmd.config.%s" %config, inherit=True)
+    if not session.set_config(config, timeout=60*60*24):
+        prnt("ulatency: abort by user")
+        sys.exit(2)
+
     prnt("ulatency: execute '%s'" %" ".join(args))
-    prnt("-"*30)
+    
+    def int_handler(ignum, frame):
+        prnt("-" * 30)
+        prnt("received interrupt signal")
+        prnt("ulatency: restore config %s" %old_config)
+        session.set_config(old_config, timeout=60*60*24)
+        sys.exit(1)
+
+    import signal
+    signal.signal(signal.SIGINT, int_handler)
+
     if uid is not None:
-        prnt("Execute as: %s", uid)
+        prnt("Execute as id: %s" %uid)
         old_uid = os.getuid()
         os.seteuid(uid)
     try:
+        prnt("-"*30)
         retcode = subprocess.call(args)
         prnt("-"*30)
         if retcode < 0:
@@ -852,10 +863,13 @@ def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
             print >>sys.stderr, "Child returned", retcode
     except OSError, e:
         print >>sys.stderr, "Execution failed:", e
+    except KeyboardInterrupt, e:
+        print "kbi"
+
     if uid is not None:
         os.seteuid(old_uid)
     prnt("ulatency: restore config %s" %old_config)
-    session.set_config(old_config)
+    session.set_config(old_config, timeout=60*60*24)
 
 
 
@@ -906,7 +920,7 @@ def main():
             prnt("Usage: %s COMMAND" %prog)
             prnt("executes program under schduler config: %s" %prog[4:].replace("-", "_").upper())
             sys.exit(1)
-        command(sys.argv[1:], prog[4:].replace("-", "_"))
+        command(sys.argv[1:], config=prog[4:].replace("-", "_"))
         return
 
     options, args = parser.parse_args()
