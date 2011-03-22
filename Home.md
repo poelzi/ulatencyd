@@ -11,7 +11,7 @@ Welcome to the ulatencyd wiki!
 
 # For Admins
 * [Adjusting the default scheduler](wiki/Adjusting-default-scheduler)
-* [Flags](wiki/flags.md)
+* [Flags](wiki/Flags)
 
 # Developers Corner
 * [Start Hacking](wiki/Start-Hacking)
