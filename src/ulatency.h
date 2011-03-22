@@ -143,7 +143,7 @@ struct filter_block {
 };
 
 
-typedef struct _u_proc {
+typedef struct {
   U_HEAD;
   int           pid; // duplicate of proc.tgid
   int           ustate; // status bits for process

@@ -16,10 +16,19 @@
     You should have received a copy of the GNU General Public License 
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 ]]--
+
+---------------------------------
+--! @file
+--! @brief ulatencyd core lua library
+---------------------------------
+
 posix = require("posix")
 
 -- monkey patching lua core
 
+--! @brief split string with seperator sep
+--! @param sep seperator
+--! @return new table with chunks
 function string:split(sep)
         local sep, fields = sep or ":", {}
         local pattern = string.format("([^%s]+)", sep)
@@ -27,6 +36,9 @@ function string:split(sep)
         return fields
 end
 
+--! @brief copies tables
+--! @param t table
+--! @return new table with shallow copy
 function table.copy(t)
   local t2 = {}
   for k,v in pairs(t) do
@@ -35,6 +47,11 @@ function table.copy(t)
   return t2
 end
 
+
+--! @brief merge two tables
+--! @param t table of source 1
+--! @param t2 table of source 2
+--! @return table t
 function table.merge(t, t2)
   for k,v in pairs(t2) do
     t[k] = v
@@ -45,6 +62,9 @@ end
 
 -- logging shortcuts
 
+--! @brief log with level trace
+--! @param msg message
+--! @return nil
 function ulatency.log_trace(msg)
   ulatency.log(ulatency.LOG_LEVEL_TRACE, msg)
 end

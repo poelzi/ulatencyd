@@ -122,6 +122,7 @@ add_subdirectory(src/proc)
 add_subdirectory(src)
 add_subdirectory(modules)
 add_subdirectory(tests)
+add_subdirectory(docs)
 
 add_custom_target(docs-api
                   doxygen ${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen.conf)
@@ -177,6 +178,7 @@ install(DIRECTORY conf/simple.d
 install(DIRECTORY conf/scheduler
         DESTINATION ${CONFIG_PREFIX}/ulatencyd
         PATTERN "*~" EXCLUDE)
+
 install(FILES client/ulatency
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
