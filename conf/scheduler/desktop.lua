@@ -273,12 +273,12 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
         return proc.is_active
       end,
     adjust = function(cgroup, proc)
-                save_io_prio(proc, 5, ulatency.IOPRIO_CLASS_RT)
+                save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)
              end,
   },
   { 
     name = "ui",
-    label = { "user.ui" }
+    label = { "user.ui" },
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 2, ulatency.IOPRIO_CLASS_BE)
              end,
@@ -292,12 +292,12 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
              end,
   },
   {
-    name = "group",
+    name = "media",
     param = { ["blkio.weight"]="300" },
     cgroups_name = "grp_${pgrp}",
     label = { "user.media"},
     adjust = function(cgroup, proc)
-                save_io_prio(proc, 0, ulatency.IOPRIO_CLASS_BE)
+                save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
              end,
   },
   {
