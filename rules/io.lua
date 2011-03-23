@@ -133,6 +133,6 @@ local function iterate()
   return true
 end
 
-if ulatency.tree_loaded("io") then
+if ulatency.tree_loaded("blkio") then
   ulatency.add_timeout(iterate, 1000)
 end
