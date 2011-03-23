@@ -124,8 +124,6 @@ add_subdirectory(modules)
 add_subdirectory(tests)
 add_subdirectory(docs)
 
-add_custom_target(docs-api
-                  doxygen ${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen.conf)
 
 #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall")
 #SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pg -Wall")

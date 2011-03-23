@@ -15,6 +15,9 @@ GSYMS
 GTAGS
 tests/memleak
 docs/api
+docs/html
+docs/txt
+docs/wiki
 
 .nfs*
 

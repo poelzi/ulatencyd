@@ -38,6 +38,11 @@ Build Requirements:
   liblua5.1-0-dev | libluajit-5.1-dev
   liblua5.1-posix1 (sometimes called luaposix)
 
+Documentation:
+  doxygen
+  libmoose-perl
+  pandoc
+
 Compiling:
 
  # cmake .
@@ -46,6 +51,10 @@ Compiling:
 Configure options (optional):
 
  # ccmake .
+
+Building Documentation:
+
+ # make docs
 
 Install:
  # sudo make install
