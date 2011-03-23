@@ -42,8 +42,8 @@ endmacro(CONVDOC)
 CONVDOC(.html html html)
 CONVDOC("" plain txt)
 # Setup a target to drive the conversion
-ADD_CUSTOM_TARGET(docs-html ALL DEPENDS ${htmlFiles})
-ADD_CUSTOM_TARGET(docs-txt ALL DEPENDS ${txtFiles})
+ADD_CUSTOM_TARGET(docs-html DEPENDS ${htmlFiles})
+ADD_CUSTOM_TARGET(docs-txt DEPENDS ${txtFiles})
 
 
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/api
