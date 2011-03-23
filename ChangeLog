@@ -1,0 +1,104 @@
+
+0.5.0-rc1 / 2011-03-23 
+==================
+
+  * Merge commit 'd8b2bd5c248c06b39c7d7da56a3961cad1d36cc9'
+  * update readme to reflect recent depencies
+  * let gui survive daemon restart
+  * update gui to use policykit
+  * install doc files, bump version
+  * Merge commit '4d65ec602b0673876732fe100506f68fbc8e08b0'
+  * updates to documentation
+  * optimize doxygen for project
+  * Updated Start Hacking (markdown)
+  * don't start ulatencyd more then once
+  * optional build docs
+  * Merge commit 'bd23966e9e27132cedceb775d01c8fe91e5bb9f3'
+  * add make docs target
+  * Updated Home (markdown)
+  * rename file
+  * Merge commit '76d54cf31eacbb060bcad7f5d41b8e6d78976bb0'
+  * start changing documentation
+  * add api doc generation trough doxygen
+  * add manpages. thanks Alessandro
+  * add script for update external repositories
+  * Add 'docs/wiki/' from commit '978fb5626ac4f2c61c6704dba636c7562b3ce09e'
+  * add script to run ulatencyd under alleyoop
+  * Merge commit '0a9ff7e9373c6d7a9f202f1ebd2252291e65e86a'
+  * adjust cmake rules
+  * implement policykit support
+  * better run command code
+  * use glob matching in simplerules
+  * cleanup exe readlink
+  * add recrusive flags api to dbus interface
+  * add rules for boinc client
+  * use full path on exe matches, not substring
+  * adjust dbus interface to recrusive list flags changes
+  * add u_proc_list_flags function, inherit changes
+  * ensure notifiy release agent is set
+  * add extra executable for gui/close window change
+  * print help config on run command
+  * add support for execute process in switches scheduler config
+  * use u_task struct for task storage
+  * add /usr/local/games to game path
+  * add single_task & game config
+  * bug fix: check data if none
+  * bug fix:function prnt doesnt worked under python3
+  * move scheduler configs into own path
+  * implement hard limits on memory usage
+  * reduce io prio on poison targets
+  * bump version
+  * fix install rules
+  * Updated 1   FAQ (rest)
+  * Updated Home (markdown)
+  * Updated Flag system (markdown)
+  * Updated Flag system (markdown)
+  * Updated Flag system (markdown)
+  * Updated Home (markdown)
+  * Created flags.md (markdown)
+  * Updated Home (markdown)
+  * Updated 1   FAQ (rest)
+  * Write a small message here explaining this change. (Optional)
+  * Updated Writing Rules (markdown)
+  * Updated Adjusting default scheduler (markdown)
+  * Updated 1   FAQ (rest)
+  * Updated How does it work (markdown)
+  * Updated How does it work (markdown)
+  * Updated 1   FAQ (rest)
+  * Updated 1   FAQ (rest)
+  * Updated Start Hacking (markdown)
+  * Created Start-hacking (markdown)
+  * Updated Home (markdown)
+  * Updated 1   FAQ (rest)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Created Adjusting default scheduler (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * started writing rules howto
+  * Created How does it work (markdown)
+  * Updated Home (markdown)
+  * Updated 1   FAQ (rest)
+  * Updated 1   FAQ (rest)
+  * Updated 1   FAQ (rest)
+  * Updated 1   FAQ (rest)
+  * Write a small message here explaining this change. (Optional)
+  * Updated 1   FAQ (rest)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Updated 1   Does ulatencyd support my cgroups mount points (rest)
+  * Created Faq (rest)
+  * Updated Home (markdown)
+  * start dbus specs
+  * Updated Home (markdown)
+  * Updated Home (markdown)
+  * Created Ideas to test (markdown)
+  * Created Architecture (markdown)
+  * add arch image
+  * Initial Commit
