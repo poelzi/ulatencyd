@@ -54,7 +54,17 @@ add_custom_target(docs-api
                   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/api)
 
+install(DIRECTORY api
+        DESTINATION doc/ulatencyd
+        OPTIONAL)
 
+install(DIRECTORY html
+        DESTINATION doc/ulatencyd
+        OPTIONAL)
+
+install(DIRECTORY txt
+        DESTINATION doc/ulatencyd
+        OPTIONAL)
 
 add_custom_target(docs)
 add_dependencies(docs docs-txt docs-html docs-api)
