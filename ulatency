@@ -591,8 +591,13 @@ class QtGui(Gui):
             sys.exit(1)
 
         if dbus:
-            from dbus.mainloop.qt import DBusQtMainLoop
-            self.dbus_loop = DBusQtMainLoop()
+            # if DBusQtMainLoop is not available, we simply stop to work
+            # correctly when ulatencyd is restarted
+            try:
+                from dbus.mainloop.qt import DBusQtMainLoop
+                self.dbus_loop = DBusQtMainLoop()
+            except ImportError as e:
+                self.dbus_loop = None
 
         class MainWindow(QMainWindow):
             def __init__(self, app):
