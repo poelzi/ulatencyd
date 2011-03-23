@@ -145,47 +145,46 @@ struct filter_block {
 
 typedef struct {
   U_HEAD;
-  int           pid; // duplicate of proc.tgid
-  int           ustate; // status bits for process
-  struct proc_t proc;
-  char        **cgroup_origin; // the original cgroups this process was created in
-  GArray        proc_history;
-  int           history_len;
-  guint         last_update; // for detecting dead processes
-  GNode         *node; // for parent/child lookups
-  GHashTable    *skip_filter;
-  GList         *flags;
-  int           changed; // flags or main parameters of process like uid, gid, sid
-  void          *filter_owner;
-  int           block_scheduler; // this should be respected by the scheduler
-  GPtrArray     *tasks; // pointer array to all process tasks of type u_task 
-  int           received_rt;
+  int           pid;            //!< duplicate of proc.tgid
+  int           ustate;         //!< status bits for process
+  struct proc_t proc;           //!< main data storage
+  char        **cgroup_origin;  //!< the original cgroups this process was created in
+  GArray        proc_history;   //!< list of history elements
+  int           history_len;    //!< desigered history len
+  guint         last_update;    //!< counter for detecting dead processes
+  GNode         *node;          //!< for parent/child lookups and transversal
+  GHashTable    *skip_filter;   //!< storage of #filter_block for filters
+  GList         *flags;         //!< list of #u_flag
+  int           changed;        //!< flags or main parameters of process like uid, gid, sid changed
+  int           block_scheduler; //!< indicates that the process should not be touched by the scheduler
+  GPtrArray     *tasks;         //!< pointer array to all process tasks of type #u_task 
+  int           received_rt;    //!< indicates a process had realtime prio at least once
 
-  int           lua_data;
+  int           lua_data;       //!< id for per process lua storage
   // we don't use the libproc parsers here as we do not update these values
   // that often
-  char          *cmdfile;
-  char          *cmdline_match;
-  GHashTable    *environ; // str:str hash table
-  GPtrArray     *cmdline;
-  char          *exe;
+  char          *cmdfile;       //!< basename of exe file
+  GPtrArray     *cmdline;       //!< array of char * of cmdline arguments
+  char          *cmdline_match; //!< space concated version of cmdline
+  GHashTable    *environ;       //!< char *:char * hash table of process environment
+  char          *exe;           //!< executeable of the process
 
   // fake pgid because it can't be changed.
-  pid_t         fake_pgrp;
+  pid_t         fake_pgrp;      //!< fake value for pgrp
   pid_t         fake_pgrp_old;
-  pid_t         fake_session;
+  pid_t         fake_session;   //!< fake value of session
   pid_t         fake_session_old;
 } u_proc;
 
 typedef struct {
-  u_proc *proc;
+  u_proc *proc;   //!< process this task belongs to
   proc_t task;
 } u_task;
 
 typedef struct _filter {
   U_HEAD;
   enum FILTER_TYPES type;
-  char *name;
+  char *name;                                //!< name of filter
   int (*precheck)(struct _filter *filter);
   int (*check)(u_proc *pr, struct _filter *filter);
   int (*postcheck)(struct _filter *filter);

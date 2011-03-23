@@ -103,13 +103,13 @@ void u_head_free(gpointer fb) {
 }
 
 /**
- * u_proc_remove_child_nodes:
- * @proc: a #u_proc
+ * remove all child nodes
+ * @arg proc a #u_proc
  *
  * Unlinks all child nodes from a #u_proc node. Moving them to the parent
  * on @proc and unlinks the node. Makes sure the node is save to remove.
  *
- * Returns: none
+ * @return none
  */
 
 static void u_proc_remove_child_nodes(u_proc *proc) {
@@ -144,12 +144,12 @@ static void u_proc_remove_child_nodes(u_proc *proc) {
 
 
 /**
- * remove_proc_from_delay_stack
- * @pid: #pid_t pid
+ * remove pid from delay stack
+ * @arg pid #pid_t pid
  *
  * removes process from the delay stack
  *
- * Returns: none
+ * @return none
  */
 
 static void remove_proc_from_delay_stack(pid_t pid) {
@@ -167,6 +167,12 @@ static void remove_proc_from_delay_stack(pid_t pid) {
   }
 }
 
+/**
+ * test if pid is in delay stack
+ * @arg pid #pid_t pid
+ *
+ * @return boolean
+ */
 static int pid_in_delay_stack(pid_t pid) {
   int i = 0;
   struct delay_proc *cur;
@@ -181,13 +187,13 @@ static int pid_in_delay_stack(pid_t pid) {
 
 
 /**
- * u_proc_free
- * @ptr: pointer to #u_proc
+ * free u_proc instance
+ * @arg ptr pointer to #u_proc
  *
  * free's all memory of a u_proc. This function should never be called directly.
  * It as called automaticly when the ref counter drops 0
  *
- * Returns: none
+ * @return none
  */
 
 void u_proc_free(void *ptr) {
@@ -236,14 +242,14 @@ void u_proc_free_task(void *ptr) {
 
 
 /**
- * u_proc_new
- * @proc: pointer to #proc_t datastructure
+ * allocate new #u_proc
+ * @arg proc pointer to #proc_t datastructure
  *
  * Allocates a new #u_proc. It can be prefiled with a proc_t datastructure.
- * If @proc is NULL, the resulting u_proc will have the state UPROC_NEW, otherwise
+ * If \c proc is NULL, the resulting u_proc will have the state UPROC_NEW, otherwise
  * it is UPROC_ALIVE
  *
- * Returns: newly allocated #u_proc reference
+ * @return newly allocated #u_proc reference
  */
 
 u_proc* u_proc_new(proc_t *proc) {
@@ -274,14 +280,14 @@ u_proc* u_proc_new(proc_t *proc) {
 }
 
 /**
- * u_proc_list_flags:
- * @proc: a #u_proc
- * @recrusive: boolean if recrusive flags should be returned, too
+ * list all flags from #u_proc
+ * @arg proc a #u_proc
+ * @arg recrusive boolean if recrusive flags should be returned, too
  *
  * Returns a new allocated GList of all flags. Don't forgett to DECREF the
  * result items and release the list
  *
- * Returns: @glist
+ * @return @glist
  */
 
 GList *u_proc_list_flags (u_proc *proc, gboolean recrusive) {
@@ -316,15 +322,15 @@ GList *u_proc_list_flags (u_proc *proc, gboolean recrusive) {
 }
 
 /**
- * u_proc_ensure:
- * @proc: a #u_proc
- * @what: set of varibles to fill from #ENSURE_WHAT
- * @update: force update
+ * ensures fields on #u_proc
+ * @arg proc a #u_proc
+ * @arg what set of varibles to fill from #ENSURE_WHAT
+ * @arg update force update
  *
  * Ensures a set of varibles is filled. 
  * If update is true, the variable are updated even if they already exist.
  *
- * Returns: @success
+ * @return @success
  */
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
   if(what == BASIC) {
@@ -419,6 +425,15 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
   return FALSE;
 }
 
+
+/**
+ * up to date list process tasks
+ * @arg proc #u_proc to get tasks from
+ *
+ * Returns a GArray of #pid_t of all tasks from given #u_proc process
+ *
+ * @return none
+ */
 GArray *u_proc_get_current_task_pids(u_proc *proc) {
     if(!U_PROC_SET_STATE(proc, UPROC_ALIVE))
       return FALSE;
@@ -452,12 +467,12 @@ out:
 }
 
 /**
- * process_free_value:
- * @data: a #u_proc pointer
+ * free process
+ * @arg data a #u_proc pointer
  *
  * INTERNAL: Called when the process is removed from the process_list
  *
- * Returns: none
+ * @return none
  */
 static void processes_free_value(gpointer data) {
   // called when a process is freed from the process list
@@ -508,13 +523,13 @@ static int remove_parent_caller_stack(GArray *array, pid_t pid) {
 
 
 /**
- * parent_proc_by_pid:
- * @parent_pid: #proc_t of parent
- * @child_pid: #proc_t of child
+ * returns the parent of process
+ * @arg parent_pid #pid_t of parent
+ * @arg child #u_proc of child
  *
  * INTERNAL: lookup the parent #u_proc of a child. Prints warning when missing.
  *
- * Returns: @u_proc of parent
+ * @return #u_proc of parent
  */
 static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
     pid_t update_pid;
@@ -555,12 +570,12 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
 }
 
 /**
- * rebuild_tree:
+ * rebuilds the process tree
  *
  * INTERNAL: completly rebuild the process tree. used when a desync is detected
  * on update_processes.
  *
- * Returns: none
+ * @return none
  */
 static void rebuild_tree() {
   GHashTableIter iter;
@@ -613,15 +628,15 @@ static void rebuild_tree() {
 }
 
 /**
- * detect_changed:
- * @old: *#proc_t of old values
- * @new: *#proc_t of new values
+ * detect changes of process
+ * @arg old *#proc_t of old values
+ * @arg new *#proc_t of new values
  *
  * INTERNAL: detect if the changed values of a u_proc.proc structure are sufficient
  * enough for the #u_proc.changed flag to be set. When the changed flag is set,
  * the scheduler will run again.
  *
- * Returns: @boolean
+ * @return boolean if a major change detected
  */
 
 static int detect_changed(proc_t *old, proc_t *new) {
@@ -634,15 +649,15 @@ static int detect_changed(proc_t *old, proc_t *new) {
 }
 
 /**
- * processes_is_last_changed:
- * @key: unused
- * @value: #u_proc pointer
- * @user_data: pointer to int
+ * test if process has changed
+ * @arg key unused
+ * @arg value #u_proc pointer
+ * @arg user_data pointer to int
  *
  * INTERNAL: detect if the process was changed in the last full update run.
  * if not, the process is removed from the process_list
  *
- * Returns: @u_proc of parent
+ * @return boolean TRUE if not changed
  */
 static gboolean processes_is_last_changed(gpointer key, gpointer value,
                                          gpointer user_data) {
@@ -653,35 +668,35 @@ static gboolean processes_is_last_changed(gpointer key, gpointer value,
 }
 
 /**
- * process_remove:
- * @proc: *#u_proc to remove
+ * remove process
+ * @arg proc #u_proc to remove
  *
  * tells the core that a process is not active anymore
  *
- * Returns: boolean if the process got removed
+ * @return boolean if the process got removed
  */
 int process_remove(u_proc *proc) {
   return g_hash_table_remove(processes, GUINT_TO_POINTER(proc->pid));
 }
 
 /**
- * process_remove:
- * @proc: #pid_t to remove
+ * remove process by pid
+ * @arg proc #pid_t to remove
  *
  * same as process_remove execpt with pid
  *
- * Returns: boolean if the process got removed
+ * @return boolean if the process got removed
  */
-int process_remove_by_pid(int pid) {
+int process_remove_by_pid(pid_t pid) {
   return g_hash_table_remove(processes, GUINT_TO_POINTER(pid));
 }
 
 /**
- * clear_process_changed:
+ * clear all changed flags
  *
  * INTERNAL: unset the changed flag. called after a full run.
  *
- * Returns: none
+ * @return none
  */
 static void clear_process_changed() {
   GHashTableIter iter;
@@ -707,11 +722,14 @@ static gboolean _clear_skip_filters_types(gpointer key, gpointer value, gpointer
 }
 
 /**
- * process_clear_filter_block
+ * clears given skip filters
+ *
+ * @arg proc #u_proc to change
+ * @arg block_types remove the matching block types 
  *
  * clears all filter blocks of given types
  *
- * Returns: none
+ * @return none
  */
 void clear_process_skip_filters(u_proc *proc, int block_types) {
   g_hash_table_foreach_remove(proc->skip_filter, 
@@ -740,14 +758,14 @@ void clear_process_skip_filters(u_proc *proc, int block_types) {
   }
 
 /**
- * process_workarrounds:
- * @proc: #u_proc proc
- * @parent: #uproc_parent
+ * process workarrounds
+ * @arg proc #u_proc proc
+ * @arg parent #u_proc parent
  *
  * INTERNAL: do workarounds for process parameters that can't be changed in the
  * system but need to for nice grouping.
  *
- * Returns: boolean if the process got removed
+ * @return boolean if the process got removed
  */
 static void process_workarrounds(u_proc *proc, u_proc *parent) {
   // do various workaround jobs here...
@@ -758,15 +776,15 @@ static void process_workarrounds(u_proc *proc, u_proc *parent) {
 #undef fake_var_fix
 
 /**
- * update_processes_run:
- * @proctab: #PROCTAB 
- * @full: indicates that a full run is done 
+ * updates processes
+ * @arg proctab #PROCTAB 
+ * @arg full boolean indicates that a full run is done 
  *
  * parses the /proc filesystem and updates the internal node structure acordingly.
  * This low level function is usually called from wrapper that fill the @proctab
  * accordingly.
  *
- * Returns: int number of parsed records
+ * @return int number of parsed records
  */
 int update_processes_run(PROCTAB *proctab, int full) {
   proc_t buf;
@@ -899,11 +917,11 @@ int update_processes_run(PROCTAB *proctab, int full) {
 }
 
 /**
- * processes_update_all:
+ * updates all processes
  *
  * updates all process of the system
  *
- * Returns: number of process updated
+ * @return number of process updated
  */
 int process_update_all() {
   int rv;
@@ -931,12 +949,12 @@ static struct timespec diff(struct timespec start, struct timespec end)
 
 
 /**
- * run_new_pid:
+ * runs process from delay stack
  *
  * called by timeout to check if processes from the delay stack are old enough
  * to be run through the filters and scheduler
  *
- * Returns: number of process updated
+ * @return number of process updated
  */
 static int run_new_pid(gpointer ign) {
     struct timespec now;
@@ -978,9 +996,9 @@ static int run_new_pid(gpointer ign) {
 
 
 /**
- * process_new_delay:
- * @pid: new pid to create
- * @parent: pid of parent process
+ * adds a new process via delay stack
+ * @arg pid new pid to create
+ * @arg parent pid of parent process
  *
  * this function creates a delay process. This means that a #u_proc instance is
  * created and linked into the process tree, but the process is not parsed and 
@@ -991,7 +1009,7 @@ static int run_new_pid(gpointer ign) {
  * save cpu time for processes that die very quickly.
  * Passing a parent helps to skip reading basic data from /proc
  *
- * Returns: boolean. TRUE if process could be created.
+ * @return boolean. TRUE if process could be created.
  */
 gboolean process_new_delay(pid_t pid, pid_t parent) {
   u_proc *proc, *proc_parent;
@@ -1060,12 +1078,12 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
 
 
 /**
- * process_update_pids:
- * @pids: #pid_t array
+ * updates list of pids
+ * @arg pids #pid_t array
  *
  * Updates a list of processes. The @pids list must be terminated with 0.
  *
- * Returns: int. number of processes updated
+ * @return int. number of processes updated
  */
 int process_update_pids(pid_t pids[]) {
   int rv;
@@ -1080,27 +1098,27 @@ int process_update_pids(pid_t pids[]) {
 }
 
 /**
- * process_update_pid:
- * @pid: #pid_t to update
+ * updates a single pid
+ * @arg pid #pid_t to update
  *
  * Updates a single pid. If you have a list of processes to update, better use
  * process_update_pids
  *
- * Returns: int. number of processes updated
+ * @return int. number of processes updated
  */
-int process_update_pid(int pid) {
+int process_update_pid(pid_t pid) {
   pid_t pids [2] = { pid, 0 };
   return process_update_pids(pids);
 }
 
 /**
- * process_new:
- * @pid: #pid_t to update
- * @noupdate: skip if process already exists
+ * instant add new process
+ * @arg pid #pid_t to update
+ * @arg noupdate skip if process already exists
  *
  * Indicates a new process and runs the rules and scheduler on it.
  *
- * Returns: boolean. Sucess
+ * @return boolean. Sucess
  */
 int process_new(int pid, int noupdate) {
   u_proc *proc;
@@ -1119,13 +1137,14 @@ int process_new(int pid, int noupdate) {
 }
 
 /**
- * process_new_list:
- * @list: array of #pid_t
- * @update: update even if existing
+ * updates list of processes
+ * @arg list array of #pid_t
+ * @arg update update even if existing
+ * @instant boolean if instant filters should be run first
  *
  * Indicates a list of new processes and runs the rules and scheduler on it.
  *
- * Returns: boolean. Sucess
+ * @return boolean. Sucess
  */
 int process_new_list(GArray *list, int update, int instant) {
   u_proc *proc;
@@ -1157,13 +1176,13 @@ int process_new_list(GArray *list, int update, int instant) {
 }
 
 /**
- * process_run_one:
- * @proc: #u_proc to run
+ * run filters and scheduler on one process
+ * @arg proc #u_proc to run
  * @update: update process before run
  *
  * Run the filters and scheduler on the process
  *
- * Returns: boolean. Sucess
+ * @return boolean. Sucess
  */
 int process_run_one(u_proc *proc, int update, int instant) {
   if(update)
@@ -1175,12 +1194,12 @@ int process_run_one(u_proc *proc, int update, int instant) {
 
 
 /**
- * u_flag_free:
+ * free flags
  * @ptr: #u_flag pointer
  *
  * INTERNAL: free a u_flag structure. It is called when the ref count drops 0.
  *
- * Returns: none
+ * @return none
  */
 void u_flag_free(void *ptr) {
   u_flag *flag = ptr;
@@ -1194,12 +1213,12 @@ void u_flag_free(void *ptr) {
 
 /**
  * u_flag_new:
- * @source: pointer to identify the source
- * @name: char * name of flag
+ * @arg source pointer to identify the source
+ * @arg name char * name of flag
  *
  * Allocates a new u_flag
  *
- * Returns: #u_flag pointer
+ * @return #u_flag pointer
  */
 u_flag *u_flag_new(u_filter *source, const char *name) {
   u_flag *rv;
@@ -1218,13 +1237,13 @@ u_flag *u_flag_new(u_filter *source, const char *name) {
 }
 
 /**
- * u_flag_add:
- * @proc: #u_proc to add the flag to, or NULL for system flags
- * @flag: #u_flag to add
+ * add flag to process
+ * @arg proc #u_proc to add the flag to, or NULL for system flags
+ * @arg flag #u_flag to add
  *
  * Adds a new flag to the u_proc or system flag list.
  *
- * Returns: boolean. TRUE on success.
+ * @return boolean. TRUE on success.
  */
 int u_flag_add(u_proc *proc, u_flag *flag) {
   if(proc) {
@@ -1243,13 +1262,13 @@ int u_flag_add(u_proc *proc, u_flag *flag) {
 }
 
 /**
- * u_flag_del:
- * @proc: #u_proc to remove the flag from, or NULL for system flags
- * @flag: #u_flag to remove
+ * delete flag from process
+ * @arg proc #u_proc to remove the flag from, or NULL for system flags
+ * @arg flag #u_flag to remove
  *
  * Removes a flag from a process or system flags.
  *
- * Returns: boolean. TRUE on success.
+ * @return boolean. TRUE on success.
  */
 int u_flag_del(u_proc *proc, u_flag *flag) {
   if(proc) {
