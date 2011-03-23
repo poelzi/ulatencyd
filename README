@@ -43,6 +43,15 @@ Documentation:
   libmoose-perl
   pandoc
 
+CLI:
+  python-dbus
+  python2.5+ - python3.2+
+
+GUI:
+  python-qt4
+  python-qt4-dbus
+
+
 Compiling:
 
  # cmake .
