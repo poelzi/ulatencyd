@@ -660,7 +660,7 @@ class QtGui(Gui):
         configs = self.session.config_list()
 
         self.app.menu = QMenu()
-        menu = self.app.menu.addMenu("set config")
+        self.config_menu = menu = self.app.menu.addMenu("set config")
         self.config_action = {}
         def connect(con):
             return lambda: self.switch_config(con)
@@ -670,6 +670,7 @@ class QtGui(Gui):
             c.setChecked(self.cur == config)
             c.setToolTip(unicode(self.session.get_desc(config)))
             c.triggered.connect(connect(config))
+        menu.aboutToShow.connect(self.update_active)
         menu = self.app.menu
         menu.addSeparator()
         quit = menu.addAction("Quit")
@@ -680,6 +681,11 @@ class QtGui(Gui):
         app.trayicon.setContextMenu(menu)
         quit.triggered.connect(self.quit)
         prnt("gui started.")
+
+    def update_active(self):
+        self.cur = self.session.get_config()
+        for action in self.config_menu.actions():
+            action.setChecked(self.cur == action.text())
 
     def switch_tree(self, tree):
         self.tree = Tree(tree=tree, show_all = self.tree.show_all)
@@ -773,12 +779,9 @@ class QtGui(Gui):
             self.first_fill = False
 
     def switch_config(self, new):
-        self.config_action[self.cur].setChecked(False)
-        self.config_action[new].setChecked(True)
-        cmd = " {0} set config {1}".format(sys.argv[0], new)
-        if os.system("gtksudo" + cmd) == 32512:
-            prnt(os.system("kdesudo" + cmd))
-        self.cur = new
+        if self.session.set_config(new, timeout=60*60*24):
+            self.config_action[self.cur].setChecked(False)
+            self.config_action[new].setChecked(True)
 
     def get_logo(self):
         header = ["16 16 5 1"]
