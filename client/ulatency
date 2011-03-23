@@ -170,8 +170,9 @@ def print_process(pid, flags=None):
 
 class Session:
 
-    def __init__(self):
-        self.bus = dbus.SystemBus()
+    def __init__(self, dbus_loop=None):
+        self.dbus_loop = dbus_loop
+        self.bus = dbus.SystemBus(mainloop=self.dbus_loop)
         self.sets = {
             'config':self.set_config,
             'active':self.set_active,
@@ -188,7 +189,8 @@ class Session:
         try:
             self.system = self.bus.get_object(
                 'org.quamquam.ulatencyd',
-                '/org/quamquam/ulatencyd/System')
+                '/org/quamquam/ulatencyd/System',
+                follow_name_owner_changes=bool(self.dbus_loop))
         except dbus.exceptions.DBusException as e:
             return False
         return True
@@ -198,7 +200,8 @@ class Session:
         try:
             self.user = self.bus.get_object(
                 'org.quamquam.ulatencyd',
-                '/org/quamquam/ulatencyd/User')
+                '/org/quamquam/ulatencyd/User',
+                follow_name_owner_changes=bool(self.dbus_loop))
         except dbus.exceptions.DBusException as e:
             return False
         return True
@@ -211,7 +214,7 @@ class Session:
         try: return list(map(unicode, system.listSchedulerConfigs()))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            return None
 
     def set(self, key, *value):
         if key not in self.sets:
@@ -228,7 +231,7 @@ class Session:
         try: return system.setSchedulerConfig(config, timeout=timeout)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            return None
 
     def set_active(self, pid=None):
         if pid is None:
@@ -240,8 +243,7 @@ class Session:
         try: return user.setActive(pid)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
-
+            return None
 
     def get(self, key, *value):
         if key not in self.gets:
@@ -258,7 +260,7 @@ class Session:
                 'org.quamquam.ulatencyd.System', 'config'))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            return None
 
     def get_desc(self, config=None):
         if not self.init_system():
@@ -310,7 +312,7 @@ class Session:
         properties = dbus.Interface(self.user,'org.freedesktop.DBus.Properties')
         try:
             return unicode(properties.Get(
-                'org.quamquam.ulatencyd.User', 'activeList'))
+                'org.quamquam.ulatencyd.User', 'activeListLength'))
         except dbus.exceptions.DBusException as e:
             prnt(e)
             sys.exit(2)
@@ -587,6 +589,10 @@ class QtGui(Gui):
             prnt("python qt4 bindings missing.")
             sys.exit(1)
 
+        if dbus:
+            from dbus.mainloop.qt import DBusQtMainLoop
+            self.dbus_loop = DBusQtMainLoop()
+
         class MainWindow(QMainWindow):
             def __init__(self, app):
                 self.app = app
@@ -600,7 +606,7 @@ class QtGui(Gui):
         self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
-        self.session = Session()
+        self.session = Session(dbus_loop=self.dbus_loop)
         self.settings = QSettings("ulatencyd", "qtgui")
         self.first_fill = True
 
@@ -620,7 +626,9 @@ class QtGui(Gui):
 
         tree_menu = menu.addMenu("tree")
 
+        self.config_action = {}
         self.config_tree = {}
+
         def connect(con):
             return lambda: self.switch_tree(con)
         tree_group = QActionGroup(tree_menu)
@@ -657,19 +665,10 @@ class QtGui(Gui):
 
 
         self.cur = self.session.get_config()
-        configs = self.session.config_list()
 
         self.app.menu = QMenu()
-        menu = self.app.menu.addMenu("set config")
-        self.config_action = {}
-        def connect(con):
-            return lambda: self.switch_config(con)
-        for config in configs:
-            self.config_action[config] = c = menu.addAction(config)
-            c.setCheckable(True)
-            c.setChecked(self.cur == config)
-            c.setToolTip(unicode(self.session.get_desc(config)))
-            c.triggered.connect(connect(config))
+        self.config_menu = menu = self.app.menu.addMenu("set config")
+        menu.aboutToShow.connect(self.update_active)
         menu = self.app.menu
         menu.addSeparator()
         quit = menu.addAction("Quit")
@@ -680,6 +679,25 @@ class QtGui(Gui):
         app.trayicon.setContextMenu(menu)
         quit.triggered.connect(self.quit)
         prnt("gui started.")
+
+    def update_active(self):
+        self.cur = self.session.get_config()
+        configs = self.session.config_list()
+
+        self.config_action = {}
+        self.config_menu.clear()
+
+        if not configs:
+            return
+
+        def connect(con):
+            return lambda: self.switch_config(con)
+        for config in configs:
+            self.config_action[config] = c = self.config_menu.addAction(config)
+            c.setCheckable(True)
+            c.setChecked(self.cur == config)
+            c.setToolTip(unicode(self.session.get_desc(config)))
+            c.triggered.connect(connect(config))
 
     def switch_tree(self, tree):
         self.tree = Tree(tree=tree, show_all = self.tree.show_all)
@@ -773,12 +791,9 @@ class QtGui(Gui):
             self.first_fill = False
 
     def switch_config(self, new):
-        self.config_action[self.cur].setChecked(False)
-        self.config_action[new].setChecked(True)
-        cmd = " {0} set config {1}".format(sys.argv[0], new)
-        if os.system("gtksudo" + cmd) == 32512:
-            prnt(os.system("kdesudo" + cmd))
-        self.cur = new
+        if self.session.set_config(new, timeout=60*60*24):
+            self.config_action[self.cur].setChecked(False)
+            self.config_action[new].setChecked(True)
 
     def get_logo(self):
         header = ["16 16 5 1"]
@@ -881,9 +896,8 @@ EPILOG="""commands:
   sysflags                   list system flags
   mounts                     lists all mounted cgroups
   clear cgroup|ALL           clears a cgroup
-  run -- [COMMAND]           run task under different scheduler config
-  game -- [COMMAND]          run task under game scheduler
-  single_task -- [COMMAND]   run task under single_task scheduler
+  run [options]  -- [COMMAND]  run task under different scheduler config
+  run-CONFIG [COMMAND]       run task under scheduler CONFIG
 """
 
 def main():
@@ -939,21 +953,30 @@ def main():
 
     if options.set or args and args[0] == 'set':
         if len(args[1:]):
-            prnt(Session().set(*args[1:]))
-            sys.exit(0)
+            rv = Session().set(*args[1:])
+            prnt(rv)
+            if rv: sys.exit(0)
+            sys.exit(2)
+
         else: prnt(",".join(Session().sets.keys()))
         return
 
     if options.get or args and args[0] == 'get':
         if len(args[1:]):
-            prnt(Session().get(*args[1:]))
-            sys.exit(0)
+            rv = Session().get(*args[1:])
+            prnt(rv)
+            if rv: sys.exit(0)
+            sys.exit(2)
         else: prnt(",".join(Session().gets.keys()))
         return
 
 
     if args and args[0] == 'run':
         command(args[1:], options.scheduler, options.as_root)
+        return
+
+    if args and args[0][:4] == "run-":
+        command(args[1:], config=args[0][4:].replace("-", "_"))
         return
 
 
