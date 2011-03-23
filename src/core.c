@@ -1398,7 +1398,7 @@ u_filter* filter_new() {
 }
 
 void filter_register(u_filter *filter, int instant) {
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "register new filter: %s", filter->name ? filter->name : "unknown");
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "register new filter:%s instant:%d", filter->name ? filter->name : "unknown", instant);
   if(instant) {
       filter_fast_list = g_list_append(filter_fast_list, filter);
   } else {
@@ -1531,8 +1531,15 @@ void filter_for_proc(u_proc *proc, GList *list) {
 
 void filter_run() {
   u_filter *flt;
+  int i = 0;
   //printf("run filter %p, %d\n", filter_list, g_list_length(filter_list));
-  GList *cur = g_list_first(filter_list);
+  GList *cur;
+  if(filter_fast_list) {
+    cur = g_list_first(filter_fast_list);
+  } else {
+    cur = g_list_first(filter_list);
+    i=1;
+  }
   while(cur) {
     flt = cur->data;
     blocked_parent = NULL;
@@ -1545,10 +1552,16 @@ void filter_run() {
     //printf("children %d %d\n", g_node_n_children(processes_tree), g_node_n_nodes (processes_tree,G_TRAVERSE_ALL ));
     g_node_traverse(processes_tree, G_PRE_ORDER,G_TRAVERSE_ALL, -1, 
                     filter_run_for_node, flt);
-    cur = g_list_next(cur);
+
     if(flt->postcheck) {
       flt->postcheck(flt);
     }
+    cur = g_list_next(cur);
+    if(!cur && i == 0) {
+        cur = g_list_first(filter_list);
+        i++;
+    }
+
   }
   blocked_parent = NULL;
 }
