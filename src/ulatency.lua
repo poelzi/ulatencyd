@@ -8,6 +8,17 @@
 --! @brief u_proc class
 u_proc = {}
 
+
+--! @brief return io prio and class
+function u_proc:get_ioprio()
+  return prio, class
+end
+
+--! @brief sets io prio
+function u_proc:set_ioprio(prio, class)
+end
+
+
 --! @brief parent of process
 --! @return u_proc instance or nil
 function u_proc:get_parent()
