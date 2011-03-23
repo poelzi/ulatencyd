@@ -18,6 +18,7 @@ except:
 import subprocess
 from optparse import OptionParser
 from signal import signal, SIGINT, SIG_DFL
+from functools import partial
 
 
 signal(SIGINT, SIG_DFL)
@@ -619,6 +620,10 @@ class QtGui(Gui):
         mb = QMenuBar(win)
         win.setMenuBar(mb)
         menu = mb.addMenu("client")
+        c = menu.addMenu("set config")
+        c.aboutToShow.connect(partial(self.update_active, c))
+        menu.addSeparator()
+
         quit = menu.addAction("quit")
         quit.setShortcut(QKeySequence("Ctrl+Q"))
         quit.triggered.connect(app.quit)
@@ -668,7 +673,7 @@ class QtGui(Gui):
 
         self.app.menu = QMenu()
         self.config_menu = menu = self.app.menu.addMenu("set config")
-        menu.aboutToShow.connect(self.update_active)
+        menu.aboutToShow.connect(partial(self.update_active, menu))
         menu = self.app.menu
         menu.addSeparator()
         quit = menu.addAction("Quit")
@@ -680,12 +685,12 @@ class QtGui(Gui):
         quit.triggered.connect(self.quit)
         prnt("gui started.")
 
-    def update_active(self):
+    def update_active(self, menu):
         self.cur = self.session.get_config()
         configs = self.session.config_list()
 
         self.config_action = {}
-        self.config_menu.clear()
+        menu.clear()
 
         if not configs:
             return
@@ -693,7 +698,7 @@ class QtGui(Gui):
         def connect(con):
             return lambda: self.switch_config(con)
         for config in configs:
-            self.config_action[config] = c = self.config_menu.addAction(config)
+            self.config_action[config] = c = menu.addAction(config)
             c.setCheckable(True)
             c.setChecked(self.cur == config)
             c.setToolTip(unicode(self.session.get_desc(config)))
