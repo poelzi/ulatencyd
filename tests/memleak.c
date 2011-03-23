@@ -26,6 +26,8 @@
 
 #include <stdlib.h>
 
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
+
 int
 main (argc, argv)
      int argc;
@@ -125,7 +127,7 @@ main (argc, argv)
 
   void **ptr = malloc(sizeof(void *) * nums);
   void *ttmp;
-  
+  char cmp[10] = "iutare29i3";
 
 
   printf ("malloc %d chunks of %d kb (delay %d us):\n", nums, chunk, delay);
@@ -141,7 +143,10 @@ main (argc, argv)
     if(stress) {
       for(j = 0; i/3 < j; j++) {
           ttmp = ptr[rand()%i];
-          memset(ttmp + (rand()%chunk) - sizeof(int) , rand(), sizeof(int));
+          if(rand()%6 == 1)
+            memset(ttmp + (rand()%chunk) - sizeof(int) , rand(), sizeof(int));
+          else
+            memcmp(ttmp + (rand()%chunk) - MIN(10, chunk), cmp, MIN(10, chunk));
       }
     }
     usleep(delay);
