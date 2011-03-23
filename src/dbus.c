@@ -758,10 +758,16 @@ gboolean u_dbus_setup() {
     
     dbus_error_init(&error);
 
+#ifdef DEVELOP_MODE
     if (dbus_bus_request_name(c, U_DBUS_SERVICE_NAME, DBUS_NAME_FLAG_REPLACE_EXISTING, &error) < 0) {
         g_warning("Failed to register name on bus: %s\n", error.message);
         goto fail;
     }
+#else
+    if (dbus_bus_request_name(c, U_DBUS_SERVICE_NAME, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error) != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
+        g_error("daemon already running, can't request: %s", U_DBUS_SERVICE_NAME);
+    }
+#endif
 
     dbus_connection_register_object_path(c, U_DBUS_USER_PATH, &utable, NULL);
     dbus_connection_register_object_path(c, U_DBUS_SYSTEM_PATH, &stable, NULL);
