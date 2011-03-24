@@ -1,4 +1,21 @@
 
+0.5.0-rc2 / 2011-03-24 
+==================
+
+  * also run instant filters on processes
+  * do mixture of read/write on mem pages
+  * don't put active processes into rt io
+  * implement stress mode in memleak
+  * implement io prio settings for processes
+  * add banshee player
+  * Merge commit 'dbdcb918d051d71c913e63ed6bea605088b457ed'
+  * more robust version of terminal size detection
+  * fix io bottleneck detector
+  * catch errors caused in terminal detection
+  * Merge commit 'f6715991672ccc8c7fd239b8139aae74dac3a3f5'
+  * work without python-dbus-qt4
+  * add set config menu in window
+
 0.5.0-rc1 / 2011-03-23 
 ==================
 
