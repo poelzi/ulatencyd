@@ -52,7 +52,7 @@
                                __VA_ARGS__)
 
 
-#define VERSION 0.5.0-rc2
+#define VERSION 0.5.0-rc3
 
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
