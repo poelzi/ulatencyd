@@ -343,11 +343,11 @@ class Session:
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try:
             rv = []
-            data = system.addFlag(pid, 0, values["name"], 
+            data = system.addFlag(pid, 0, values["name"],
                                           unicode(values.get("reason", "")),
-                                          long(values.get("timeout", 0)), 
-                                          int(values.get("priority", 0)), 
-                                          long(values.get("value", 0)), 
+                                          long(values.get("timeout", 0)),
+                                          int(values.get("priority", 0)),
+                                          long(values.get("value", 0)),
                                           long(values.get("treshold", 0)),
                                           bool(values.get("inherit", False)))
         except dbus.exceptions.DBusException as e:
@@ -882,7 +882,7 @@ def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
         sys.exit(2)
 
     prnt("ulatency: execute '%s'" %" ".join(args))
-    
+
     def int_handler(ignum, frame):
         prnt("-" * 30)
         prnt("received interrupt signal")
@@ -961,7 +961,7 @@ def main():
     if prog[:4] in ("run-", "run_"):
         if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
             prnt("Usage: %s COMMAND" %prog)
-            prnt("executes program under schduler config: %s" %prog[4:].replace("-", "_").upper())
+            prnt("executes program under scheduler config: %s" %prog[4:].replace("-", "_").upper())
             sys.exit(1)
         command(sys.argv[1:], config=prog[4:].replace("-", "_"))
         return
