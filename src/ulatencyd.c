@@ -101,7 +101,7 @@ static GOptionEntry entries[] =
   { "verbose", 'v', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
   { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
   { "log-file", 'f', 0, G_OPTION_ARG_FILENAME, &log_file, "Log to file", NULL},
-  { "daemonize", 'd', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
+  { "daemonize", 'd', 0, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
   { NULL }
 };
 
