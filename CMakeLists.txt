@@ -177,9 +177,15 @@ install(DIRECTORY conf/scheduler
         DESTINATION ${CONFIG_PREFIX}/ulatencyd
         PATTERN "*~" EXCLUDE)
 
-install(FILES client/ulatency
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
-                    GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+# install client files
+FILE(GLOB cl RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    "client/ulatency*")
+SET(client "${cl}" "${client}")
+FILE(GLOB cl RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    "client/run-*")
+SET(client "${cl}" "${client}")
+
+install(PROGRAMS ${client}
         DESTINATION bin)
 
 if(NOT "${SYSTEMD_DIR}" STREQUAL "")
