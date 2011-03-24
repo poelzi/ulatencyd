@@ -1,6 +1,12 @@
-install(FILES ulatency.1
+FILE(GLOB man1 RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    "*.1")
+
+FILE(GLOB man8 RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    "*.8")
+
+install(FILES ${man1}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/man/man1)
-install(FILES ulatencyd.8
+install(FILES ${man8}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/man/man8)
 
 
