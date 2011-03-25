@@ -38,6 +38,20 @@ Build Requirements:
   liblua5.1-0-dev | libluajit-5.1-dev
   liblua5.1-posix1 (sometimes called luaposix)
 
+Documentation:
+  doxygen
+  libmoose-perl
+  pandoc
+
+CLI:
+  python-dbus
+  python2.5+ - python3.2+
+
+GUI:
+  python-qt4
+  python-qt4-dbus
+
+
 Compiling:
 
  # cmake .
@@ -46,6 +60,10 @@ Compiling:
 Configure options (optional):
 
  # ccmake .
+
+Building Documentation:
+
+ # make docs
 
 Install:
  # sudo make install

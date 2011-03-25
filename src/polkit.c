@@ -49,15 +49,6 @@ check_authorization_cb (PolkitAuthority *authority,
   dbus_message_unref(data->message);
 }
 
-static gboolean
-do_cancel (GCancellable *cancellable)
-{
-  g_print ("Timer has expired; cancelling authorization check\n");
-  g_cancellable_cancel (cancellable);
-  return FALSE;
-}
-
-
 int check_polkit(const char *methode,
              DBusConnection *connection,
              DBusMessage *message,

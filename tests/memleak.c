@@ -24,13 +24,18 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <stdlib.h>
+
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
+
 int
 main (argc, argv)
      int argc;
      char **argv;
 {
   int c = 0;
-  int i = 0;
+  int j, i = 0;
+  int stress = 0;
   int chunk = 1024;
   int nums = 10;
   int delay = 50000;
@@ -45,6 +50,7 @@ main (argc, argv)
         {"chunk", 1, 0, 'c'},
         {"nums", 1, 0, 'n'},
         {"delay", 1, 0, 'd'},
+        {"stress", 0, 0, 's'},
         {"help", 0, 0, 'h'},
         {0, 0, 0, 0}
       };
@@ -68,6 +74,7 @@ main (argc, argv)
           printf ("-c size      size of chunk in kb\n");
           printf ("-n num       number of memory chunks\n");
           printf ("-d delay     delay in usecs between alloc \n");
+          printf ("-s           stress test allocated memory \n");
           exit(0);
           break;
 
@@ -88,6 +95,9 @@ main (argc, argv)
           delay = atoi(optarg);
           break;
 
+        case 's':
+          stress = 1;
+          break;
 
         case '?':
           break;
@@ -115,16 +125,29 @@ main (argc, argv)
 
   sleep(3);
 
+  void **ptr = malloc(sizeof(void *) * nums);
+  void *ttmp;
+  char cmp[10] = "iutare29i3";
+
 
   printf ("malloc %d chunks of %d kb (delay %d us):\n", nums, chunk, delay);
 
   while(1) {
     if(i < nums) {
       tmp = malloc(chunk*1024);
-      memset(tmp, 0, chunk*1024);
+      ptr[i] = memset(tmp, 0, chunk*1024);
       printf(".");
       fflush(stdout);
       i++;
+    }
+    if(stress) {
+      for(j = 0; i/3 < j; j++) {
+          ttmp = ptr[rand()%i];
+          if(rand()%6 == 1)
+            memset(ttmp + (rand()%chunk) - sizeof(int) , rand(), sizeof(int));
+          else
+            memcmp(ttmp + (rand()%chunk) - MIN(10, chunk), cmp, MIN(10, chunk));
+      }
     }
     usleep(delay);
   }

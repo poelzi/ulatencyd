@@ -18,6 +18,7 @@ except:
 import subprocess
 from optparse import OptionParser
 from signal import signal, SIGINT, SIG_DFL
+from functools import partial
 
 
 signal(SIGINT, SIG_DFL)
@@ -92,12 +93,31 @@ style = drug(**dict(
         on_cyan    = "\033[46m",
         on_white   = "\033[47m"))
 
+
 def terminal_size():
-    import fcntl, termios, struct
-    h, w, hp, wp = struct.unpack('HHHH',
-        fcntl.ioctl(0, termios.TIOCGWINSZ,
-        struct.pack('HHHH', 0, 0, 0, 0)))
-    return w or 80, h
+    def ioctl_GWINSZ(fd):
+        try:
+            import fcntl, termios, struct, os
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ,
+        '1234'))
+        except:
+            return None
+        return cr
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+    if not cr:
+        try:
+            cr = (os.environment['LINES'], os.environment['COLUMNS'])
+        except:
+            cr = (25, 80)
+    return int(cr[1]), int(cr[0])
+
 
 TERM_WIDTH = terminal_size()[0]
 
@@ -170,8 +190,9 @@ def print_process(pid, flags=None):
 
 class Session:
 
-    def __init__(self):
-        self.bus = dbus.SystemBus()
+    def __init__(self, dbus_loop=None):
+        self.dbus_loop = dbus_loop
+        self.bus = dbus.SystemBus(mainloop=self.dbus_loop)
         self.sets = {
             'config':self.set_config,
             'active':self.set_active,
@@ -188,7 +209,8 @@ class Session:
         try:
             self.system = self.bus.get_object(
                 'org.quamquam.ulatencyd',
-                '/org/quamquam/ulatencyd/System')
+                '/org/quamquam/ulatencyd/System',
+                follow_name_owner_changes=bool(self.dbus_loop))
         except dbus.exceptions.DBusException as e:
             return False
         return True
@@ -198,7 +220,8 @@ class Session:
         try:
             self.user = self.bus.get_object(
                 'org.quamquam.ulatencyd',
-                '/org/quamquam/ulatencyd/User')
+                '/org/quamquam/ulatencyd/User',
+                follow_name_owner_changes=bool(self.dbus_loop))
         except dbus.exceptions.DBusException as e:
             return False
         return True
@@ -211,7 +234,7 @@ class Session:
         try: return list(map(unicode, system.listSchedulerConfigs()))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            return None
 
     def set(self, key, *value):
         if key not in self.sets:
@@ -228,7 +251,7 @@ class Session:
         try: return system.setSchedulerConfig(config, timeout=timeout)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            return None
 
     def set_active(self, pid=None):
         if pid is None:
@@ -240,8 +263,7 @@ class Session:
         try: return user.setActive(pid)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
-
+            return None
 
     def get(self, key, *value):
         if key not in self.gets:
@@ -258,7 +280,7 @@ class Session:
                 'org.quamquam.ulatencyd.System', 'config'))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            return None
 
     def get_desc(self, config=None):
         if not self.init_system():
@@ -310,7 +332,7 @@ class Session:
         properties = dbus.Interface(self.user,'org.freedesktop.DBus.Properties')
         try:
             return unicode(properties.Get(
-                'org.quamquam.ulatencyd.User', 'activeList'))
+                'org.quamquam.ulatencyd.User', 'activeListLength'))
         except dbus.exceptions.DBusException as e:
             prnt(e)
             sys.exit(2)
@@ -321,11 +343,11 @@ class Session:
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try:
             rv = []
-            data = system.addFlag(pid, 0, values["name"], 
+            data = system.addFlag(pid, 0, values["name"],
                                           unicode(values.get("reason", "")),
-                                          long(values.get("timeout", 0)), 
-                                          int(values.get("priority", 0)), 
-                                          long(values.get("value", 0)), 
+                                          long(values.get("timeout", 0)),
+                                          int(values.get("priority", 0)),
+                                          long(values.get("value", 0)),
                                           long(values.get("treshold", 0)),
                                           bool(values.get("inherit", False)))
         except dbus.exceptions.DBusException as e:
@@ -587,6 +609,15 @@ class QtGui(Gui):
             prnt("python qt4 bindings missing.")
             sys.exit(1)
 
+        if dbus:
+            # if DBusQtMainLoop is not available, we simply stop to work
+            # correctly when ulatencyd is restarted
+            try:
+                from dbus.mainloop.qt import DBusQtMainLoop
+                self.dbus_loop = DBusQtMainLoop()
+            except ImportError as e:
+                self.dbus_loop = None
+
         class MainWindow(QMainWindow):
             def __init__(self, app):
                 self.app = app
@@ -600,7 +631,7 @@ class QtGui(Gui):
         self.QColor = QColor
         self.QTreeWidgetItem = QTreeWidgetItem
         self.app = app = QApplication(sys.argv)
-        self.session = Session()
+        self.session = Session(dbus_loop=self.dbus_loop)
         self.settings = QSettings("ulatencyd", "qtgui")
         self.first_fill = True
 
@@ -613,6 +644,10 @@ class QtGui(Gui):
         mb = QMenuBar(win)
         win.setMenuBar(mb)
         menu = mb.addMenu("client")
+        c = menu.addMenu("set config")
+        c.aboutToShow.connect(partial(self.update_active, c))
+        menu.addSeparator()
+
         quit = menu.addAction("quit")
         quit.setShortcut(QKeySequence("Ctrl+Q"))
         quit.triggered.connect(app.quit)
@@ -620,7 +655,9 @@ class QtGui(Gui):
 
         tree_menu = menu.addMenu("tree")
 
+        self.config_action = {}
         self.config_tree = {}
+
         def connect(con):
             return lambda: self.switch_tree(con)
         tree_group = QActionGroup(tree_menu)
@@ -657,19 +694,10 @@ class QtGui(Gui):
 
 
         self.cur = self.session.get_config()
-        configs = self.session.config_list()
 
         self.app.menu = QMenu()
-        menu = self.app.menu.addMenu("set config")
-        self.config_action = {}
-        def connect(con):
-            return lambda: self.switch_config(con)
-        for config in configs:
-            self.config_action[config] = c = menu.addAction(config)
-            c.setCheckable(True)
-            c.setChecked(self.cur == config)
-            c.setToolTip(unicode(self.session.get_desc(config)))
-            c.triggered.connect(connect(config))
+        self.config_menu = menu = self.app.menu.addMenu("set config")
+        menu.aboutToShow.connect(partial(self.update_active, menu))
         menu = self.app.menu
         menu.addSeparator()
         quit = menu.addAction("Quit")
@@ -680,6 +708,25 @@ class QtGui(Gui):
         app.trayicon.setContextMenu(menu)
         quit.triggered.connect(self.quit)
         prnt("gui started.")
+
+    def update_active(self, menu):
+        self.cur = self.session.get_config()
+        configs = self.session.config_list()
+
+        self.config_action = {}
+        menu.clear()
+
+        if not configs:
+            return
+
+        def connect(con):
+            return lambda: self.switch_config(con)
+        for config in configs:
+            self.config_action[config] = c = menu.addAction(config)
+            c.setCheckable(True)
+            c.setChecked(self.cur == config)
+            c.setToolTip(unicode(self.session.get_desc(config)))
+            c.triggered.connect(connect(config))
 
     def switch_tree(self, tree):
         self.tree = Tree(tree=tree, show_all = self.tree.show_all)
@@ -773,12 +820,9 @@ class QtGui(Gui):
             self.first_fill = False
 
     def switch_config(self, new):
-        self.config_action[self.cur].setChecked(False)
-        self.config_action[new].setChecked(True)
-        cmd = " {0} set config {1}".format(sys.argv[0], new)
-        if os.system("gtksudo" + cmd) == 32512:
-            prnt(os.system("kdesudo" + cmd))
-        self.cur = new
+        if self.session.set_config(new, timeout=60*60*24):
+            self.config_action[self.cur].setChecked(False)
+            self.config_action[new].setChecked(True)
 
     def get_logo(self):
         header = ["16 16 5 1"]
@@ -838,7 +882,7 @@ def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
         sys.exit(2)
 
     prnt("ulatency: execute '%s'" %" ".join(args))
-    
+
     def int_handler(ignum, frame):
         prnt("-" * 30)
         prnt("received interrupt signal")
@@ -881,9 +925,8 @@ EPILOG="""commands:
   sysflags                   list system flags
   mounts                     lists all mounted cgroups
   clear cgroup|ALL           clears a cgroup
-  run -- [COMMAND]           run task under different scheduler config
-  game -- [COMMAND]          run task under game scheduler
-  single_task -- [COMMAND]   run task under single_task scheduler
+  run [options]  -- [COMMAND]  run task under different scheduler config
+  run-CONFIG [COMMAND]       run task under scheduler CONFIG
 """
 
 def main():
@@ -918,7 +961,7 @@ def main():
     if prog[:4] in ("run-", "run_"):
         if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
             prnt("Usage: %s COMMAND" %prog)
-            prnt("executes program under schduler config: %s" %prog[4:].replace("-", "_").upper())
+            prnt("executes program under scheduler config: %s" %prog[4:].replace("-", "_").upper())
             sys.exit(1)
         command(sys.argv[1:], config=prog[4:].replace("-", "_"))
         return
@@ -939,21 +982,30 @@ def main():
 
     if options.set or args and args[0] == 'set':
         if len(args[1:]):
-            prnt(Session().set(*args[1:]))
-            sys.exit(0)
+            rv = Session().set(*args[1:])
+            prnt(rv)
+            if rv: sys.exit(0)
+            sys.exit(2)
+
         else: prnt(",".join(Session().sets.keys()))
         return
 
     if options.get or args and args[0] == 'get':
         if len(args[1:]):
-            prnt(Session().get(*args[1:]))
-            sys.exit(0)
+            rv = Session().get(*args[1:])
+            prnt(rv)
+            if rv: sys.exit(0)
+            sys.exit(2)
         else: prnt(",".join(Session().gets.keys()))
         return
 
 
     if args and args[0] == 'run':
         command(args[1:], options.scheduler, options.as_root)
+        return
+
+    if args and args[0][:4] == "run-":
+        command(args[1:], config=args[0][4:].replace("-", "_"))
         return
 
 

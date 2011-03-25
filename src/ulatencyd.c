@@ -101,7 +101,7 @@ static GOptionEntry entries[] =
   { "verbose", 'v', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose, "More verbose. Can be passed multiple times", NULL },
   { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
   { "log-file", 'f', 0, G_OPTION_ARG_FILENAME, &log_file, "Log to file", NULL},
-  { "daemonize", 'd', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
+  { "daemonize", 'd', 0, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
   { NULL }
 };
 
@@ -572,7 +572,14 @@ int main (int argc, char *argv[])
   load_rule_directory(rules_directory, load_pattern, TRUE);
 
   process_update_all();
-  init_netlink(main_loop);
+
+  gboolean el = g_key_file_get_boolean(config_data, "core", "netlink", &error);
+  if(el || error)
+    init_netlink(main_loop);
+  else
+    g_message("netlink support disabled. no fast reactions possible");
+  if(error)
+    g_error_free(error), error = NULL;
 
   // small hack
   timeout_long(NULL);
