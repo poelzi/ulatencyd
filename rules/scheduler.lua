@@ -250,7 +250,11 @@ function Scheduler:list_configs()
   for k,v in pairs(getfenv()) do
     if string.sub(k, 1, 18 ) == "SCHEDULER_MAPPING_" then
       name = string.lower(string.sub(k, 19))
-      if v.info and not v.info.hidden then
+      if v.info then
+        if not v.info.hidden then
+          rv[#rv+1] = name
+        end
+      else
         rv[#rv+1] = name
       end
     end
