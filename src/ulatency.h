@@ -360,9 +360,6 @@ int load_lua_rule_file(lua_State *L, const char *name);
 u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 
-static inline u_proc *proc_by_pid(pid_t pid) {
-  return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
-}
 
 enum ENSURE_WHAT {
   BASIC,
@@ -400,6 +397,19 @@ int process_run_one(u_proc *proc, int update, int instant);
 void clear_process_skip_filters(u_proc *proc, int block_types);
 
 int process_update_all();
+
+static inline u_proc *proc_by_pid(pid_t pid) {
+  return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
+}
+
+static inline u_proc *proc_by_pid_with_retry(pid_t pid) {
+  u_proc *proc = g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
+  if(proc)
+    return proc;
+  if(process_update_pid(pid))
+    return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
+  return NULL;
+}
 
 
 int scheduler_run_one(u_proc *proc);

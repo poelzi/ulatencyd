@@ -150,7 +150,6 @@ const void *U_DBUS_POINTER = &INTROSPECT_XML_SYSTEM;
       }
 
 
-
 static DBusHandlerResult dbus_user_handler(DBusConnection *c, DBusMessage *m, void *userdata) {
     DBusError error;
     DBusMessage *ret = NULL;
@@ -429,7 +428,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
               PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
 
         pid = (pid_t)tu64;
-        proc = proc_by_pid(pid);
+        proc = proc_by_pid_with_retry(pid);
 
         if(!proc)
           PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
@@ -465,8 +464,8 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         pid_t pid = (pid_t)tpid;
         pid_t tid = (pid_t)ttid;
 
-        proc = proc_by_pid(pid);
-        
+        proc = proc_by_pid_with_retry(pid);
+
         GET_CALLER()
 
         if(!proc)
@@ -513,7 +512,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         pid_t pid = (pid_t)tpid;
 
-        proc = proc_by_pid(pid);
+        proc = proc_by_pid_with_retry(pid);
 
         GET_CALLER()
 
@@ -546,7 +545,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         pid_t pid = (pid_t)tpid;
 
-        proc = proc_by_pid(pid);
+        proc = proc_by_pid_with_retry(pid);
 
         GET_CALLER()
 
