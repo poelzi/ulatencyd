@@ -187,7 +187,8 @@ function ulatency.tree_loaded(name)
   return __CGROUP_LOADED[name]
 end
 
-
+--! @brief returns boolean if name is available
+--! @param name name of subsystem to test
 function ulatency.has_cgroup_subsystem(name)
   if not __CGROUP_HAS then
     ulatency.get_cgroup_subsystems()
@@ -195,8 +196,11 @@ function ulatency.has_cgroup_subsystem(name)
   return (__CGROUP_HAS[name] == true)
 end
 
-
+--!@brief returns a table of available cgroup subsystems
 function ulatency.get_cgroup_subsystems()
+  if __CGROUP_AVAIL then
+    return __CGROUP_AVAIL
+  end
   __CGROUP_AVAIL = {}
   __CGROUP_HAS = {}
   for line in io.lines("/proc/cgroups") do 
