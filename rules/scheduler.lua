@@ -215,8 +215,9 @@ function Scheduler:_one(proc, single)
       proc:clear_changed()
       return true
     end
-    for subsys,map in pairs(self.MAPPING) do
-      if ulatency.tree_loaded(subsys) then
+    for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
+      map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
+      if map then
         local mappings = run_list(proc, map)
         --pprint(mappings)
         group = map_to_group(proc, mappings, subsys)
