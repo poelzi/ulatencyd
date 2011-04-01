@@ -111,7 +111,7 @@ SCHEDULER_MAPPING_GAME["memory"] =
       {
         name = "game",
         param = { ["?memory.swappiness"] = "20" },
-        label = { "user.game" },
+        label = { "user.game", "cmd.config.single_task" },
         adjust_new = function(cgroup, proc)
             local max_rss = Scheduler.meminfo.kb_main_total * 0.80 * 1024
             cgroup:set_value("memory.limit_in_bytes", max_rss)
@@ -171,7 +171,7 @@ SCHEDULER_MAPPING_GAME["blkio"] =
     name = "task",
     cgroups_name = "usr_${euid}_game",
     param = { ["blkio.weight"]="1000" },
-    label = { "user.game" },
+    label = { "user.game", "cmd.config.game"},
   },
   {
     name = "group",

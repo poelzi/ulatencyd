@@ -117,7 +117,7 @@ SCHEDULER_MAPPING_SINGLE_TASK["memory"] =
       {
         name = "task",
         param = { ["?memory.swappiness"] = "20" },
-        label = { "user.single_task" },
+        label = { "user.single_task", "cmd.config.single_task" },
         adjust_new = function(cgroup, proc)
             local max_rss = Scheduler.meminfo.kb_main_total * 0.90 * 1024
             cgroup:set_value("memory.limit_in_bytes", max_rss)
@@ -177,7 +177,7 @@ SCHEDULER_MAPPING_SINGLE_TASK["blkio"] =
     name = "task",
     cgroups_name = "usr_${euid}_single_task",
     param = { ["blkio.weight"]="1000" },
-    label = { "user.single_task" },
+    label = { "user.single_task", "cmd.config.single_task" },
   },
   { 
     name = "group",

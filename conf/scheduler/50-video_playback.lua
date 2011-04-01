@@ -185,7 +185,3 @@ SCHEDULER_MAPPING_VIDEO_PLAYBACK["blkio"] = merge_config(SCHEDULER_MAPPING_DESKT
     },
   }
 )
-
-print("---------")
-pprint(SCHEDULER_MAPPING_VIDEO_PLAYBACK)
-print("---------")
