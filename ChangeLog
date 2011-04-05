@@ -1,4 +1,27 @@
 
+0.5.0 / 2011-04-05 
+==================
+
+  * bump version
+  * fix single task config
+  * hide videoplayback for now
+  * test if subsystem is loaded
+  * Merge branch 'master' into develop
+  * fix missing labels on game and single_task config
+  * add video_playback config
+  * cache available cgroup names
+  * add xfce & lxde configs
+  * list configs with no info object as well
+  * better error reporting and handling
+  * better error messages on connecting errors
+  * retry process lookup in remote api calls
+  * install all man pages
+  * fix typo schduler -> scheduler in ulatency
+  * add manpage for run-single-task
+  * add manpage for run-game
+  * add ulatency-gui to ulatency.1 manpage
+  * fix goption warning for G_OPTION_FLAG_NO_ARG
+
 0.5.0-rc3 / 2011-03-24 
 ==================
 
