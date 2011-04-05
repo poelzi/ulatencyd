@@ -1,5 +1,3 @@
-WARNING: this program is under development and only suited for testing.
-
 == What is ulatency ==
 
 Ulatency is a daemon that controls how the Linux kernel will spend it's
