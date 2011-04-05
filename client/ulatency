@@ -190,9 +190,10 @@ def print_process(pid, flags=None):
 
 class Session:
 
-    def __init__(self, dbus_loop=None):
+    def __init__(self, dbus_loop=None, silent=True):
         self.dbus_loop = dbus_loop
         self.bus = dbus.SystemBus(mainloop=self.dbus_loop)
+        self.silent = silent
         self.sets = {
             'config':self.set_config,
             'active':self.set_active,
@@ -212,8 +213,20 @@ class Session:
                 '/org/quamquam/ulatencyd/System',
                 follow_name_owner_changes=bool(self.dbus_loop))
         except dbus.exceptions.DBusException as e:
-            return False
+            if self.silent:
+                return False
+            raise
         return True
+
+    def test_connection(self):
+        try:
+            self.system = self.bus.get_object(
+                'org.quamquam.ulatencyd',
+                '/org/quamquam/ulatencyd/System')
+            return True
+        except dbus.exceptions.DBusException as e:
+            print(e)
+
 
     def init_user(self):
         if hasattr(self, 'user'): return True
@@ -223,7 +236,9 @@ class Session:
                 '/org/quamquam/ulatencyd/User',
                 follow_name_owner_changes=bool(self.dbus_loop))
         except dbus.exceptions.DBusException as e:
-            return False
+            if self.silent:
+                return False
+            raise
         return True
 
     def config_list(self):
@@ -234,7 +249,9 @@ class Session:
         try: return list(map(unicode, system.listSchedulerConfigs()))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            return None
+            if self.silent:
+                return None
+            raise
 
     def set(self, key, *value):
         if key not in self.sets:
@@ -251,7 +268,9 @@ class Session:
         try: return system.setSchedulerConfig(config, timeout=timeout)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            return None
+            if self.silent:
+                return None
+            raise
 
     def set_active(self, pid=None):
         if pid is None:
@@ -263,7 +282,9 @@ class Session:
         try: return user.setActive(pid)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            return None
+            if self.silent:
+                return None
+            raise
 
     def get(self, key, *value):
         if key not in self.gets:
@@ -280,7 +301,9 @@ class Session:
                 'org.quamquam.ulatencyd.System', 'config'))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            return None
+            if self.silent:
+                return None
+            raise
 
     def get_desc(self, config=None):
         if not self.init_system():
@@ -295,7 +318,9 @@ class Session:
         try: return system.getSchedulerConfigDescription(config)
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            if self.silent:
+                return None
+            raise
 
     def get_systemflags(self):
         if not self.init_system():
@@ -305,7 +330,9 @@ class Session:
             return list(map(unicode, system.listSystemFlags()))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            if self.silent:
+                return None
+            raise
 
     def get_processflags(self, pid=None, recrusive=True):
         if not self.init_system():
@@ -322,7 +349,9 @@ class Session:
               rv.append([flag[0],dict((unicode(x),v) for x,v in flag[1].iteritems())])
             return rv
         except dbus.exceptions.DBusException as e:
-            return []
+            if self.silent:
+                return []
+            raise
 
 
     def get_activelistlength(self):
@@ -335,7 +364,9 @@ class Session:
                 'org.quamquam.ulatencyd.User', 'activeListLength'))
         except dbus.exceptions.DBusException as e:
             prnt(e)
-            sys.exit(2)
+            if self.silent:
+                return []
+            raise
 
     def add_flag(self, pid, **values):
         if not self.init_system():
@@ -352,6 +383,8 @@ class Session:
                                           bool(values.get("inherit", False)))
         except dbus.exceptions.DBusException as e:
             prnt(e)
+            if self.silent:
+                return False
             raise e
 
 
@@ -875,7 +908,11 @@ def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
         #sys.exit(1)
     session = Session()
     old_config = session.get_config()
-    prnt("ulatency: old config %s" %old_config)
+    if not old_config:
+        prnt("ulatency: could not contact dbus daemon")
+        session.test_connection()
+        sys.exit(1)
+    prnt("ulatency: save old config: %s" %old_config)
     session.add_flag(pid, name="cmd.config.%s" %config, inherit=True)
     if not session.set_config(config, timeout=60*60*24):
         prnt("ulatency: abort by user")
@@ -886,7 +923,7 @@ def command(args, config=CONFIG_SINGLE_TASK, as_root=False):
     def int_handler(ignum, frame):
         prnt("-" * 30)
         prnt("received interrupt signal")
-        prnt("ulatency: restore config %s" %old_config)
+        prnt("ulatency: restore config:%s" %old_config)
         session.set_config(old_config, timeout=60*60*24)
         sys.exit(1)
 
