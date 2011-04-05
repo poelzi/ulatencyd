@@ -217,7 +217,7 @@ function Scheduler:_one(proc, single)
     end
     for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
       map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
-      if map then
+      if map and ulatency.tree_loaded(subsys) then
         local mappings = run_list(proc, map)
         --pprint(mappings)
         group = map_to_group(proc, mappings, subsys)
