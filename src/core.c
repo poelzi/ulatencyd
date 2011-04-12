@@ -1809,7 +1809,11 @@ int core_init() {
 #endif
 
 #ifdef POLKIT_FOUND
+#ifdef POLKIT_HAVE_GET_SYNC
   U_polkit_authority = polkit_authority_get_sync (NULL, NULL);
+#else
+  U_polkit_authority = polkit_authority_get();
+#endif
 #endif
   // delay stack 
   delay_stack = g_ptr_array_new_with_free_func(free);
