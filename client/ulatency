@@ -27,6 +27,11 @@ VERSION = '0.2'
 DEFAULT_TREE = "cpu"
 CGROUP_PATHS = {}
 CGROUP_SUBSYS = []
+GROUP_VALUES = ["cpu.shares",
+                "cpuset.cpus", "cpuset.cpu_exclusive",
+                "memory.limit_in_bytes", "memory.memsw.limit_in_bytes",
+                "memory.swappiness"]
+GROUP_VALUES_HIDE = ["", "0", "2147483647", "9223372036854775807"]
 
 CONFIG_SINGLE_TASK = "single_task"
 
@@ -409,10 +414,12 @@ class Tree(object):
     }
 
     def __init__(self, tree=DEFAULT_TREE, processes=True, show_all=True,
-                 utf = True, color = False, flags = False, cmdline = False):
+                 utf = True, color = False, flags = False, cmdline = False,
+                 group_values=True):
         self.tree = tree
         self.processes = processes
         self.show_all = show_all
+        self.group_values = group_values
         self.utf = utf
         self.flags = flags
         self.cmdline = cmdline
@@ -423,13 +430,13 @@ class Tree(object):
                 process = u("{0.yellow}{1}{0.default} {2}"),
                 subtree = u("{0.bold}{0.black}{1}{0.default}"),
                 tree    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{0.green}") +
-                          u("{5}{0.bold}{0.black}{4}{0.default}"),
+                          u("{5}{0.bold}{0.black}{4}{0.black}{6}{0.default}"),
                 file    = u("{0.bold}{0.black}{1}{2}{3}{0.default}{4}{5}{0.magenta}{6}{0.default}") )
         else:
             self.color = drug(
                 process = u("{1} {2}"),
                 subtree = u("{1}"),
-                tree    = u("{1}{2}{3}{5}{4}"),
+                tree    = u("{1}{2}{3}{5}{4}{6}"),
                 file    = u("{1}{2}{3}{4}{5}{6}") )
         path = self.get_path()
         if path:
@@ -547,11 +554,27 @@ class Tree(object):
                     islast or self.boxes[self.utf].branch,
                     self.boxes[self.utf].file, process, fpad, flags))
                 return
+            values = ""
+            if self.group_values:
+                for value in GROUP_VALUES:
+                    vpath = os.path.join(branch.path, value)
+                    if os.path.exists(vpath):
+                        with open(vpath) as fp:
+                            cont = fp.read().replace("\n", "")
+                            if cont not in GROUP_VALUES_HIDE:
+                                if values:
+                                    values += " {0}={1}".format(value, cont)
+                                else:
+                                    values += "{0}={1}".format(value, cont)
+                if values:
+                    values = (max(3, 20 - len(padding) - len(branch.name)))*" " + values
+
             prnt(self.color.tree.format(style, padding,
                 islast or self.boxes[self.utf].branch,
                 self.boxes[self.utf].start,
                 self.boxes[self.utf].end,
-                branch.name))
+                branch.name,
+                values))
             count = 0
             for child in branch.children:
                 count += 1
@@ -984,6 +1007,8 @@ def main():
         default=False, help="show complete tree")
     parser.add_option("--flags", dest="flags", action="store_true",
         default=False, help="show flags on tree output")
+    parser.add_option("--no-group-values", dest="no_group_values", action="store_true",
+        default=False, help="hide important group values")
     parser.add_option("--cmd", dest="cmdline", action="store_true",
         default=False, help="show cmdline")
     parser.add_option("--as-root", dest="as_root", action="store_true",
@@ -1049,7 +1074,8 @@ def main():
     if not args or args[0] == 'tree':
         kwargs = dict(utf = options.utf, color = options.color,
             show_all = options.all, processes = options.processes,
-            flags = options.flags, cmdline = options.cmdline)
+            flags = options.flags, cmdline = options.cmdline,
+            group_values = not options.no_group_values)
         if len(args) > 1:
             tree = Tree(tree=args[1], **kwargs)
         else:
