@@ -81,7 +81,7 @@ SCHEDULER_MAPPING_SINGLE_TASK["cpu"] =
     name = "system",
     cgroups_name = "sys",
     check = function(proc)
-              return ( proc.euid > 999 )
+              return ( proc.euid < 1000 )
             end,
     param = { ["cpu.shares"]="100",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
@@ -94,6 +94,13 @@ SCHEDULER_MAPPING_SINGLE_TASK["cpu"] =
                 end,
         param = { ["cpu.shares"]="30",
                   ["?cpu.rt_runtime_us"] = "1"},
+      },
+      {
+        name = "kernel",
+        cgroups_name = "",
+        check = function(proc)
+                  return (proc.vm_size == 0)
+                end
       },
     }
   },

@@ -10,13 +10,6 @@ TODO:
   - interface for user wishes pinning to different parameters (cli)
 - rules rules rules ;-)
 
-- often a process is spawned and dies quite quickly. if it is spawned from a already
-  scheduled subprocess, the rules and scheduler code gets applied. this can cause
-  quite a load on ulatencyd, when a lot of processes get spawned and die quickly.
-  having an aging stack for new processes that have to exist for at least n ms 
-  before they get run through the pipe should decrease the load on the daemon. the
-  processes will exist in the parent group as long as they are not run yet
-
 - optimize src/proc.
   it is a fork of the libproc that could need some optimizations. currently we use
   quite many read flags that do unnessery mallocs and reading of values that are

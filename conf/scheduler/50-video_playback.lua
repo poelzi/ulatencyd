@@ -8,7 +8,8 @@
 
 SCHEDULER_MAPPING_VIDEO_PLAYBACK = {
   info = {
-    description = "a scheduler for video playback"
+    description = "a scheduler for video playback. EXPERIMENTAL",
+    hidden = true
   }
 }
 

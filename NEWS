@@ -1,3 +1,11 @@
+0.5.0
+=====
+  - Policykit support
+  - Configs for single task & games
+  - XFCE & LXDE support
+  - updated documentation
+  - GUI/CLI updates
+
 0.4.9
 =====
   - Bugfixes

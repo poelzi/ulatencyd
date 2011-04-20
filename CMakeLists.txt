@@ -34,6 +34,10 @@ endif(ENABLE_DBUS)
 
 pkg_check_modules(GIO gio-2.0 REQUIRED)
 
+if(POLKIT_FOUND)
+  INCLUDE (CheckLibraryExists)
+  CHECK_LIBRARY_EXISTS(polkit-gobject-1 polkit_authority_get_sync "" POLKIT_HAVE_GET_SYNC)
+endif(POLKIT_FOUND)
 
 # FIXME: libproc should export more symbols
 # find libproc
