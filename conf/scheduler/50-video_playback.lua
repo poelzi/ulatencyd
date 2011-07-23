@@ -186,3 +186,20 @@ SCHEDULER_MAPPING_VIDEO_PLAYBACK["blkio"] = merge_config(SCHEDULER_MAPPING_DESKT
     },
   }
 )
+
+SCHEDULER_MAPPING_VIDEO_PLAYBACK["bfqio"] = merge_config(SCHEDULER_MAPPING_DESKTOP["bfqio"], 
+  {
+   replace = 
+    {
+      {
+      name = "media",
+      param = { ["bfqio.weight"]="1000" },
+      cgroups_name = "grp_${pgrp}",
+      label = { "user.media"},
+      adjust = function(cgroup, proc)
+            save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
+           end,
+      },
+    },
+  }
+)
