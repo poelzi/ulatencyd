@@ -136,3 +136,7 @@ end
 if ulatency.tree_loaded("blkio") then
   ulatency.add_timeout(iterate, 1000)
 end
+
+if ulatency.tree_loaded("bfqio") then
+  ulatency.add_timeout(iterate, 1000)
+end
