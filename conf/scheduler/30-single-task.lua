@@ -203,3 +203,29 @@ SCHEDULER_MAPPING_SINGLE_TASK["blkio"] =
   },
 }
 
+-- io configuration. blkio does not support hirarchies
+SCHEDULER_MAPPING_SINGLE_TASK["bfqio"] =
+{
+  { 
+    name = "task",
+    cgroups_name = "usr_${euid}_single_task",
+    param = { ["bfqio.weight"]="1000" },
+    label = { "user.single_task", "cmd.config.single_task" },
+  },
+  { 
+    name = "group",
+    param = { ["bfqio.weight"]="1" },
+    cgroups_name = "grp_${pgrp}",
+    check = function(proc)
+              return proc.pgrp > 0
+            end,
+  },
+  { 
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+              return (proc.vm_size == 0)
+            end
+  },
+}
+

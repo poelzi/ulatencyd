@@ -190,3 +190,28 @@ SCHEDULER_MAPPING_GAME["blkio"] =
   },
 }
 
+SCHEDULER_MAPPING_GAME["bfqio"] =
+{
+  {
+    name = "task",
+    cgroups_name = "usr_${euid}_game",
+    param = { ["bfqio.weight"]="1000" },
+    label = { "user.game", "cmd.config.game"},
+  },
+  {
+    name = "group",
+    param = { ["bfqio.weight"]="1" },
+    cgroups_name = "grp_${pgrp}",
+    check = function(proc)
+              return proc.pgrp > 0
+            end,
+  },
+  { 
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+              return (proc.vm_size == 0)
+            end
+  },
+}
+
