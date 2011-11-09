@@ -472,5 +472,11 @@ uint64_t     get_number_of_processes();
 #define U_DBUS_USER_INTERFACE   "org.quamquam.ulatencyd.User"
 #define U_DBUS_SYSTEM_PATH      "/org/quamquam/ulatencyd/System"
 #define U_DBUS_SYSTEM_INTERFACE "org.quamquam.ulatencyd.System"
+#ifdef DEVELOP_MODE
+#define U_DBUS_RETRY_COUNT      1
+#else
+#define U_DBUS_RETRY_COUNT      5
+#endif
+#define U_DBUS_RETRY_WAIT       500 * 1000
 
 #endif
