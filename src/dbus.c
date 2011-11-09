@@ -764,7 +764,8 @@ gboolean u_dbus_setup() {
     }
 #else
     if (dbus_bus_request_name(c, U_DBUS_SERVICE_NAME, DBUS_NAME_FLAG_DO_NOT_QUEUE, &error) != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
-        g_error("daemon already running, can't request: %s", U_DBUS_SERVICE_NAME);
+        g_warning("daemon already running, can't request: %s", U_DBUS_SERVICE_NAME);
+        goto fail;
     }
 #endif
 

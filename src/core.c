@@ -1786,6 +1786,7 @@ int u_dbus_setup();
 
 int core_init() {
   // load config
+  int i;
   iteration = 1;
   filter_list = NULL;
 
@@ -1804,8 +1805,24 @@ int core_init() {
 
 
 #ifdef ENABLE_DBUS
-  if(!u_dbus_setup())
-    g_warning("failed to setup dbus");
+  for(i = 1; TRUE; i++) {
+    if(u_dbus_setup())
+      break;
+    else {
+      if(i > U_DBUS_RETRY_COUNT) {
+        #ifdef DEVELOP_MODE
+          g_warning("failed to setup dbus");
+          break;
+        #else
+          g_warning("give up requesting dbus name. exit");
+          exit(1);
+        #endif
+      } else {
+          usleep(U_DBUS_RETRY_WAIT);
+      }
+    }
+
+  }
 #endif
 
 #ifdef POLKIT_FOUND
@@ -1847,6 +1864,8 @@ int core_init() {
 }
 
 void core_unload() {
-  lua_gc (lua_main_state, LUA_GCCOLLECT, 0);
+  if(lua_main_state) {
+    lua_gc (lua_main_state, LUA_GCCOLLECT, 0);
+  }
 }
 
