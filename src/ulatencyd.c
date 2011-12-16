@@ -463,6 +463,7 @@ int main (int argc, char *argv[])
 {
   GError *error = NULL;
   GOptionContext *context;
+  int i = 0;
 
   // required for dbus
   g_type_init ();
@@ -501,10 +502,11 @@ int main (int argc, char *argv[])
     if (sid < 0) {
       exit (1);
     }
-
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
+    // ensure std* exist but do nothing
+    i=open("/dev/null",O_RDWR);
+    dup2(i, STDIN_FILENO); 
+    dup2(i, STDOUT_FILENO);
+    dup2(i, STDERR_FILENO);
   }
 
   load_config();
