@@ -8,7 +8,7 @@
 
 GnomeUI = {
   name = "GnomeUI",
-  re_basename = "metacity|compiz|gnome-panel|gtk-window-decorator|nautilus",
+  re_basename = "metacity|mutter|compiz|gtk-window-decorator|gnome-panel|gnome-shell|nautilus",
   --re_basename = "metacity",
   check = function(self, proc)
     local flag = ulatency.new_flag("user.ui")
