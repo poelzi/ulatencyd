@@ -57,7 +57,7 @@
 #define CONFIG_CORE "core"
 
 #define U_HEAD \
-  guint ref; \
+  volatile gint ref; \
   void (*free_fnk)(void *data);
 
 struct _U_HEAD {
@@ -181,10 +181,10 @@ typedef struct _filter {
   void *data;
 } u_filter;
 
-#define INC_REF(P) P ->ref++;
+#define INC_REF(P) g_atomic_int_inc(&P->ref);
 #define DEC_REF(P) \
- do { struct _U_HEAD *uh = (struct _U_HEAD *) P ; uh->ref--; g_assert(uh->ref >= 0); \
-  if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0);
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) P ; \
+  if( g_atomic_int_dec_and_test(&uh->ref) && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0);
 
 #define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 ) { FNK ( P ); }
 
@@ -301,6 +301,7 @@ extern GNode* processes_tree;
 extern lua_State *lua_main_state;
 extern GList* system_flags;
 extern int    system_flags_changed;
+extern GStaticRWLock process_lock;
 #ifdef ENABLE_DBUS
 extern DBusGConnection *U_dbus_connection; // usully the system bus, but may differ on develop mode
 extern DBusGConnection *U_dbus_connection_system; // always the system bus

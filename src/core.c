@@ -30,7 +30,6 @@
 #include <fcntl.h>
 #include <glib.h>
 #include <stdio.h>
-#include <sys/mman.h>
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <fnmatch.h>
@@ -63,7 +62,8 @@ static GPtrArray *delay_stack;
 GTimer *timer_filter;
 GTimer *timer_scheduler;
 GTimer *timer_parse;
-
+GStaticRWLock process_lock = G_STATIC_RW_LOCK_INIT;
+GStaticRWLock delay_lock = G_STATIC_RW_LOCK_INIT;
 
 
 // delay new processes
@@ -153,6 +153,7 @@ static void u_proc_remove_child_nodes(u_proc *proc) {
 static void remove_proc_from_delay_stack(pid_t pid) {
   int i = 0;
   struct delay_proc *cur;
+  g_static_rw_lock_writer_lock (&delay_lock);
 
   for(i = 0; i < delay_stack->len;) {
       cur = g_ptr_array_index(delay_stack, i);
@@ -163,6 +164,8 @@ static void remove_proc_from_delay_stack(pid_t pid) {
         i++;
       }
   }
+  g_static_rw_lock_writer_unlock (&delay_lock);
+
 }
 
 /**
@@ -308,7 +311,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
               proc->cmdline_match = g_string_free(match, FALSE);
               // empty command line, for kernel threads for example
               if(!proc->cmdline->len)
-                return FALSE;
+                return TRUE;
               if(proc->cmdfile) {
                 g_free(proc->cmdfile);
                 proc->cmdfile = NULL;
@@ -341,9 +344,6 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
         out = readlink(path, (char *)&buf, PATH_MAX);
         if(out > 0) {
             proc->exe = g_strndup((char *)&buf, out);
-        } else {
-            g_free(path);
-            return FALSE;
         }
         g_free(path);
       }
@@ -433,6 +433,7 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
     // this should't happen, but under fork stress init may not have
     // collected so the parent does not exist, or the parent just died. we try updating
     // the process first and try again.
+    g_static_rw_lock_reader_lock (&process_lock);
     if(!parent) {
       g_debug("parent missing: %d, force update", parent_pid);
       process_update_pid(child->pid);
@@ -447,6 +448,8 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
       g_warning("pid: %d parent %d missing. attaching to pid 1", child->pid, parent_pid);
       return proc_by_pid(1);
     }
+    INC_REF(parent);
+    g_static_rw_lock_reader_unlock (&process_lock);
     return parent;
 }
 
@@ -462,6 +465,8 @@ static void rebuild_tree() {
   GHashTableIter iter;
   gpointer key, value;
   u_proc *proc, *parent;
+
+  g_static_rw_lock_writer_lock (&process_lock);
 
   // clear root node
   g_node_destroy(processes_tree);
@@ -499,7 +504,7 @@ static void rebuild_tree() {
       U_PROC_UNSET_STATE(proc, UPROC_HAS_PARENT);
     }
   }
-
+  g_static_rw_lock_writer_unlock (&process_lock);
 
 }
 
@@ -552,7 +557,13 @@ static gboolean processes_is_last_changed(gpointer key, gpointer value,
  * Returns: boolean if the process got removed
  */
 int process_remove(u_proc *proc) {
-  return g_hash_table_remove(processes, GUINT_TO_POINTER(proc->pid));
+  int rv;
+
+  g_static_rw_lock_writer_lock (&process_lock);
+  rv = g_hash_table_remove(processes, GUINT_TO_POINTER(proc->pid));
+  g_static_rw_lock_writer_unlock (&process_lock);
+
+  return rv;
 }
 
 /**
@@ -564,7 +575,13 @@ int process_remove(u_proc *proc) {
  * Returns: boolean if the process got removed
  */
 int process_remove_by_pid(int pid) {
-  return g_hash_table_remove(processes, GUINT_TO_POINTER(pid));
+  int rv;
+
+  g_static_rw_lock_writer_lock (&process_lock);
+  rv = g_hash_table_remove(processes, GUINT_TO_POINTER(pid));
+  g_static_rw_lock_writer_unlock (&process_lock);
+
+  return rv;
 }
 
 /**
@@ -579,12 +596,16 @@ static void clear_process_changed() {
   gpointer ikey, value;
   u_proc *proc;
 
+  g_static_rw_lock_reader_lock (&process_lock);
+
   g_hash_table_iter_init (&iter, processes);
   while (g_hash_table_iter_next (&iter, &ikey, &value)) 
   {
     proc = (u_proc *)value;
     proc->changed = FALSE;
   }
+  g_static_rw_lock_reader_unlock (&process_lock);
+
   return;
 }
 
@@ -663,7 +684,9 @@ int update_processes_run(PROCTAB *proctab, int full) {
       freeproc_light(&(proc->proc));
     } else {
       proc = u_proc_new(&buf);
+      g_static_rw_lock_writer_lock (&process_lock);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
+      g_static_rw_lock_writer_unlock (&process_lock);
       // we save the origin of cgroups for scheduler constrains
     }
     // must still have the process allocated
@@ -704,12 +727,14 @@ int update_processes_run(PROCTAB *proctab, int full) {
     u_flag_clear_timeout(proc, timeout);
     updated = g_list_append(updated, proc);
 
+    DEC_REF(proc);
+
     rv++;
     memset(&buf, 0, sizeof(proc_t));
     //g_list_foreach(filter_list, filter_run_for_proc, &buf);
     //freesupgrp(&buf);
   }
-
+  g_static_rw_lock_writer_lock (&process_lock);
   // we update the parent links after all processes are updated
   for(i = 0; i < rv; i++) {
     proc = g_list_nth_data(updated, i);
@@ -737,14 +762,18 @@ int update_processes_run(PROCTAB *proctab, int full) {
       }
     }
   }
+  g_static_rw_lock_writer_unlock (&process_lock);
+
   // remove old processes
 
   g_list_free(updated);
 
   if(full) {
+    g_static_rw_lock_writer_lock (&process_lock);
     removed = g_hash_table_foreach_remove(processes, 
                                           processes_is_last_changed,
                                           &run);
+    g_static_rw_lock_writer_unlock (&process_lock);
     // we can completly clean the delay stack as all processes are now processed
     // missing so will cause scheduling for dead processes
     if(delay_stack->len)
@@ -809,6 +838,8 @@ static int run_new_pid(gpointer ign) {
     if(!delay_stack->len)
       return TRUE;
 
+    g_static_rw_lock_reader_lock (&delay_lock);
+
     targets = g_array_new(TRUE, FALSE, sizeof(pid_t));
 
     for(i = 0; i < delay_stack->len;i++) {
@@ -820,14 +851,21 @@ static int run_new_pid(gpointer ign) {
             g_array_append_val(targets, cur->proc->pid);
         }
     }
+
+    g_static_rw_lock_reader_unlock (&delay_lock);
+
     process_new_list(targets, TRUE);
 
     // process_new_list removes the entries it processes from the delay stack
     // buf it the process is dead already, they stay here in the list. we make
     // sure they are removed.
+    g_static_rw_lock_writer_lock (&delay_lock);
+
     for(i=0; i<targets->len; i++) {
       remove_proc_from_delay_stack(g_array_index(targets, pid_t, i));
     }
+
+    g_static_rw_lock_writer_lock (&delay_lock);
 
     g_array_unref(targets);
     return TRUE;
@@ -868,7 +906,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       // put it into the lists
       proc_parent = parent_proc_by_pid(parent, proc);
       g_node_append(proc_parent->node, proc->node);
+      g_static_rw_lock_writer_lock (&process_lock);
       g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
+      g_static_rw_lock_writer_unlock (&process_lock);
+      DEC_REF(proc_parent);
     } else {
       if(!process_update_pid(pid))
         return FALSE;
@@ -880,7 +921,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     lp->proc = proc;
     clock_gettime(CLOCK_MONOTONIC, &(lp->when));
     g_ptr_array_add(delay_stack, lp);
+    return TRUE;
   }
+  DEC_REF(proc);
+
   return TRUE;
 }
 
@@ -957,7 +1001,7 @@ int process_new_list(GArray *list, int update) {
   int i, j = 0;
   pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
   //int pid_t = malloc(sizeof(pid_t)*(list->len+1));
-  for(i = 0; i < list->len; i++) {
+  for(; i < list->len; i++) {
     if(update || !proc_by_pid(g_array_index(list,pid_t,i))) {
       pids[j] = g_array_index(list,pid_t,i);
       j++;
@@ -1110,7 +1154,6 @@ static gint u_flag_match_flag(gconstpointer a, gconstpointer match) {
   return -1;
 }
 
-
 static int u_flag_match_name(gconstpointer a, gconstpointer name) {
   u_flag *flg = (u_flag *)a;
 
@@ -1152,9 +1195,9 @@ int NAME (u_proc *proc, ARG ) { \
 
 CLEAR_BUILD(u_flag_clear_source, const void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_source))
 
-CLEAR_BUILD(u_flag_clear_name, const char *name, g_list_find_custom(proc ? proc->flags : system_flags, name, u_flag_match_name))
+CLEAR_BUILD(u_flag_clear_flag, const void *flag, g_list_find_custom(proc ? proc->flags : system_flags, flag, u_flag_match_flag))
 
-CLEAR_BUILD(u_flag_clear_flag, const void *var, g_list_find_custom(proc ? proc->flags : system_flags, var, u_flag_match_flag))
+CLEAR_BUILD(u_flag_clear_name, const char *name, g_list_find_custom(proc ? proc->flags : system_flags, name, u_flag_match_name))
 
 CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc ? proc->flags : system_flags, GUINT_TO_POINTER(tm), u_flag_match_timeout))
 
@@ -1408,9 +1451,6 @@ int iterate(gpointer rv) {
   g_timer_start(timer_scheduler);
   g_timer_stop(timer_scheduler);
 
-  // try the make current memory non swapalbe
-  if(mlockall(MCL_CURRENT) && getuid() == 0)
-    g_debug("can't mlock memory");
 
 
   return GPOINTER_TO_INT(rv);
