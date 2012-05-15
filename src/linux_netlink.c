@@ -49,7 +49,8 @@
 #define BUFF_SIZE (MAX(MAX(SEND_MESSAGE_SIZE, RECV_MESSAGE_SIZE), 1024))
 #define MIN_RECV_SIZE (MIN(SEND_MESSAGE_SIZE, RECV_MESSAGE_SIZE))
 
-
+static GMainContext *nl_context;
+static GThread *nl_thread;
 
 /**
  * Handle a netlink message.  In the event of PROC_EVENT_UID or PROC_EVENT_GID,
@@ -80,7 +81,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 				ev->event_data.id.r.ruid,
 				ev->event_data.id.e.euid);
 		//process_update_pid(ev->event_data.id.process_pid);
-		process_new(ev->event_data.id.process_pid, FALSE);
+		process_new_delay(ev->event_data.id.process_pid, 0);
 		break;
 	case PROC_EVENT_GID:
 		u_trace("GID Event: PID = %d, tGID = %d, rGID = %d,"
@@ -89,7 +90,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 				ev->event_data.id.r.rgid,
 				ev->event_data.id.e.egid);
 		//process_update_pid(ev->event_data.id.process_pid);
-		process_new(ev->event_data.id.process_pid, FALSE);
+		process_new_delay(ev->event_data.id.process_pid, 0);
 		break;
 	case PROC_EVENT_EXIT:
 		u_trace("EXIT Event: PID = %d", ev->event_data.exit.process_pid);
@@ -202,6 +203,14 @@ out:
 }
 
 
+static gpointer nl_thread_run(gpointer data) {
+	while(TRUE){
+		g_main_context_iteration(nl_context, TRUE);
+		printf("nl iter\n");
+	}
+}
+
+
 int init_netlink(GMainLoop *loop) {
 	GSocket *gsocket = NULL;
 	int socket_fd = 0;
@@ -274,10 +283,17 @@ int init_netlink(GMainLoop *loop) {
 	}
 	g_debug("sent\n");
 
+	nl_context = g_main_context_new();
+
 	/* socket has data */
 	source = g_socket_create_source (gsocket, G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_NVAL, NULL);
 	g_source_set_callback (source, (GSourceFunc) nl_connection_handler, loop, NULL);
-	g_source_attach (source, NULL);
+	g_source_attach (source, nl_context);
+	nl_thread = g_thread_create(nl_thread_run, NULL, FALSE, &error);
+	if(error) {
+		g_warning("can't create nl thread\n");
+		goto out;
+	}
 
 	return 0;
 out:

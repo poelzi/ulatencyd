@@ -898,12 +898,12 @@ static int u_proc_get_oom_score (lua_State *L) {
 static int u_proc_ioprio_set (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int prio = luaL_checkint(L, 2);
-  int class = luaL_checkint(L, 3);
+  int cls = luaL_checkint(L, 3);
 
   if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
-  lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, class));
+  lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, cls));
 
   return 1;
 }
@@ -1074,7 +1074,7 @@ static int u_proc_index (lua_State *L)
     }
   }
 
-  if(!strcmp(key, "is_valid" )) { \
+  if(!strcmp(key, "is_valid" )) {
     lua_pushboolean(L, U_PROC_IS_VALID(proc));
     return 1;
   } else if(!strcmp(key, "is_invalid" )) {
@@ -2313,4 +2313,5 @@ int load_lua_rule_file(lua_State *L, const char *name) {
   return 0;
 
 }
+
 
