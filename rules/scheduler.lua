@@ -112,10 +112,14 @@ local function create_group(proc, prefix, mapping, subsys)
     rv.adjust[#rv.adjust+1] = mapping.adjust
   end
 
+  rv:commit()  -- force commit here to set cgroup parameters before adjust_new is run or any task added.
+
   if mapping.adjust_new then
     mapping.adjust_new(rv, proc)
   end
-  rv:commit()
+  if rv:is_dirty() then
+    rv:commit()
+  end
   return rv
 end
 
