@@ -260,7 +260,7 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
     name = "poison",
     label = { "user.poison", "user.poison.group" },
     cgroups_name = "psn_${pgrp}",
-    param = { ["blkio.weight"]="1" },
+    param = { ["blkio.weight"]="10" },
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_IDLE)
              end,
@@ -285,7 +285,7 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
   },
   {
     name = "idle",
-    param = { ["blkio.weight"]="1" },
+    param = { ["blkio.weight"]="10" },
     label = { "daemon.idle", "user.idle" },
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 5, ulatency.IOPRIO_CLASS_IDLE)
