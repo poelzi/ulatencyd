@@ -75,7 +75,7 @@ function test_find_flags()
 
 end
 
-function test_find_flags()
+function test_sysctl()
   assert_true(ulatency.get_sysctl("kernel.version"), "kernel.version not existing")
   assert_false(ulatency.set_sysctl("kernel.version", "bla"), "kernel.version should not be writeable")
 end
