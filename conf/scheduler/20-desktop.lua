@@ -22,6 +22,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "949500" },
     check = function(proc)
           local rv = proc.received_rt or check_label({"sched.rt"}, proc) or proc.vm_size == 0
+          -- note: some kernel threads cannot be moved to cgroup, ie. migration/0 and watchdog/0
           return rv
         end,
   },
@@ -109,7 +110,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     cgroups_name = "sys_daemon",
     check = function(proc)
               -- don't put kernel threads into a cgroup
-              return (proc.ppid ~= 0 or proc.pid == 1)
+              return (proc.pgrp > 0)
             end,
     param = { ["cpu.shares"]="800",
               ["?cpu.rt_runtime_us"] = "1"},
@@ -233,23 +234,22 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
     label = { "daemon.bg" },
     param = { ["?memory.swappiness"] = "100" },
   },
-  {
-    name = "system",
-    cgroups_name = "sys_daemon",
-    check = function(proc)
-              -- don't put kernel threads into a cgroup
-              return (proc.ppid ~= 0 or proc.pid == 1)
-            end,
-    param = { ["?memory.swappiness"] = "70" },
-  },
   { 
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
+    		  -- don't put kernel threads into a cgroup
               return (proc.vm_size == 0)
             end
   },
-
+  {
+    name = "system",
+    cgroups_name = "sys_daemon",
+    check = function(proc)
+    		  return true
+            end,
+    param = { ["?memory.swappiness"] = "70" },
+  },
 }
 
 
