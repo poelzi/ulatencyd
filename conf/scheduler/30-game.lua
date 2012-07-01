@@ -175,7 +175,7 @@ SCHEDULER_MAPPING_GAME["blkio"] =
   },
   {
     name = "group",
-    param = { ["blkio.weight"]="1" },
+    param = { ["blkio.weight"]="100" },
     cgroups_name = "grp_${pgrp}",
     check = function(proc)
               return proc.pgrp > 0
