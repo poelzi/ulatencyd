@@ -409,12 +409,9 @@ end
 
 ulatency.add_timeout(cgroups_cleanup, 120000)
 
+--! @brief create and initialize new cgroup in _CGroup_Cache, already existing cgroup is replaced
 function CGroup.new(name, init, tree)
   tree = tree or "cpu"
-  rv = _CGroup_Cache[tree..'/'..name]
-  if rv then
-    return rv
-  end
   if CGROUP_DEFAULT[tree] then
     cinit = table.copy(CGROUP_DEFAULT[tree])
   else
@@ -431,8 +428,14 @@ function CGroup.get_groups()
   return _CGroup_Cache
 end
 
+--! @brief return cgroup or false/nil if it does not exists or is not present in ulatency internal _CGroup_Cache
 function CGroup.get_group(name)
-  return _CGroup_Cache[name]
+  local cgr = _CGroup_Cache[name]
+  if cgr then
+    local stat=posix.stat(cgr:path())
+    return (stat and stat.type == 'directory') and cgr or nil
+  end
+  return nil
 end
 
 
