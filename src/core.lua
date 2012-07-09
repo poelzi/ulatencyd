@@ -324,33 +324,23 @@ end
 ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
 
 local __found_one_group = false
-for n,v in pairs(CGROUP_MOUNTPOINTS) do
-  local path = CGROUP_ROOT..n
-  local mnt_opts = false
-  for i, subsys in ipairs(v) do
-    if ulatency.has_cgroup_subsystem(subsys) then
-      if mnt_opts then
-        mnt_opts = mnt_opts .. ","..subsys
-      else
-        mnt_opts = subsys
-      end
-    end
-  end
-  if mnt_opts then
+for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
+  if ulatency.has_cgroup_subsystem(subsys) then
+    local path = CGROUP_ROOT..subsys
     if is_mounted(path) then
       ulatency.log_info("mount point "..path.." is already mounted")
-      __CGROUP_LOADED[n] = true
+      __CGROUP_LOADED[subsys] = true
       __found_one_group = true
     else
       mkdirp(path)
-      local prog = "/bin/mount -n -t cgroup -o "..mnt_opts.." none "..path.."/"
+      local prog = "/bin/mount -n -t cgroup -o "..subsys.." none "..path.."/"
       ulatency.log_info("mount cgroups: "..prog)
       fd = io.popen(prog, "r")
       print(fd:read("*a"))
       if not is_mounted(path) then
         ulatency.log_error("can't mount: "..path)
       else
-        __CGROUP_LOADED[n] = true
+        __CGROUP_LOADED[subsys] = true
         __found_one_group = true
       end
     end
@@ -372,7 +362,7 @@ for n,v in pairs(CGROUP_MOUNTPOINTS) do
       fp:close()
     end
   else
-    ulatency.log_info("no cgroups subsystem found for group "..n..". disable group")
+    ulatency.log_info("no cgroups subsystem "..subsys.." found. disable group")
   end
 end
 
