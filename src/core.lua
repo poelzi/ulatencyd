@@ -293,7 +293,7 @@ local function is_mounted(mnt_pnt)
     mnt_pnt = string.sub(mnt_pnt, 1, #mnt_pnt-1)
   end
   for line in io.lines("/proc/mounts") do
-    if string.find(line, mnt_pnt) then
+    if string.find(line, mnt_pnt.." ") then
       return true
     end
   end
