@@ -21,12 +21,13 @@ function merge_config(template, new_values)
       rv[#rv+1] = entry
     end
   end
+  local offset = #rv
   if new_values.replace then
     for k,entry in pairs(template) do
-      rv[k] = entry
+      rv[offset+k] = entry
       for nkey,nvalue in pairs(new_values.replace) do
         if nvalue.name == entry.name then
-          rv[k] = nvalue
+          rv[offset+k] = nvalue
         end
       end
     end

@@ -159,7 +159,7 @@ function Scheduler:all()
   ulatency.log_debug("scheduler filter:".. tostring(self.C_FILTER))
   for k,proc in ipairs(ulatency.list_processes(self.C_FILTER)) do
     --print("sched", proc, proc.cmdline)
-    self:one(proc, false)
+    self:_one(proc, false)
   end
   self.C_FILTER = true
   self.ITERATION = self.ITERATION + 1
