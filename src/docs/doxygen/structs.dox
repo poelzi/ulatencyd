@@ -1,0 +1,147 @@
+// this file is for documentation purposes only
+
+/**
+ * @file structs.lua.h
+ * @ingroup lua_DOC
+ * This file is for documentation purposes only, it documents structures that are returned by functions from
+ * 'ulatency' table that are not documented elsewhere.
+ */
+
+/**
+ * @brief Description of table returned by ulatency.get_meminfo()
+ * These are values from /proc/meminfo file parsed by bundled libprocps 3.2.8
+ * @copyright Properties documentation are mostly based on /proc/meminfo description in Linux kernel 3.2 documentation
+ * release under GPL v2.
+ * @version Linux 3.2
+ * @todo Not all values contained in /proc/meminfo are exported.
+ * @see Linux kernel Documentation/filesystems/proc.txt
+ * @ingroup lua_PSEUDO
+ */
+typedef struct {
+  //! **Active:** Memory that has been used more recently and usually not reclaimed unless absolutely necessary.
+  unsigned long kb_active; //!< important
+  //! **Buffers:** Relatively temporary storage for raw disk blocks shouldn't get tremendously large (20MB or so)
+  unsigned long kb_main_buffers; //!< important
+  //! **Cached:** in-memory cache for files read from the disk (the pagecache).  Doesn't include SwapCached
+  unsigned long kb_main_cached;  //!< important
+  //! **Committed_AS:** The amount of memory presently allocated on the system. The committed memory is a sum of
+  //! all of the memory which has been allocated by processes, even if it has not been "used" by them as of yet. A
+  //! process which malloc()'s 1G of memory, but only touches 300M of it will only show up as using 300M of memory
+  //! even if it has the address space allocated for the entire 1G. This 1G is memory which has been "committed" to by
+  //! the VM and can be used at any time by the allocating application. With strict overcommit enabled on the system
+  //! (mode 2 in 'vm.overcommit_memory'), allocations which would exceed the CommitLimit (detailed above) will not be
+  //! permitted. This is useful if one needs to guarantee that processes will not fail due to lack of memory once that
+  //! memory has been successfully allocated.
+  unsigned long kb_committed_as;
+  //! **Dirty:** Memory which is waiting to get written back to the disk.
+  unsigned long kb_dirty;        //!< kB version of vmstat nr_dirty
+  //! **HighFree**
+  //! @details Highmem is all memory above ~860MB of physical memory Highmem areas are for use by userspace programs,
+  //! or for the pagecache.  The kernel must use tricks to access this memory, making it slower to access than lowmem.
+  unsigned long kb_high_free;
+  //! **HighTotal** @copydetails kb_high_free
+  unsigned long kb_high_total;
+  unsigned long kb_inact_clean; //!< @deprecated 2.4.xx era
+  unsigned long kb_inact_dirty; //!< @deprecated 2.4.xx era
+  unsigned long kb_inact_laundry; //!< @deprecated 2.4.xx era
+  unsigned long kb_inact_target; //!< @deprecated 2.4.xx era
+  //! **Inactive:** Memory which has been less recently used.  It is more eligible to be reclaimed for other purposes.
+  unsigned long kb_inactive;     //!<  important
+  //! **LowFree**
+  //! @details Lowmem is memory which can be used for everything that highmem can be used for, but it is also
+  //! available for the kernel's use for its own data structures.  Among many other things, it is where everything
+  //! from the Slab is allocated.  Bad things happen when you're out of lowmem.
+  unsigned long kb_low_free;
+  //! **LowTotal** @copydetails kb_low_free
+  unsigned long kb_low_total;
+  //! **Mapped:** files which have been mmaped, such as libraries
+  unsigned long kb_mapped;       //!<  kB version of vmstat nr_mapped
+  //! **MemFree:** The sum of LowFree+HighFree
+  unsigned long kb_main_free;    //!<  important
+  unsigned long kb_main_shared;  //!<  @deprecated important, but now gone!
+  //! **MemTotal:** Total usable ram (i.e. physical ram minus a few reserved bits and the kernel binary code)
+  unsigned long kb_main_total;
+  //! **NFS_Unstable:** NFS pages sent to the server, but not yet committed to stable storage.
+  unsigned long kb_main_used;  //!< **calculated value** = kb_main_total - kb_main_free
+  //! **PageTables:** amount of memory dedicated to the lowest level of page tables
+  unsigned long kb_pagetables;   //!<  kB version of vmstat nr_page_table_pages
+  //! **Slab:** in-kernel data structures cache
+  unsigned long kb_slab;         //!<  kB version of vmstat nr_slab
+  //! **SwapCached:** Memory that once was swapped out, is swapped back in but still also is in the swapfile (if memory
+  //! is needed it doesn't need to be swapped out AGAIN because it is already in the swapfile. This saves I/O)
+  unsigned long kb_swap_cached;
+  //! **SwapFree:** Memory which has been evicted from RAM, and is temporarily on the disk.
+  unsigned long kb_swap_free;    //!<  important
+  //! **SwapTotal:** total amount of swap space available
+  unsigned long kb_swap_total;   //!<  important
+  unsigned long kb_swap_used;    //!< **calculated value** = kb_swap_total - kb_swap_free
+  //! **Writeback:** Memory which is actively being written back to the disk.
+  unsigned long kb_writeback;    //!<  kB version of vmstat nr_writeback
+} __MEMINFO_TABLE;
+
+/**
+ * @brief Description of table returned by ulatency.get_vminfo()
+ * These are values from /proc/vminfo file parsed by bundled libprocps 3.2.8
+ * @todo Not all values contained in /proc/vminfo are exported.
+ * @todo Deprecated values not in current kernel should be replaced.
+ * @see http://www.linuxinsight.com/proc_vmstat.html
+ * @see http://wiki.directi.com/display/tu/Understanding+and+optimizing+Memory+utilization
+ * @see https://docs.redhat.com/docs/en-US/Red_Hat_Enterprise_MRG/1.3/html/Realtime_Reference_Guide/chap-Realtime_Reference_Guide-Memory_allocation.html
+ * @see Kernel Documentation/sysctl/vm.txt
+ * @ingroup lua_PSEUDO
+ */
+typedef struct {
+  unsigned long vm_nr_dirty; //!< Dirty writable pages, signifies amount of memory waiting to be written to disk.
+  unsigned long vm_nr_writeback; //!< Pages under writeback.
+  unsigned long vm_nr_pagecache; //!< Pages in pagecache @deprecated gone in 2.5.66+ kernels
+  unsigned long vm_nr_page_table_pages; //!< Number of pages allocated to page tables.
+  unsigned long vm_nr_reverse_maps; //!< includes PageDirect
+  unsigned long vm_nr_mapped; //!< Number of pages mapped by files.
+  unsigned long vm_nr_slab; //!< Number of pages allocated by the kernel slab allocator.
+  unsigned long vm_pgpgin; //!< Number of pageins since the last boot. (same as 1st num on /proc/stat page line)
+  unsigned long vm_pgpgout; //!< Number of pageouts since the last boot. (same as 2nd num on /proc/stat page line)
+  unsigned long vm_pswpin; //!< Swap reads since the last boot. (same as 1st num on /proc/stat swap line)
+  unsigned long vm_pswpout; //!< Swap writes since the last boot. (same as 2nd num on /proc/stat swap line)
+  unsigned long vm_pgalloc; //!< Page allocations, not available since 2.6.8. @deprecated replaced per zone values.
+  unsigned long vm_pgfree; //!< Page frees since the last boot.
+  unsigned long vm_pgactivate; //!< Pages moved inactive -> active since the last boot.
+  unsigned long vm_pgdeactivate; //!< Pages moved active -> inactive since the last boot.
+  unsigned long vm_pgfault; //!< Total faults (major+minor) since the last boot.
+  unsigned long vm_pgmajfault; //!< Major faults since the last boot.
+  unsigned long vm_pgscan; //!< Pages scanned by page reclaim since the last boot.
+  unsigned long vm_pgrefill; //!< Inspected by refill_inactive_zone, not available since 2.6.8. @deprecated replaced per zone values.
+  unsigned long vm_pgsteal; //!< Total pages reclaimed, not available since 2.6.8. @deprecated replaced per zone values.
+  unsigned long vm_kswapd_steal; //!< Pages reclaimed by kswapd since the last boot.
+  unsigned long vm_pageoutrun; //!< Number of kswapd's calls to page reclaim since the last boot.
+  //! @brief Times a page allocator ran direct reclaim since the last boot.
+  //! This signifies that the periodic running of kswapd could not free up adequate pages
+  //! and for these many number of times the kernel had to trigger page reclaims manually.
+  unsigned long vm_allocstall;
+} __VMSTAT_TABLE;
+
+/**
+ * @brief Elements of the array returned by ulatency.get_active_uids()
+ * This table is a subset of the #user_active struct.
+ * @ingroup lua_PSEUDO
+ */
+typedef struct {
+  uid_t uid; //!< user `UID`
+  //! Maximal number of active processes this user may have.
+  //! Initially this is set to the value of configuration item default_active_list in `user` section.
+  guint max_processes;
+  //! Time when the last change happened. Currently it is the time when the list was created and is not updated.
+  time_t last_change;
+} __ACTIVE_UIDS;
+
+/**
+ * @brief Elements of the array returned by ulatency.get_active_pids()
+ * This table is  #user_active->actives struct.
+ * @ingroup lua_PSEUDO
+ */
+typedef struct {
+  pid_t pid; //!< process PID
+  //! Time when the last change happened, currently the time when the process was lastly passed to
+  //! ulatency.set_active_pid(). E.g. xwatch module sets the active process on every update
+  //! (every xwatch/poll_interval configuration value milliseconds).
+  time_t last_change;
+} __ACTIVE_PIDS;

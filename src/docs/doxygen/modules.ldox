@@ -1,0 +1,80 @@
+-- this file is for documentation purposes only
+
+--! @file modules.lua
+--! This file is for documentation purposes only, contains definitions of doxygen modules.
+--! @ingroup lua_DOC
+
+--! @defgroup lua_API API accessible from LUA
+--! This contains both data defined in LUA and data exported through C bindings.
+
+--!   @defgroup lua_CORE Core
+--!   @todo Describe CGroup.
+--!   @ingroup lua_API
+
+--!     @defgroup lua_CGROUPS CGroups
+--!     @todo Describe CGroups
+--!     @ingroup  lua_CORE
+
+--!     @defgroup lua_PROC_SCHED Process scheduling policies and priorities
+--!     @brief Functions and constants helpfull for setting processes.
+--!     scheduling policies, I/O classes and their priorities.
+--!     @ingroup  lua_CORE
+
+--!     @defgroup lua_FLAGS Process and system flags
+--!     @todo Description of filters.
+--!     @ingroup  lua_CORE
+
+--!     @defgroup lua_USER_SESSIONS User sessions and active processes list
+--!     @todo Describe active list agents (via dbus, @link lua_XWATCH xwatch module@linkend)
+--!     @ingroup  lua_CORE
+
+--!     @defgroup lua_HELPERS Helper classes
+--!     @brief Miscellaneous functions
+--!     @ingroup  lua_CORE
+
+--!     @defgroup lua_EXT Extended lua primitive types
+--!     @brief Functions extending some LUA types such as table or string.
+--!     @ingroup  lua_CORE
+
+--!   @defgroup lua_RULES Rules
+--!   @brief rule files, process filters
+--!   @todo Describe registering timeout functions.
+--!   @ingroup lua_API
+
+--!   @defgroup lua_SCHEDULER Scheduler
+--!   @todo Describe Scheduler.
+--!   @ingroup lua_API
+
+--!   @defgroup lua_MODULES Modules
+--!   @ingroup lua_API
+
+--!     @defgroup lua_SIMPLERULES Simple rules
+--!     @todo Describe simple rules.
+--!     @ingroup lua_MODULES
+
+--!     @defgroup lua_XWATCH xwatch activity agent
+--!     @todo Describe xwatch module.
+--!     @ingroup lua_MODULES
+
+--!  @defgroup lua_CONFIG Configuration files
+--!  @todo Describe configuration files.
+--!  @ingroup lua_API
+
+--!  @defgroup DBUS DBUS interface
+--!  @todo Describe DBUS interface
+
+
+----- hidden groups ------
+
+--- @defgroup lua_DOC Doc helpers
+--- @brief Files that exist only for documentation purposes.
+
+--- @defgroup lua_PSEUDO Pseudo types
+--- @brief Files documenting structures that are not documented elsewhere.
+--- @ingroup lua_DOC
+
+----- pages -----
+
+--! @page architecture Architecture
+--! @image html architecture.png "ulatency architecture"
+--! @image latex architecture.png "ulatency architecture" width=16cm

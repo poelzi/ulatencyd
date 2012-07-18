@@ -1,5 +1,15 @@
---! @brief penelizes
+--! @brief Utility functions for Scheduler mappings
+--! @file
+--! @ingroup lua_CORE
 
+--! @brief Saves I/O scheduling class and priority of process #u_proc and sets new values.
+--! @param proc a process #u_proc instance
+--! @param prio I/O scheduling priority
+--! @param prio I/O scheduling class
+--! @see u_proc:set_ioprio(priority, class) for parameters description.
+--! @see lua_PROC_SCHED
+--! @ingroup lua_PROC_SCHED
+--! @relates #u_proc
 function save_io_prio(proc, prio, class)
   if not proc.data.io_prio then
     proc.data.io_prio = {proc:get_ioprio()}
@@ -7,6 +17,11 @@ function save_io_prio(proc, prio, class)
   proc:set_ioprio(prio, class)
 end
 
+--! @brief Restore saved I/O scheduling class and priority of process #u_proc.
+--! Restores values previously saved by save_io_prio()
+--! @param proc a process #u_proc instance
+--! @ingroup lua_PROC_SCHED
+--! @relates #u_proc
 function restore_io_prio(proc)
   if proc.data.io_prio then
     local pr = proc.data.io_prio

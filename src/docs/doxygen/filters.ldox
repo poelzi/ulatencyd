@@ -1,0 +1,118 @@
+-- this file is for documentation purposes only
+
+--! @file filters.lua
+--! @ingroup lua_DOC
+--! This file is for documentation purposes only, it documents filters usage.
+
+----------------- FILTER pseudo type ------------------
+
+--! @class __FILTER
+--! @brief This is pseudo type describing the LUA filter table you may register with the ulatency.register_filter().
+--! Rules (LUA files in ulatency.path_rules_directory) contain usually one or more filters. These filters are
+--! called on a process which they can manipulate. Normally these manipulations tagging the process with
+--! a flag that is later used by the @link lua_SCHEDULER scheduler@endlink.
+--! After you create a filter table you must register it with a
+--! ulatency.register_filter().
+--! @internal
+--! Background
+--! ----------
+--! Ulatencyd works with two kinds of filters: `fast filters` and `normal filters`. Both are represented by
+--! the internal u_filter structure. Though currently only `normal filters` may be registered from the LUA,
+--! both types are described below so you can easily understand the overall workflow.
+--!   - Fast filters are stored in internal `GList *filter_fast_list` and are run:
+--!     - as soon as possible on every created process / process_new_delay() /,
+--!     - on all processes every @link ulatency.run_iteration iteration@endlink and
+--!     - if important process parameters like `UID` or `GID` change / process_new() /.
+--!
+--!     If these filters change a
+--!     process it is immediately scheduled with Scheduler:one(). See u_proc:clear_changed() for descriptions
+--!     what changes are considered important. For filters this mostly means adding a flag to that process.  Currently you
+--!     cannot define a fast filter from LUA. Fast filters are for example created by the
+--!     @link lua_MODULES simplerules module@endlink from its simple rules that define instant=1.
+--!   - Normal filters are stored in internal `GList *filter_list` and are run:
+--!     - on new processes comming from the delay stack / run_new_pid() /,
+--!     - on all processes every @link ulatency.run_iteration iteration@endlink,
+--!     - on process if its important parameters like `UID` or `GID` change / process_new() /,
+--!     - if a single process is scheduled / process_run_one() / (e.g. scheduleTask DBUS request) and
+--!     - if a process is added to or removed from user active list / see ulatency.set_active_pid() /.
+--!
+--!     Except the case of iteration, the process will be scheduled immediately with the Scheduler.one() function
+--!     even it has not been changed by the filters. In the case of @link ulatency.run_iteration iteration@endlink,
+--!     Scheduler.all() is invoked and normally only changed processes are scheduled.
+--!
+--! From LUA (e.g. rule files) you can easily create a filter by creating a LUA table (__FILTER) and
+--! registering it with the ulatency.register_filter(). This function will create internal u_filter instance and
+--! add it to  `GList *filter_list`. Now you have registered a `normal filter`. The only difference between `fast` and
+--! `normal` filters is to which internal list they are added. The `ulatency.register_filter()` function is easily
+--! patchable to be able to create fast filters.
+--!
+--! **Filter example:** @include "desktop.lua"
+--! @ingroup lua_PSEUDO lua_RULES
+__FILTER = {}
+
+--! @brief human readable name used in reporting
+--! @public @memberof __FILTER
+__FILTER.name = "MyFilter"
+
+--! @name pre filters
+--! @details These are prefilters for the `__FILTER.check()` function. If any prefilter exist, they must apply to the process for
+--! the check function to get called. If you can't create a regular expression to match only on the processes you
+--! want, you can still do more filtering on the actual check function. These prefilters exist to reduce the calls
+--! into lua, as they are compiled regular expressions that are executed very fast in the C core. If no prefilter
+--! exist, the `__FILTER.check()` function is always called.
+--! @warning The prefilters can't currently be changed after registering the filter.
+--! @{
+
+--! @brief perl regular expression to match against the executable basename
+--! @warning Basename is limited to 15 chars.
+--! @public @memberof __FILTER
+__FILTER.re_basename = <PERL_REGEXP>
+
+--! @brief perl regular expression to match against the command line used
+--! @public @memberof __FILTER
+__FILTER.re_cmdline = <PERL_REGEXP>
+
+--! @brief min percent of of cpu utilization, means load/number_of_cores
+--! @public @memberof __FILTER
+__FILTER.min_percent = <decimal>
+
+--! @brief Executed before any process, if exits must return true for filter to get run.
+--! @public @memberof __FILTER
+__FILTER.precheck = function(self)
+  end
+--! @} End of "pre filters"
+
+--! @brief Check one process; this is the real heart of the filter - it gets passed an process instance which it
+--! should analyse and manipulate with it's decisions.
+--! All processes are checked in process tree from the top (init) descending all children.
+--! @param proc A #u_proc instance.
+--! @return The return value of the check filter is used to notify the core how the filter is used on future runs
+--! on a per process bases. The return value informs the core about two things:
+--! An timeout value of 16 bits in seconds when the filter should be run again, and flags about the transversel:
+--!   - ulatency.FILTER_STOP - Stops the filter on this process, so this filter will never be run again on this process.
+--!   - ulatency.FILTER_SKIP_CHILD - Skips all child process of the current process.
+--!   - ulatency.FILTER_RERUN_EXEC - Rerun filter when the process calls exec() syscall,
+--!     so the process changed dramatically.
+--! @return **FILTER_STOP** is very important. If you mark a process with some flags that will never change, that will
+--! never time out, you don't need to run the filter again, ever. The flag will stay on the process
+--! for it's lifetime. If you don't return FILTER_STOP, the filter gets
+--! executed every iteration causing to get more and more flags if you don't delete them first.
+--!
+--! The return value is calculated with: `ulatency.filter_rv(ulatency.FILTER_A [+ulatency.FILTER_B ...] , [timeout])`
+--! @warning As lua does not have OR on integer values and the flags are binary flags, you have to make sure
+--! not to generate invalid flags if you calculate them through addition.
+--! @public @memberof __FILTER
+__FILTER.check = function(self, proc)
+  end
+
+--! @brief Runs after all processes are processed.
+--! You can make final manipulations to processes here.
+--! @public @memberof __FILTER
+__FILTER.postcheck = function(self)
+  end
+
+--! @brief Only called when the process is removed from the process list.
+--! Most functions calls on the process will fail. Useful for cleanup data in filters.
+--! @public @memberof __FILTER
+__FILTER.exit = function(self, proc)
+  end

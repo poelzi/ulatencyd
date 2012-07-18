@@ -212,16 +212,16 @@ typedef struct _filter {
 */
 typedef struct _FLAG {
   U_HEAD;
-  void          *source;       // pointer to a data structure that is the "owner"
+  void          *source;       //!< pointer to a data structure that is the "owner"
 //  FLAG_BEHAVIOUR age;
-  char          *name;         // label name
-  char          *reason;       // why the flag was set. This makes most sense with emergency flags
-  int64_t        tid;           // task id, if != 0 belongs to a process task
-  time_t         timeout;       // timeout when the flag will disapear
-  int32_t        priority;      // custom data: priority
-  int64_t        value;         // custom data: value
-  int64_t        threshold;     // custom data: threshold
-  uint32_t       inherit : 1;      // will apply to all children
+  char          *name;         //!< name of the flag, the convention is to use a hierarchy seperated by .
+  char          *reason;       //!< why the flag was set. This makes most sense with emergency flags
+  int64_t        tid;           //!< task id, if != 0 belongs to a process task
+  time_t         timeout;       //!< timeout when the flag will disappear, create it with ulatency.get_time(seconds)
+  int32_t        priority;      //!< custom data: priority
+  int64_t        value;         //!< custom data: value
+  int64_t        threshold;     //!< custom data: threshold
+  uint32_t       inherit : 1;      //!< will apply to all children
 } u_flag;
 
 
