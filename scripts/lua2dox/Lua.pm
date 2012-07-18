@@ -78,10 +78,13 @@ sub parse {
         }
         # skip normal comments
         next if $line =~ /^\s*--[^!]/;
-        # remove end of line comments
-        $line =~ s/--[^!].*//;
-        # skip comparison
-        next if $line =~ /==/;
+        # cleanup lines not containing a doxygen comment
+        if ($line !~ /^\s*--!/) {
+            # remove end of line comments
+            $line =~ s/--[^!].*//;
+            # skip comparison
+            next if $line =~ /==/;
+        }
         # translate to doxygen mark
         $line =~ s{$mark}{///};
 
