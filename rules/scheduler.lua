@@ -104,6 +104,12 @@ local function create_group(proc, prefix, mapping, subsys)
   else
     path = name
   end
+  
+  local rv = CGroup.get_group(subsys .."/".. path)
+  if rv then
+    return rv
+  end
+  
   rv = CGroup.new(path, mapping.param, subsys)
   if mapping.adjust then
     rv.adjust[#rv.adjust+1] = mapping.adjust
