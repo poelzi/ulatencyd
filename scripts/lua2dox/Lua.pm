@@ -2,7 +2,6 @@ package Doxygen::Lua;
 
 use warnings;
 use strict;
-use Moose;
 
 =head1 NAME
 
@@ -10,12 +9,11 @@ Doxygen::Lua - Make Doxygen support Lua
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION = '0.03';
-has 'mark' => ( is => 'rw', isa => 'Str', default => '--!' );
+our $VERSION = '0.04';
 
 =head1 SYNOPSIS
 
@@ -38,6 +36,18 @@ That's all!
 This function will create a Doxygen::Lua object.
 
 =cut
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless \%args, $class;
+    $self->_init;
+    return $self;
+}
+
+sub _init {
+    my $self = shift;
+    $self->{mark} = '--!';
+}
 
 =head2 parse
 
@@ -81,6 +91,13 @@ sub parse {
             $line =~ s/:/-/;
             $result .= "$line\n";
         }
+	#local function start
+   	elsif ($line =~ /^local.+function/) {
+            $in_function = 1;
+            $line .= q{;};
+            $line =~ s/function\s+/function-/;
+            $result .= "$line\n";
+        }
         # function end
         elsif ($in_function == 1 && $line =~ /^end/) {
             $in_function = 0;
@@ -112,6 +129,12 @@ sub parse {
 This function will set the mark style. The default value is "--!".
 
 =cut
+
+sub mark {
+    my ($self, $value) = @_;
+    $self->{mark} = $value if $value;
+    return $self->{mark};
+}
 
 =head1 AUTHOR
 
