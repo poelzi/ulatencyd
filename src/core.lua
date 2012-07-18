@@ -424,7 +424,13 @@ ulatency.add_timeout(cgroups_cleanup, 120000)
 --! @addtogroup lua_CGROUPS
 --! @{
 
---! @brief Creates a new CGroup in _CGroup_Cache, already existing CGroup is replaced.
+--! @brief Creates a new CGroup in _CGroup_Cache; if that CGroup already exists, it is replaced.
+--! @warning If the CGroup already exists in _CGroup_Cache, it is replaced, so you will loose its
+--! adjusted parameters, adjust functions etc. Prior you create new CGroup, you should always check if it
+--! doesn't already exist. You may check that with CGroup.get_group(name).
+--! @param name A CGroup path under the directory where `tree` hierarchy is mounted, e.g. `usr100/active`
+--! @param init Initial parameters of CGroups, these will not be committed until CGroup:commit() is explicit called.
+--! @param tree A tree (cgroup subsystem)
 --! @public @memberof CGroup
 function CGroup.new(name, init, tree)
   tree = tree or "cpu"
@@ -445,7 +451,11 @@ function CGroup.get_groups()
   return _CGroup_Cache
 end
 
---! @brief Returns CGroup or false/nil if it does not exists or is not present in ulatency internal _CGroup_Cache.
+--! @brief Returns CGroup or nil, if it does not exist or is not present in ulatency internal _CGroup_Cache.
+--! @param name A key of _CGroup_Cache table index, `subsystem`/`cgroup path`, e.g. `cpu/usr1000/active`
+--! @return #CGroup | nil | false
+--! @retval #CGroup instance, if the _CGroup_Cache table contains the CGroup and that cgroup directory exists.
+--! @retval nil If the CGroup directory does not exist or the CGroup is not present in ulatency internal _CGroup_Cache.
 --! @public @memberof CGroup
 function CGroup.get_group(name)
   local cgr = _CGroup_Cache[name]
