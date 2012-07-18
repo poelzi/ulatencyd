@@ -72,6 +72,10 @@ sub parse {
     foreach my $line (<FH>) {
         chomp $line;
 
+        # include empty lines
+        if ($line =~ m{^\s*$}) {
+            $result .= "\n"
+        }
         # skip normal comments
         next if $line =~ /^\s*--[^!]/;
         # remove end of line comments
