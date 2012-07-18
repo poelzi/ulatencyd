@@ -22,7 +22,7 @@ if not arg[1] then
   os.exit(1)
 end
 
-for mnt,_ in pairs(CGROUP_MOUNTPOINTS) do
+for mnt,_ in pairs(CGROUP_SUBSYSTEMS) do
   local path = CGROUP_ROOT .. mnt .. "/" .. arg[1]
   if posix.access(path) == 0 then
     if posix.rmdir(path) == 0 then
