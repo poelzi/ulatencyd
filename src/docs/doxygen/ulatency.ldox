@@ -1,0 +1,557 @@
+-- this file is for documentation purposes only
+
+--! @file ulatency.lua
+--! @ingroup lua_DOC
+--! This file is for documentation purposes only, it documents the 'ulatency' table which is implemented in the core.
+
+
+------------------- Classes ---------------------------
+
+--! @struct u_flag
+--! @brief Process or system flag structure.
+--! @ingroup lua_CORE lua_FLAGS
+u_flag = {}
+
+--! @class ulatency
+--! @ingroup lua_CORE
+ulatency = {}
+
+---------------- ulatency class constants -------------
+
+--! @name misc variables
+--! @{
+
+--! @public @memberof ulatency
+ulatency.version="VERSION"
+--! @public @memberof ulatency
+ulatency.release_agent = "/PATH/TO/RELEASEAGENT"
+--! The rules directory.
+--! This is defined on compile time. Defaults to ${CONFIG_PREFIX}/ulatencyd/rules.
+--! @bug The rules directory may be changed via `-r` parameter when invoking ulatencyd,
+--! but this is not exported to lua.
+--! @public @memberof ulatency
+ulatency.path_rules_directory = "/PATH/TO/RULES"
+--! Path to the configuration directory.
+--! This is defined on compile time. Defaults to ${CONFIG_PREFIX}/ulatencyd.
+--! @public @memberof ulatency
+ulatency.path_config_directory = "/PATH/TO/CONFIG"
+
+--! @public @memberof ulatency
+ulatency.smp_num_cpus = 23
+--! @} End of "misc"
+
+--! @name glib log level
+--! @memberof ulatency
+--! @{
+
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_ERROR =  G_LOG_LEVEL_ERROR
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_CRITICAL = G_LOG_LEVEL_CRITICAL
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_WARNING = G_LOG_LEVEL_WARNING
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_MESSAGE = G_LOG_LEVEL_MESSAGE
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_INFO = G_LOG_LEVEL_INFO
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_DEBUG = G_LOG_LEVEL_DEBUG
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_SCHED = U_LOG_LEVEL_SCHED
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL_TRACE = U_LOG_LEVEL_TRACE
+--! @}
+
+--! @name Return values of Filter:check()
+--! @memberof ulatency
+--! @{
+
+--! @ingroup lua_RULES
+
+--! @brief Filter will never be run on this process.
+--! @public @memberof ulatency
+ulatency.FILTER_STOP = FILTER_STOP
+--! @brief Filter will skip all child processes of the current process.
+--! @public @memberof ulatency
+ulatency.FILTER_SKIP_CHILD = FILTER_SKIP_CHILD
+--! @}
+
+--! You may use these constants in u_proc:set_ioprio(priority, class) as `class` argument.
+--! The range of `priority` levels depends on selected policy and on used I/O scheduler. Priority levels range
+--! below are for the CFQ scheduler.
+--! @name IOPRIO classes
+--! @see `man 2 ioprio_set`
+--! @{
+
+--! @ingroup lua_PROC_SCHED
+
+--! @public @memberof ulatency
+ulatency.IOPRIO_CLASS_NONE = IOPRIO_CLASS_NONE
+--! Real-time I/O class; priority levels range from 0 (highest) to 7 (lowest).
+--! @public @memberof ulatency
+ulatency.IOPRIO_CLASS_RT = IOPRIO_CLASS_RT
+--! Best-effort scheduling class, which is the default; priority levels range from 0 (highest) to 7 (lowest).
+--! @public @memberof ulatency
+ulatency.IOPRIO_CLASS_BE = IOPRIO_CLASS_BE
+--! Idle scheduling class; does not have priority levels.
+--! @public @memberof ulatency
+ulatency.IOPRIO_CLASS_IDLE = IOPRIO_CLASS_IDLE
+--! @}
+
+--! @ingroup lua_PROC_SCHED
+--! You may use these constants in u_proc:set_rtprio(policy, priority) as `policy` argument.
+--! The `priority` interpretation depends on selected policy.
+--! @see `man 2 sched_setscheduler`
+--! @name scheduling policies
+--! @{
+
+--! @ingroup lua_PROC_SCHED
+--! @brief **normal** standard round-robin time-sharing policy; priority must be 0
+--! @details This policy does not support static priority, it must be 0. Instead the dynamic priority
+--! based on process `nice` value is used.
+--! @public @memberof ulatency
+ulatency.SCHED_OTHER = SCHED_OTHER
+--! @brief **normal** policy for batch style execution of processes; priority must be 0
+--! @details This policy does not support static priority, it must be 0. Instead the dynamic priority
+--! based on process `nice` value is used.
+--! @public @memberof ulatency
+ulatency.SCHED_BATCH = SCHED_BATCH
+--! @brief **normal** policy for running very low priority background jobs; priority must be 0
+--! @details This policy does not support priorities, priority must be 0.
+--! @public @memberof ulatency
+ulatency.SCHED_IDLE = SCHED_IDLE
+--! @brief **real-time** first-in, first-out policy; priority levels range form 1 (lowest) to 99 (highest)
+--! @details On Linux this policy accept priorities from the range 1 (lowest) - 99 (highest).
+--! @public @memberof ulatency
+ulatency.SCHED_FIFO = SCHED_FIFO
+--! @brief **real-time** round-robin policy
+--! @details On Linux this policy accept priorities from the range 1 (lowest) - 99 (highest).
+--! Difference from SCHED_FIFO is that process with SCHED_RR policy is allowed to run only for a maximum time quantum
+--! of 0.1 seconds. Before Linux 2.6.24 the maximum quantum could be modified by process `nice` value.
+--! @public @memberof ulatency
+ulatency.SCHED_RR = SCHED_RR
+-- @}
+
+--! @name
+--! @memberof ulatency
+--! @{
+
+--! @public @memberof ulatency
+ulatency.UPROC_NEW = UPROC_NEW
+--! @public @memberof ulatency
+ulatency.UPROC_INVALID = UPROC_INVALID
+--! @public @memberof ulatency
+ulatency.UPROC_ALIVE = UPROC_ALIVE
+--! @}
+
+------------------ ulatency class functions -----------
+
+--! @name system load
+--! @{
+
+--! @brief Return list of system load averages for the past 1, 5, and 15 minutes.
+--! @return number, number, number Average load for past 1, 5, and 15 minutes.
+--! @public @memberof ulatency
+function ulatency.get_load()
+end
+
+--! @brief Returns the uptime of the system and the amount of time since then the system has been idle, both in seconds.
+--! @return uptime, idle two numbers: the uptime of the system (seconds), and the amount of time spent
+--! in idle process (seconds)
+--! @public @memberof ulatency
+function ulatency.get_uptime()
+end
+
+--! @brief Returns Memory info table filled with some /proc/meminfo values.
+--! @return __MEMINFO_TABLE
+--! @public @memberof ulatency
+function ulatency.get_meminfo()
+end
+
+--! @brief Returns table filled with some /proc/vmstat values.
+--! @return __VMSTAT_TABLE
+--! @public @memberof ulatency
+function ulatency.get_vminfo()
+end
+
+--! Returns maximal PID value.  When the kernel's next PID value
+--! is greater than this value, it wraps back to a minimum PID value.
+--! @public @memberof ulatency
+function ulatency.get_pid_digits()
+end
+
+--! @brief Return system load average for the past 1 minute stored in the beginning of last scheduler iteration.
+--! @public @memberof ulatency
+function ulatency.get_last_load()
+end
+
+--! @brief Return system load average per CPU for the past 1 minute as stored in the beginning of last
+--! scheduler iteration.
+--! @public @memberof ulatency
+function ulatency.get_last_percent()
+end
+--! @} End of "system load"
+
+-------------------------------------------------------
+
+--! @name conversions
+--! @{
+
+--! Gets the name of the `gid` user group.
+--! @param gid A GID of the user group.
+--! @return A textual representation of `gid` group name or `gid` number if group does not have a name.
+--! @public @memberof ulatency
+function ulatency.group_from_gid(gid)
+end
+
+--! Gets the name of the `uid` user.
+--! @param uid A UID of the user.
+--! @return A textual representation of `uid` user name or `uid` number if user does not have a name.
+--! @public @memberof ulatency
+function ulatency.user_from_uid(uid)
+end
+--! @} End of "conversions"
+
+-------------------------------------------------------
+
+--! @name get processes
+--! @{
+
+--! Returns process #u_proc with `pid`.
+--! @param pid A PID of the process to return.
+--! @retval #u_proc If process with `pid` exists in ulatency #processes table.
+--! @retval 0 If process with `pid` does not exists in ulatency #processes table.
+--! @public @memberof ulatency
+function ulatency.get_pid(pid)
+end
+
+--! Returns `pids` array of all processes from ulatency #processes table.
+--! @return Table of `pids`
+--! @public @memberof ulatency
+function ulatency.list_pids()
+end
+
+--! Returns array with #u_proc processes from ulatency #processes table.
+--! @param changed TRUE if only changed processes should be included.
+--! @return Array of #u_proc instances.
+--! @public @memberof ulatency
+function ulatency.list_processes(changed)
+end
+
+--! Returns number of processes.
+--! @return a number
+--! @retval 0 If /proc directory could not be read.
+--! @public @memberof ulatency
+function ulatency.get_number_of_processes()
+end
+--! @} End of "get processes"
+
+-------------------------------------------------------
+
+--! @addtogroup lua_RULES
+--! @{
+
+--! Sets a function to be called at regular intervals until the function returns FALSE.
+--! @param callback The function.
+--! @param interval Interval in milliseconds.
+--! @note The callback function is called with new lua_State,
+--! that is used as source for flags created in that function.
+--! @public @memberof ulatency
+function ulatency.add_timeout(callback, interval)
+end
+
+--! @brief Registers a filter to be called on processes.
+--! @param filter A table representing the filter. The filter table is described in #__FILTER pseudo type.
+--! @public @memberof ulatency
+function ulatency.register_filter(filter)
+end
+--! @} End of "addtogroup lua_RULES"
+
+-------------------------------------------------------
+
+--! @name flag creation
+--! @{
+
+--! @ingroup lua_FLAGS
+
+--! @brief Creates the new flag.
+--! @param values Table of the new #u_flag values or just the flag name (#u_flag.name).
+--! @return #u_flag The new #u_flag instance.
+--! @public @memberof ulatency
+function ulatency.new_flag(values)
+end
+--! @} End of "flag creation"
+
+-------------------------------------------------------
+
+--! @name system flags manipulation
+
+--! @ingroup lua_FLAGS
+
+--! @{
+
+--! Returns array of system flags.
+--! @return array of u_flag
+--! @public @memberof ulatency
+function ulatency.list_flags()
+end
+
+--! Adds the flag #u_flag to the system flags.
+--! @note The `system_flags_changed` variable is **not touched**.
+--! @param flag a #u_flag to add
+--! @public @memberof ulatency
+function ulatency.add_flag(flag)
+end
+
+--! @brief Removes a system flag #u_flag.
+--! @note The `system_flags_changed` variable is **not touched**.
+--! @param flag a #u_flag to delete
+--! @public @memberof ulatency
+function ulatency.del_flag(flag)
+end
+
+--! @brief Removes system flags with the `name`.
+--! @note If a flag is removed, the `system_flags_changed` variable is set, see ulatency.set_flags_changed().
+--! @param name System flags (#u_flag instances) with this name will be deleted.
+--! @public @memberof ulatency
+function ulatency.clear_flag_name(name)
+end
+
+--! @brief Removes all system flags that was created by current lua thread.
+--! Specifically, all flags created with same lua state will be removed.
+--! There is one main lua state and additional lua states for every lua thread created by
+--! ulatency.add_timeout() and ulatency.register_filter().
+--! @note If a flag is removed, the `system_flags_changed` variable is set, see ulatency.set_flags_changed().
+--! @public @memberof ulatency
+function ulatency.clear_flag_source()
+end
+
+--! Removes all system flags.
+--! @note If a flag is removed, the `system_flags_changed` variable is set, see ulatency.set_flags_changed().
+--! @public @memberof ulatency
+function ulatency.clear_flag_all()
+end
+
+--! Returns the value of the `system_flags_changed` variable.
+--! @return boolean value of `system_flags_changed`
+--! @see ulatency.set_flags_changed()
+--! @relatesalso Scheduler
+--! @public @memberof ulatency
+function ulatency.get_flags_changed()
+end
+
+--! Sets the value of the `system_flags_changed` variable.
+--! @param value a boolean
+--! @note The `system_flags_changed` is automatically set if:
+--! - Some of the system flags has timed out.
+--! - Some of the system flags has been removed as result of calling ulatency.clear_flag_name(),
+--!   ulatency.clear_flag_source() or ulatency.clear_flag_all().
+--! @note The `system_flags_changed` is not set by:
+--! - ulatency.add_flag() or ulatency.del_flag()
+--! - changing a flag values
+--! @note The `system_flags_changed` is cleared after every iteration, see ulatency.run_iteration().
+--! @note Scheduler:all() will normally schedule only processes that are marked as changed (see u_proc:clear_changed()
+--! for description of what processes are considered changed). If you want to force rescheduling of all processes, e.g.
+--! because you have added some important system flag, set the `system_flags_changed` manually.
+--! @relatesalso Scheduler
+--! @public @memberof ulatency
+function ulatency.set_flags_changed(value)
+end
+--! @} End of "system flag manipulation"
+
+-------------------------------------------------------
+
+--! @name group code
+--! @{
+
+--! @ingroup lua_USER_SESSIONS
+
+--! Manually add process with `pid` to the active list of user `uid`.
+--! - Newly added process is marked as changed.
+--! - Then the list is reordered (the most recent changed processes first).
+--! - If there are too many processes in the list the least recent changed are removed.
+--!
+--! @param uid UID of the user.
+--! @param pid PID of the process to add.
+--! @public @memberof ulatency
+function ulatency.set_active_pid(uid, pid)
+end
+
+--! Returns array of #__ACTIVE_UIDS structures for every user with the active list.
+--! @return Array of #__ACTIVE_UIDS tables.
+--! @public @memberof ulatency
+function ulatency.get_active_uids()
+end
+
+--! Returns array of #__ACTIVE_PIDS structures for every process in the user active list.
+--! @param uid User UID
+--! @return Array #__ACTIVE_PIDS tables.
+--! @public @memberof ulatency
+function ulatency.get_active_pids(uid)
+end
+--! @} End of "group code"
+
+-------------------------------------------------------
+
+--! @name config
+--! @{
+
+--! Returns value of configuration `key` from section `group`.
+--! @public @memberof ulatency
+function ulatency.get_config(group, key)
+end
+
+--! Returns list of all keys from section `group`.
+--! @public @memberof ulatency
+function ulatency.list_keys(group)
+end
+--! @} End of "config"
+
+-------------------------------------------------------
+
+--! @name system & user querying
+--! @{
+
+--! @ingroup lua_USER_SESSIONS
+
+--! Returns array of ConsoleKit sessions.
+--! @return array of #u_session structures.
+--! @public @memberof ulatency
+function ulatency.get_sessions()
+end
+
+--! @brief Returns status of ConsoleKit sessions for user `uid`.
+--! @param uid User UID
+--! @return active, idle Returns two values.
+--! @retval active If any of the user `uid` ConsoleKit sessions is active this values is 1, otherwise 0.
+--! @retval idle If at least one of the user sessions is not idle this value is 0, otherwise 1.
+--! @public @memberof ulatency
+function ulatency.get_uid_stats(uid)
+end
+
+--! @brief Gets array of unique values of environment variable `key` across all processes of the `uid` user.
+--! @param uid User UID
+--! @param key The name of environment variable.
+--! @param update (optional) If TRUE, updates the #u_proc.environ values before searching.
+--! @public @memberof ulatency
+function ulatency.search_uid_env(uid, key, update)
+end
+--! @} End of "system & user querying"
+
+-------------------------------------------------------
+
+--! Composes the value that may be used as the __FILTER.check() return value.
+--! @param flags Flags can be 0 or one or more (through addition) of following:
+--! - ulatency.FILTER_STOP
+--! - ulatency.FILTER_SKIP_CHILD
+--! @param timeout (optional) Timeout is a integer in seconds, that the filter will not be run again.
+--! If you want for example skip this filter for the next 5 minutes on this process you can return:
+--! `ulatency.filter_rv(0, 5*60)`
+--! If you simply return 0, the filter is executed on the next iteration again.
+--! @ingroup lua_RULES
+--! @public @memberof ulatency
+function ulatency.filter_rv(flags, timemout)
+end
+
+-------------------------------------------------------
+
+--! @name misc
+--! @{
+
+--! Log message `msg` with severity `level`.
+--! @param level glib log level, you may use one of following constants:
+--! - ulatency.LOG_LEVEL_ERROR
+--! - ulatency.LOG_LEVEL_CRITICAL
+--! - ulatency.LOG_LEVEL_WARNING
+--! - ulatency.LOG_LEVEL_MESSAGE
+--! - ulatency.LOG_LEVEL_INFO
+--! - ulatency.LOG_LEVEL_DEBUG
+--! - ulatency.LOG_LEVEL_SCHED
+--! - ulatency.LOG_LEVEL_TRACE
+--! @param msg A message to log.
+--! You can use following shortcut functions:
+--! - ulatency.log_trace(msg)
+--! - ulatency.log_sched(msg)
+--! - ulatency.log_debug(msg)
+--! - ulatency.log_info(msg)
+--! - ulatency.log_warning(msg)
+--! - ulatency.log_error(msg)
+--! - ulatency.log_critical(msg)
+--! @public @memberof ulatency
+function ulatency.log(level, msg)
+end
+
+--! Returns the real user ID of the calling process.
+--! @see man 2 getuid
+--! @public @memberof ulatency
+function ulatency.get_uid()
+end
+
+--! Returns the current time.
+--! @param shift (optional) Number of seconds to add to the returned time.
+--! @return The time as the number of seconds since the Epoch, 1970-01-01 00:00:00 +0000 (UTC).
+--! @see man 2 time
+--! @public @memberof ulatency
+function ulatency.get_time(shift)
+end
+
+--! Quits the ulatencyd daemon with dispatching main loop events.
+--! @public @memberof ulatency
+function ulatency.quit_daemon()
+end
+
+--! Load the rule file.
+--! @param name The filename.
+--! @param abs (optional) If TRUE, `name` is the absolute path.
+--! If FALSE or not given, `name` is relative to the ulatency.path_rules_directory.
+--! @bug The rules directory may be changed via `-r` parameter when invoking ulatencyd,
+--! but the change is ignored by this function.
+--! @return boolean TRUE on success.
+--! @public @memberof ulatency
+function ulatency.load_rule(name, abs)
+end
+
+--! Load all rule files from the directory.
+--! @param name The dirname.
+--! @param abs (optional) If TRUE, `name` is the absolute path.
+--! If FALSE or not given, `name` is relative to the ulatency.path_config_directory.
+--! @return boolean Always TRUE
+--! @public @memberof ulatency
+function ulatency.load_rule_directory(name, abs)
+end
+
+--! Parses the /proc filesystem and updates the internal node structure acordingly.
+--! Normally, all processes are updated in the beginning of every scheduler iteration.
+--! @param pid (optional) PID of the process to update. If not given, update all processes.
+--!
+--! Steps of an update:
+--!   + parses the /proc filesystem and updates the internal node structure
+--!     (#processes hash table and #u_proc instances) accordingly.
+--!   + detects if the process was changed
+--!   + eventually removes the process from delay stack (it will be scheduled by next iteration, not alone)
+--!   + clears and refills #u_proc.tasks
+--!   + clears timed out flags of the process
+--!   + if all processes are being updated, removes all non existing processes
+--! @public @memberof ulatency
+function ulatency.process_update(pid)
+end
+
+--! Wrapper to run scheduler iteration.
+--! @details Normally, iteration is run every `interval` seconds defined in the `core` configuration group.
+--! This calls the iterate() function indirectly, via `g_timeout_add(0, ...)`.
+--! Iteration consists of following steps:
+--! - clears timed out system flags
+--! - updates average system load for last one minute, values returned
+--!   by ulatency.get_last_load() and ulatency.get_last_percent().
+--! - updates processes, see ulatency.process_update()
+--! - runs fast filters (e.g. simple rules with instant=1 value parsed by simplerules module)
+--! - runs normal filters
+--! - runs Scheduler::all()
+--! - marks all processes as unchanged, see u_proc:clear_changed()
+--! - clears `system_flags_changed` variable, see ulatency.set_flags_changed()
+--!
+--! @warning Can cause endless loop!
+--! @public @memberof ulatency
+function ulatency.run_iteration()
+end
+--! @} End of "misc"

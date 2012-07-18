@@ -6,6 +6,12 @@
     License: GNU General Public License 3 or later
 ]]--
 
+---------------------------------
+--! @file
+--! @brief scheduler implementation
+--! @ingroup lua_SCHEDULER
+---------------------------------
+
 require("posix")
 
 u_groups = {}
@@ -21,9 +27,9 @@ ul_group_cpu:add_task(UL_PID)
 ul_group_cpu:commit()
 
 
--- WARNING: don't use non alpha numeric characters in name
--- FIXME: build validator
-
+--! @relates Scheduler
+--! @warning don't use non alpha numeric characters in name
+--! @todo build validator
 function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags(true)) do
     for k, slabel in pairs(labels) do
@@ -143,8 +149,17 @@ local function map_to_group(proc, parts, subsys)
 end
 
 
+--! @class Scheduler
+--! @ingroup lua_SCHEDULER
 Scheduler = {C_FILTER = false, ITERATION = 1}
 
+--! @brief Schedules all changed processes, called on every iteration (see `ulatency.run_iteration()`).
+--! - normally schedules only changed processes
+--! - schedules all processes if one of the following conditions meets:
+--!   + system_flags_changed is set
+--!   + a system flag with name "pressure" or "emergency" exists
+--!   + it has been run full_run times or 15 times since the last full run
+--! @public @memberof Scheduler
 function Scheduler:all()
   local group
   if ulatency.get_flags_changed() then
@@ -172,7 +187,7 @@ function Scheduler:all()
   return true
 end
 
-
+--! @public @memberof Scheduler
 function Scheduler:load_config(name)
   if not name then
     name = ulatency.get_config("scheduler", "mapping")
@@ -197,15 +212,18 @@ function Scheduler:load_config(name)
   return true
 end
 
+--! @public @memberof Scheduler
 function Scheduler:update_caches()
   Scheduler.meminfo = ulatency.get_meminfo()
   Scheduler.vminfo = ulatency.get_vminfo()
 end
 
+--! @public @memberof Scheduler
 function Scheduler:one(proc)
   return self:_one(proc, true)
 end
 
+--! @private @memberof Scheduler
 function Scheduler:_one(proc, single)
   if not self.MAPPING then
     self:load_config()
@@ -252,6 +270,7 @@ function Scheduler:_one(proc, single)
   return true
 end
 
+--! @public @memberof Scheduler
 function Scheduler:list_configs()
   rv = {}
   for k,v in pairs(getfenv()) do
@@ -269,6 +288,7 @@ function Scheduler:list_configs()
   return rv
 end
 
+--! @public @memberof Scheduler
 function Scheduler:get_config_description(name)
   name = string.upper(name)
   local mapping = getfenv()["SCHEDULER_MAPPING_" .. name]
@@ -277,6 +297,7 @@ function Scheduler:get_config_description(name)
   end
 end
 
+--! @public @memberof Scheduler
 function Scheduler:set_config(config)
   if ulatency.get_config("scheduler", "allow_reconfigure") ~= 'true' then
     ulatencyd.log_info("requested scheduler reconfiguration denied")
@@ -290,6 +311,7 @@ function Scheduler:set_config(config)
   return rv
 end
 
+--! @public @memberof Scheduler
 function Scheduler:get_config()
   if self.CONFIG_NAME then
     return string.lower(self.CONFIG_NAME)
@@ -297,7 +319,8 @@ function Scheduler:get_config()
   return nil
 end
 
--- register scheduler
+--! @public @memberof ulatency
+--! @brief scheduler instance
 ulatency.scheduler = Scheduler
 
 ulatency.load_rule_directory("scheduler/")

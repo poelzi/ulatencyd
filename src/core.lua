@@ -19,12 +19,14 @@
 
 ---------------------------------
 --! @file
+--! @ingroup lua_CORE
 --! @brief ulatencyd core lua library
 ---------------------------------
 
 posix = require("posix")
 
--- monkey patching lua core
+--! @addtogroup lua_EXT
+--! @{
 
 --! @brief split string with seperator sep
 --! @param sep seperator
@@ -59,44 +61,47 @@ function table.merge(t, t2)
   return t
 end
 
+--! @} End of "addtogroup lua_EXT"
 
--- logging shortcuts
 
---! @brief log with level trace
---! @param msg message
---! @return nil
+--! @name logging shortcuts
+--! @{
+
+--! @public @memberof ulatency
 function ulatency.log_trace(msg)
   ulatency.log(ulatency.LOG_LEVEL_TRACE, msg)
 end
-
+--! @public @memberof ulatency
 function ulatency.log_sched(msg)
   ulatency.log(ulatency.LOG_LEVEL_SCHED, msg)
 end
-
+--! @public @memberof ulatency
 function ulatency.log_debug(msg)
   ulatency.log(ulatency.LOG_LEVEL_DEBUG, msg)
 end
-
+--! @public @memberof ulatency
 function ulatency.log_info(msg)
   ulatency.log(ulatency.LOG_LEVEL_INFO, msg)
 end
-
+--! @public @memberof ulatency
 function ulatency.log_warning(msg)
   ulatency.log(ulatency.LOG_LEVEL_WARNING, msg)
 end
-
+--! @public @memberof ulatency
 function ulatency.log_error(msg)
   ulatency.log(ulatency.LOG_LEVEL_ERROR, msg)
 end
-
+--! @public @memberof ulatency
 function ulatency.log_critical(msg)
   ulatency.log(ulatency.LOG_LEVEL_CRITICAL, msg)
 end
+--! @} End of "logging shortcuts"
 
 function re_from_table(tab)
   return table.concat(tab, "|")
 end
 
+--! @public @memberof ulatency
 function ulatency.list_processes_group(key)
   procs = ulatency.list_processes()
   rv = {}
@@ -111,6 +116,10 @@ function ulatency.list_processes_group(key)
   return rv
 end
 
+--! @name system flags manipulation
+--! @{
+
+--! @public @memberof ulatency
 function ulatency.add_adjust_flag(lst, match, adj)
    for i, flag in ipairs(lst) do
      for k, v in pairs(match) do
@@ -133,6 +142,8 @@ function ulatency.add_adjust_flag(lst, match, adj)
   return flag, false
 end
 
+--! @brief bla2
+--! @public @memberof ulatency
 function ulatency.find_flag(lst, match)
   for i, flag in ipairs(lst) do
     for k, v in pairs(match) do
@@ -146,6 +157,7 @@ function ulatency.find_flag(lst, match)
     end
   end
 end
+--! @} End of "system flags manipulation"
 
 -- load defaults.conf
 if(not ulatency.load_rule("../cgroups.conf")) then
@@ -154,9 +166,11 @@ if(not ulatency.load_rule("../cgroups.conf")) then
   end
 end
 
--- build a list of usefull mountpoints
+--! @brief list of usefull mountpoints
+--! @private @memberof ulatency
 ulatency.mountpoints = {}
 
+--! @brief fill ulatency.mountpoints
 local function load_mountpoints()
   local fp = io.open("/proc/mounts")
   local good = { sysfs=true, debugfs=true }
@@ -183,11 +197,13 @@ local __CGROUP_HAS = false
 local __CGROUP_AVAIL = false
 local __CGROUP_LOADED = {}
 
+--! @public @memberof ulatency
 function ulatency.tree_loaded(name)
   return __CGROUP_LOADED[name]
 end
 
---! @brief returns boolean if name is available
+--! @brief returns true if name is available
+--! @private @memberof ulatency
 --! @param name name of subsystem to test
 function ulatency.has_cgroup_subsystem(name)
   if not __CGROUP_HAS then
@@ -197,6 +213,7 @@ function ulatency.has_cgroup_subsystem(name)
 end
 
 --!@brief returns a table of available cgroup subsystems
+--!@public @memberof ulatency
 function ulatency.get_cgroup_subsystems()
   if __CGROUP_AVAIL then
     return __CGROUP_AVAIL
@@ -213,8 +230,10 @@ function ulatency.get_cgroup_subsystems()
   return __CGROUP_AVAIL
 end
 
--- reading / writing to /proc/sys
+--! @name reading / writing to /proc/sys
+--! @{
 
+--! @public @memberof ulatency
 function ulatency.get_sysctl(name)
   local pname = string.gsub(name, "%.", "/")
   local fp = io.open("/proc/sys/" .. pname)
@@ -226,6 +245,7 @@ function ulatency.get_sysctl(name)
   return data
 end
 
+--! @public @memberof ulatency
 function ulatency.set_sysctl(name, value)
   local pname = string.gsub(name, "%.", "/")
   local fp = io.open("/proc/sys/" .. pname, "w")
@@ -236,6 +256,7 @@ function ulatency.set_sysctl(name, value)
   fp:close()
   return true
 end
+--! @} End of "reading / writing to /proc/sys"
 
 -- CGroups interface
 
@@ -247,7 +268,6 @@ if ulatency.get_uid() > 0 or
 else
   cg_log = ulatency.log_warning
 end
-
 
 
 local function mkdirp(path)
@@ -270,6 +290,8 @@ end
 
 local _CGroup_Cache = {}
 
+--! @class CGroup
+--! @ingroup lua_CORE lua_CGROUPS
 CGroup = {}
 
 function CGroup_tostring(data, key)
@@ -399,7 +421,11 @@ end
 
 ulatency.add_timeout(cgroups_cleanup, 120000)
 
---! @brief create and initialize new cgroup in _CGroup_Cache, already existing cgroup is replaced
+--! @addtogroup lua_CGROUPS
+--! @{
+
+--! @brief Creates a new CGroup in _CGroup_Cache, already existing CGroup is replaced.
+--! @public @memberof CGroup
 function CGroup.new(name, init, tree)
   tree = tree or "cpu"
   if CGROUP_DEFAULT[tree] then
@@ -414,11 +440,13 @@ function CGroup.new(name, init, tree)
   return rv
 end
 
+--! @public @memberof CGroup
 function CGroup.get_groups()
   return _CGroup_Cache
 end
 
---! @brief return cgroup or false/nil if it does not exists or is not present in ulatency internal _CGroup_Cache
+--! @brief Returns CGroup or false/nil if it does not exists or is not present in ulatency internal _CGroup_Cache.
+--! @public @memberof CGroup
 function CGroup.get_group(name)
   local cgr = _CGroup_Cache[name]
   if cgr then
@@ -428,7 +456,7 @@ function CGroup.get_group(name)
   return nil
 end
 
-
+--! @public @memberof CGroup
 function CGroup:path(file)
   if file then
     return CGROUP_ROOT .. self.tree .. "/".. self.name .. "/" .. tostring(file)
@@ -437,10 +465,12 @@ function CGroup:path(file)
   end
 end
 
+--! @public @memberof CGroup
 function CGroup:path_parts()
   return self.name:split("/")
 end
 
+--! @public @memberof CGroup
 function CGroup:parent()
   parts = self.name:split("/")
   name = table.concat(parts, "/", 1, #parts-1)
@@ -450,6 +480,7 @@ function CGroup:parent()
   return CGroup.new(name)
 end
 
+--! @public @memberof CGroup
 function CGroup:get_value(key, raw)
   uncommited = rawget(self, "uncommited")
   if uncommited[key] and not raw then
@@ -462,12 +493,13 @@ function CGroup:get_value(key, raw)
   end
 end
 
-
+--! @public @memberof CGroup
 function CGroup:set_value(key, value)
   uncommited = rawget(self, "uncommited")
   uncommited[key] = value
 end
 
+--! @public @memberof CGroup
 function CGroup:get_tasks()
   local t_file = self:path("tasks")
   if posix.access(t_file, posix.R_OK) ~= 0 then
@@ -480,6 +512,7 @@ function CGroup:get_tasks()
   return rv
 end
 
+--! @public @memberof CGroup
 function CGroup:has_tasks()
   local rv = false
   local t_file = self:path("tasks")
@@ -493,7 +526,7 @@ function CGroup:has_tasks()
   return rv
 end
 
-
+--! @public @memberof CGroup
 function CGroup:run_adjust(proc)
   adjust = rawget(self, "adjust")
   for i,v in ipairs(adjust) do
@@ -505,7 +538,7 @@ end
 --  return rawget(self, "adjust")
 --end
 
-
+--! @public @memberof CGroup
 function CGroup:add_task_list(pid, tasks, instant)
   local nt = rawget(self, "new_tasks")
   if not nt then
@@ -531,6 +564,7 @@ function CGroup:add_task_list(pid, tasks, instant)
   end
 end
 
+--! @public @memberof CGroup
 function CGroup:add_task(pid, instant)
   if instant then
     return self:add_task_list(pid, {pid}, instant)
@@ -545,7 +579,7 @@ function CGroup:add_task(pid, instant)
   end
 end
 
-
+--! @public @memberof CGroup
 function CGroup:is_dirty()
   if #rawget(self, "uncommited") > 0 or
      #rawget(self, "new_tasks") > 0 or 
@@ -555,6 +589,7 @@ function CGroup:is_dirty()
   return false
 end
 
+--! @public @memberof CGroup
 function CGroup:exists()
   if posix.access(self:path()) == 0 then
     return true
@@ -566,6 +601,7 @@ function CGroup:exists()
   return false
 end
 
+--! @public @memberof CGroup
 function CGroup:can_be_removed()
   if self:has_tasks() or #rawget(self, "new_tasks") > 0 then
     return false
@@ -573,11 +609,12 @@ function CGroup:can_be_removed()
   return true
 end
 
+--! @public @memberof CGroup
 function CGroup:remove()
   posix.rmdir(self:path())
 end
 
-
+--! @public @memberof CGroup
 function CGroup:commit()
   mkdirp(self:path())
   local uncommited = rawget(self, "uncommited")
@@ -617,6 +654,7 @@ function CGroup:commit()
   end
 end
 
+--! @public @memberof CGroup
 function CGroup:add_children(proc, fnc)
   function add_childs(list)
     for i,v in pairs(list) do
@@ -632,6 +670,7 @@ function CGroup:add_children(proc, fnc)
   add_childs(proc:get_children())
 end
 
+--! @public @memberof CGroup
 function CGroup.create_isolation_group(proc, children, fnc)
   ng = CGroup.new("iso_"..tostring(pid))
   ng:commit()
@@ -643,6 +682,7 @@ function CGroup.create_isolation_group(proc, children, fnc)
   return ng
 end
 
+--! @public @memberof CGroup
 function CGroup:starve(what)
   if what == "memory" then
     nv = self:get_value("memory.usage_in_bytes", true)
@@ -652,11 +692,10 @@ function CGroup:starve(what)
   end
 end
 
+--! @} End of "addtogroup lua_CGROUPS"
 
-
-
-
--- helper classes
+--! @addtogroup lua_HELPERS
+--! @{
 
 function to_string(data, indent)
     local str = ""
@@ -715,3 +754,4 @@ function num_or_percent(conf, value, default)
   end
   return conf
 end
+--! @} End of "defgroup helper Helper classes"
