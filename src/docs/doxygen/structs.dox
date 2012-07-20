@@ -1,7 +1,7 @@
 // this file is for documentation purposes only
 
 /**
- * @file structs.lua.h
+ * @file structs.dox
  * @ingroup lua_DOC
  * This file is for documentation purposes only, it documents structures that are returned by functions from
  * 'ulatency' table that are not documented elsewhere.

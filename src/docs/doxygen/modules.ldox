@@ -1,6 +1,6 @@
 -- this file is for documentation purposes only
 
---! @file modules.lua
+--! @file modules.ldox
 --! This file is for documentation purposes only, contains definitions of doxygen modules.
 --! @ingroup lua_DOC
 

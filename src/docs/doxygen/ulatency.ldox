@@ -1,6 +1,6 @@
 -- this file is for documentation purposes only
 
---! @file ulatency.lua
+--! @file ulatency.ldox
 --! @ingroup lua_DOC
 --! This file is for documentation purposes only, it documents the 'ulatency' table which is implemented in the core.
 

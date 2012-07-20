@@ -1,6 +1,6 @@
 -- this file is for documentation purposes only
 
---! @file filters.lua
+--! @file filters.ldox
 --! @ingroup lua_DOC
 --! This file is for documentation purposes only, it documents filters usage.
 

@@ -1,6 +1,6 @@
 -- this file is for documentation purposes only
 
---! @file u_proc.lua
+--! @file u_proc.ldox
 --! @ingroup lua_DOC
 --! This file is for documentation purposes only, it documents the 'u_proc' table which is implemented in the core
 
