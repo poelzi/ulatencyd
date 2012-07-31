@@ -479,7 +479,7 @@ static int l_add_interval (lua_State *L) {
 
 // type checks and pushes
 
-#define U_PROC "U_PROC"
+#define U_PROC "u_proc"
 #define U_PROC_META "U_PROC_META"
 #define U_PROC_TASK "U_PROC_TASK"
 #define U_PROC_TASK_META "U_PROC_TASK_META"
@@ -1073,6 +1073,18 @@ static int u_proc_index (lua_State *L)
       return 1;
     }
   }
+
+  lua_getfield(L, LUA_GLOBALSINDEX, U_PROC);
+  int base = lua_gettop(L);
+  if (lua_istable(L, -1)) {
+    lua_pushstring(L, key);
+    lua_rawget(L, -2);
+    lua_remove(L,  base);
+    if(!lua_isnil(L, -1)) {
+      return 1;
+    }
+  }
+  lua_remove(L, base);
 
   if(!strcmp(key, "is_valid" )) { \
     lua_pushboolean(L, U_PROC_IS_VALID(proc));
