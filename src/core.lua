@@ -562,7 +562,7 @@ function CGroup:add_task_list(pid, tasks, instant)
     local t_file = self:path("tasks")
     fp = io.open(t_file, "w")
     if fp then
-      for i,v in tasks do
+      for i,v in ipairs(tasks) do
         fp:write(tostring(v)..'\n')
         fp:flush()
       end
