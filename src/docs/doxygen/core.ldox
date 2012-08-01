@@ -1,0 +1,13 @@
+-- this file is for documentation purposes only
+
+--! @file core.ldox
+--! This file is for documentation purposes only, contains overview of the core functionality exported to lua.
+--! @ingroup lua_DOCS
+
+--! @addtogroup lua_CORE
+--! @brief CORE functionality accessible to the lua @ref lua_RULES "rule files"
+--! @details 
+--! Important functionality implemented in the ulatencyd core (C language) is exported via lua bindings and the core 
+--! functionality is further extended by the `src/core.lua` file. This documentation module and submodules describe
+--! all such functionality that can be used by the lua @ref lua_RULES "rule files", i.e., @ref lua_FILTERS "filters", 
+--! @ref lua_TIMEOUTS "timeout functions" and @ref lua_SCHEDULER "the scheduler".

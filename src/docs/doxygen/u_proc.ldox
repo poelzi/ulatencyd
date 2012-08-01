@@ -6,7 +6,8 @@
 
 --! @class u_proc
 --! @brief Process class.
---! @note **Important to know**:
+--! @note You can extend the `u_proc` class in lua, though you cannot override methods implemented in the C core.
+--! @attention
 --! Process objects are shared between all parts of ulatencyd. If you save a reference you do not save the
 --! data, but only a reference to it. Accessing values will always be the most recent version of it. If you
 --! want create a history of data, you have to store them as copies. If you save references they may be to
@@ -47,7 +48,17 @@ function u_proc:get_n_nodes()
 end
 
 --! @brief Sets #u_proc.block_scheduler value.
---! @param value a number greater than 0 will cause Scheduler skips the process.
+--! @param value a number 
+--! - A value greater than 0 will cause Scheduler skips the process. 
+--! - A value greater then 1 will cause
+--!   Scheduler skips the process even when doing final cleanup, caused by ulatencyd daemon shutdown. This will make
+--!   the process **never** being moved from its cgroup.
+--! @remark Particular, if you have a process you want to be never moved to other cgroup, setup a cgroup, move the 
+--! process to it and call `u_proc:set_block_scheduler(1)`.
+--! @remark If you have a process you want to stay in its cgroup forever, e.g. a process that creates its private 
+--! cgroups that will not be able to find if the process would be moved, call `u_proc:set_block_scheduler(2)` on it.
+--! @remark You may put processes to isolation with `CGroup.create_isolation_group()` or label them with 
+--! @link __ISOLATE_FLAG isolate flag@endlink.
 --! @public @memberof u_proc
 function u_proc:set_block_scheduler(value)
 end

@@ -1,0 +1,159 @@
+-- this file is for documentation purposes only
+
+--! @file flags.ldox
+--! This file is for documentation purposes only, it documents flags.
+--! @ingroup lua_DOC
+
+--! @addtogroup lua_FLAGS
+--! @details 
+--! Processes are usually scheduled according their attached flags and eventually according to system-wide flags, that
+--! usually signify important environment changes (like memory pressure). Flags must contain a name and can optionally 
+--! have some other values attached to it. The name can be any asciinumeric string, please don't use non ascii based 
+--! strings as lua does not have the knowledge of unicode. The name is based on convention, having a top level category 
+--! and subcategories separated by ., like `user.ui`, `user.media` for process flags.
+--!
+--! A flags once added stays until the process dies, flag gets removed by a rule/module or the optional timeout hits.
+--! Same applies for system flags, they never disappear unless removed or timeouts.
+--!
+--! Flags are internally stored as instances of u_flag structure. From LUA you can create new flag by the 
+--! `ulatency.new_flag()` function. A reference to the u_flag instance may be added to the list of system-wide flags or to
+--! a per process flag list. This way flags may be virtually divided in **system flags** and **process flags**. 
+--!
+--! ##System flags
+--! System flags are stored in internal global `Glist *system_flags` list. You can add, manipulate and delete system flags
+--! with ulatency methods summarised in the `system flags manipulation` group above. This is usually accomplished by 
+--! registered @link lua_TIMEOUTS timeout@endlink functions inside lua @link lua_RULES rules@endlink files.
+--!
+--! There is a global boolean `system_flags_changed`
+--! variable, that, if set, signifies that important system flags has been changed and all processes should be rescheduled.
+--! This variable is automatically set in certain situations (any of system flags times out or is cleared). If you think
+--! all processes should be rescheduled after you add some system flag, you can set this variable by hand and eventually
+--! force new @link ulatency.run_iteration() iteration@endlink to be run. See `ulatency.set_flags_changed()` for details.
+--!
+--! The @link lua_SYSTEM_FLAGS System flags@endlink documentation module contains list of system flags that are currently
+--! being used.
+--!
+--! ## Process flags
+--! Per process flags are stored in `u_proc.flags` list. You can attach same u_flag instance to multiple processes.
+--! You can add, manipulate and delete flags of a process with ulatency methods summarised in the `process flags 
+--! manipulation` group above.
+--!
+--! If you add a flag to a process, remove a flag from process or a flag times out, the process is marked as 
+--! changed (`u_proc.changed`). Changed processes are subjects for scheduling.
+--!
+--! Processes are mostly flagged by the @link lua_FILTERS filters@endlink defined in 
+--! @link lua_RULES rule files@endlink. The simplest way is to use @link lua_SIMPLERULES simplerules@endlink.
+--! The @link lua_PROCESS_FLAGS Process flags@endlink documentation module contains list of process flags that are currently
+--! being used.
+
+
+
+--! @addtogroup lua_PROCESS_FLAGS
+--! @details
+--! The most of process flags are rather simple flags identified by the `u_flag.name` with other `u_flag` attributes
+--! having no special purpose. These are briefly described below. More complex flags, with other `u_flag` attributes
+--! having special purpose, are described by pseudo types based on the u_flag structure.
+--!
+--! @note Processes are mostly flagged by the @link lua_FILTERS filters@endlink defined in 
+--! @link lua_RULES rule files@endlink. The simplest way is to use @link lua_SIMPLERULES simplerules@endlink.
+--!
+--! ## Process flags brief description
+--!
+--! The most important attribute is the `u_flag.name`, that should represent a hierarchy with levels
+--! separated by a dot (.):
+--! ### user.
+--! Indicates a typical user process
+--!
+--! - **user.ui** - graphical user interface
+--! - **user.media** - media players
+--! - **user.bg_high** - very important background process for the user
+--! - **user.idle** - process that is not necessary and will only get spare resources.
+--!
+--! - **user.poison** - process that causes trouble to the user & system. Depending on _reason_
+--!   - _reason="memory"_ - using a lot of ram in memory pressure situation
+--! - **user.poison.group** - belongs to a group of process that cause trouble
+--!   - _reason="memory"_ - using a lot of ram in memory pressure situation
+--!
+--! ### system.
+--! System important processes
+--!
+--! * **system.essential** - very essential system processes like X, wayland,...
+--!
+--! ### daemon.
+--! System daemon processes, that run in background
+--! 
+--! - **daemon.idle** - absolutely lowest priority of all 
+--! - **daemon.bg** - a little bit more important then idle, but no important processes.
+--!
+--! ### sched.
+--! Special scheduling required
+--!
+--! - **sched.rt** - process must be in realtime group
+--!
+--! ### isolate
+--! Processes that should be put into isolation and be excluded from scheduling. See __ISOLATE_FLAG pseudo type for
+--! detail description.
+
+--! @struct __SYSTEM_FLAG_QUIT
+--! @implements u_flag
+--! @brief Causes scheduler cleanup (including cgroups removal) and ulatencyd daemon to quit permanently.
+--! @details Set this if you want to quit ulatencyd daemon permanently, as cgroups created by the daemon will be removed.
+--! After you set this flag 
+--! - force the scheduler @ref ulatency.iteration() "iteration". Scheduler should detect
+--!   this and quit the daemon after the cleanup was performed. After forcing iteration, you may invoke 
+--!   `ulatency.add_timeout(ulatency.fallback_quit, 0)` to make sure the ulatency will quit even if scheduler fails.
+--! - or use convenient `ulatency.quit()`
+--! @ingroup lua_SYSTEM_FLAGS
+__SYSTEM_FLAG_QUIT = {
+
+  --! @public @memberof __SYSTEM_FLAG_QUIT
+  name = "quit",
+  --! (optional) Quit reason, currently not read anywhere, though is set to
+  --! - "signal" if the flag was set as result of receiving SIGTERM.
+  --! @public @memberof __SYSTEM_FLAG_QUIT
+  reason = <optional non empty string>
+}
+
+
+--! @struct __SYSTEM_FLAG_SUSPEND
+--! @implements u_flag
+--! @brief Causes scheduler cleanup (without cgroups removal) and ulatencyd daemon to quit temporary.
+--! @details Set this if you want to quit ulatencyd daemon temporary, i.e., without removing created cgroups.
+--! After you set this flag 
+--! - force the scheduler @ref ulatency.iteration() "iteration". Scheduler should detect
+--!   this and quit the daemon after the cleanup was performed. After forcing iteration, you may invoke 
+--!   `ulatency.add_timeout(ulatency.fallback_quit, 0)` to make sure the ulatency will quit even if scheduler fails.
+--! - or use convenient `ulatency.quit()`
+--! @ingroup lua_SYSTEM_FLAGS
+__SYSTEM_FLAG_SUSPEND = {
+
+  --! @public @memberof __SYSTEM_FLAG_SUSPEND
+  name = "suspend",
+  --! (optional) Quit reason, currently not read anywhere, though is set to
+  --! - "signal" if the flag was set as result of receiving SIGABRT or SIGINT.
+  --! - "ulatency.quit" if the flag was set as result of invoking `ulatency.quit()` without explicit flag.
+  --! @public @memberof __SYSTEM_FLAG_SUSPEND
+  reason = <optional non empty string>
+}
+
+
+--! @struct __SYSTEM_FLAG_CLEANUP
+--! @implements u_flag
+--! @brief Informs the mappings of the default Scheduler implementation, that they should cleanup.
+--! @ingroup lua_SYSTEM_CLEANUP
+__SYSTEM_FLAG_SUSPEND = {
+
+  --! @public @memberof __SYSTEM_FLAG_CLEANUP
+  name = "suspend",
+  --! (optional) Quit reason, currently not read anywhere, though is set to
+  --! - "signal" if the flag was set as result of receiving SIGABRT or SIGINT.
+  --! - "ulatency.quit" if the flag was set as result of invoking `ulatency.quit()` without explicit flag.
+  --! @public @memberof __SYSTEM_FLAG_CLEANUP
+  reason = <optional non empty string>
+}
+
+
+
+--! -# destroys created cgroups if the name of passed flag is "quit", i.e., the @link __SYSTEM_FLAG_QUIT`quit`@endlink system flag is passed.
+--!   -# Adds system flag @link __SYSTEM_FLAG_CLEANUP `cleanup`@endlink system flag: `{name="cleanup",reason="quit",threshold="255"}`
+--!   -# Runs `Scheduler:all()` again.

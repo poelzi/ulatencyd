@@ -20,9 +20,17 @@
 --!     scheduling policies, I/O classes and their priorities.
 --!     @ingroup  lua_CORE
 
---!     @defgroup lua_FLAGS Process and system flags
---!     @todo Description of filters.
+--!     @defgroup lua_FLAGS Flags
+--!     @brief Flag system
 --!     @ingroup  lua_CORE
+
+--!       @defgroup lua_PROCESS_FLAGS Process flags
+--!       @brief List of used process flags.
+--!       @ingroup lua_FLAGS
+
+--!       @defgroup lua_SYSTEM_FLAGS System flags
+--!       @brief List of used system flags.
+--!       @ingroup lua_FLAGS
 
 --!     @defgroup lua_USER_SESSIONS User sessions and active processes list
 --!     @todo Describe active list agents (via dbus, @link lua_XWATCH xwatch module@linkend)
@@ -37,12 +45,24 @@
 --!     @ingroup  lua_CORE
 
 --!   @defgroup lua_RULES Rules
---!   @brief rule files, process filters
---!   @todo Describe registering timeout functions.
 --!   @ingroup lua_API
 
+--!     @defgroup lua_FILTERS Filters
+--!     @ingroup lua_RULES
+
+--!       @defgroup lua_FLAG_FILTERS Flag filters
+--!       @brief Compendium of filters that manipulate the processes previously flagged by other filters.
+--!       @ingroup lua_FILTERS
+
+--!       @defgroup lua_FLAGGING_FILTERS Flagging filters
+--!       @brief Compendium of filters that add flags to the processes.
+--!       @ingroup lua_FILTERS
+
+--!     @defgroup lua_TIMEOUTS Timeout functions
+--!     @ingroup lua_RULES
+
+
 --!   @defgroup lua_SCHEDULER Scheduler
---!   @todo Describe Scheduler.
 --!   @ingroup lua_API
 
 --!   @defgroup lua_MODULES Modules
@@ -50,7 +70,7 @@
 
 --!     @defgroup lua_SIMPLERULES Simple rules
 --!     @todo Describe simple rules.
---!     @ingroup lua_MODULES
+--!     @ingroup lua_MODULES lua_FLAGGING_FILTERS
 
 --!     @defgroup lua_XWATCH xwatch activity agent
 --!     @todo Describe xwatch module.
@@ -58,7 +78,6 @@
 
 --!  @defgroup lua_CONFIG Configuration files
 --!  @todo Describe configuration files.
---!  @ingroup lua_API
 
 --!  @defgroup DBUS DBUS interface
 --!  @todo Describe DBUS interface

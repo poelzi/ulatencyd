@@ -4,50 +4,59 @@
 --! @ingroup lua_DOC
 --! This file is for documentation purposes only, it documents filters usage.
 
+--! @addtogroup lua_FILTERS
+--! Before a process is passed to the @link lua_SCHEDULER scheduler@endlink, filters are called on that process, which
+--! they can manipulate. Normally these manipulations tagging the process with a @link lua_FLAGS flag@endlink that is 
+--! later used by the @link lua_SCHEDULER scheduler@endlink, but this is not the strictly rule.
+--!
+--! From the point of how filters manipulate the processes, they may be viewed as divided in two groups:
+--! -# Filters that are tagging processes with flags that are later used by the @link lua_SCHEDULER scheduler@endlink
+--!    or by other filters. See @link lua_FLAGGING_FILTERS Flagging filters@endlink.
+--! -# Filters further manipulating already tagged processes. See @link lua_FLAG_FILTERS Flag filters@endlink.
+--!
+--! ## Fast and normal filters
+--! Internally, all filters are represented by the `u_filter` structure and the core doesn't care how they manipulate the
+--! processes. Instead the filter instances are internally stored in two different lists
+--! (`GList *filter_list` and `GList *filter_fast_list`). This way the core distinguishes
+--! between the **normal filters** and the **fast filters**. Before you continue reading, please note, that from LUA you
+--! may register only the **normal filters**, though the simplerules module can create simple, i.e. tagging only, 
+--! fast filters for you. Despite this, it is crucial to know, when either the type applies, because 
+--! this is essential for understanding the flow of processes scheduling.
+--!
+--! As already stated, filters are applied whenever the process is going to be scheduled. The only exception
+--! is when the filter was previously called on a process and informed the core it doesn't want to be called
+--! on that process or its children anymore or for certain amount of time.
+--!
+--! With this exception, 
+--! -# **all filters** are called on all processes by every scheduler @link ulatency.run_iteration iteration@endlink -
+--!    before `Scheduler:all()` is called - and in addition to this:
+--! -# **fast filters** are run:
+--!    - as soon as possible on every created process (`process_new_delay()`),
+--!    - if important process parameters like `UID` or `GID` change (`process_new()`).
+--!
+--!    If fast filters change a
+--!    process it is immediately scheduled with `Scheduler:one()`. See `u_proc:clear_changed()` for descriptions
+--!    what changes are considered important. For filters this mostly means adding a flag to that process.  Currently you
+--!    cannot define a fast filter from LUA. Fast filters are for example created by the
+--!    @link lua_MODULES simplerules module@endlink from lines tagging a process with instant=1.
+--! -# **normal filters** are run whenever a process is considered to be changed:
+--!    - on new processes comming from the delay stack (`run_new_pid()`),
+--!    - on process if its important parameters like `UID` or `GID` change (`process_new()`),
+--!    - if a single process is scheduled (`process_run_one()`), e.g. `scheduleTask` DBUS request, and
+--!    - if a process is added to or removed from user active list (see `ulatency.set_active_pid()`).
+--!
+--!    The process will be scheduled immediately with the `Scheduler.one()` function.
+--!
+--! @note From LUA (e.g. rule files) you can easily create a filter by creating a LUA table (see `__FILTER`) and
+--! registering it with the `ulatency.register_filter()`. This function will create internal `u_filter` instance and
+--! add it to `GList *filter_list`, where normal filters are stored. Now you have registered a **normal filter**.
+
 ----------------- FILTER pseudo type ------------------
 
 --! @class __FILTER
---! @brief This is pseudo type describing the LUA filter table you may register with the ulatency.register_filter().
---! Rules (LUA files in ulatency.path_rules_directory) contain usually one or more filters. These filters are
---! called on a process which they can manipulate. Normally these manipulations tagging the process with
---! a flag that is later used by the @link lua_SCHEDULER scheduler@endlink.
---! After you create a filter table you must register it with a
---! ulatency.register_filter().
---! @internal
---! Background
---! ----------
---! Ulatencyd works with two kinds of filters: `fast filters` and `normal filters`. Both are represented by
---! the internal u_filter structure. Though currently only `normal filters` may be registered from the LUA,
---! both types are described below so you can easily understand the overall workflow.
---!   - Fast filters are stored in internal `GList *filter_fast_list` and are run:
---!     - as soon as possible on every created process / process_new_delay() /,
---!     - on all processes every @link ulatency.run_iteration iteration@endlink and
---!     - if important process parameters like `UID` or `GID` change / process_new() /.
---!
---!     If these filters change a
---!     process it is immediately scheduled with Scheduler:one(). See u_proc:clear_changed() for descriptions
---!     what changes are considered important. For filters this mostly means adding a flag to that process.  Currently you
---!     cannot define a fast filter from LUA. Fast filters are for example created by the
---!     @link lua_MODULES simplerules module@endlink from its simple rules that define instant=1.
---!   - Normal filters are stored in internal `GList *filter_list` and are run:
---!     - on new processes comming from the delay stack / run_new_pid() /,
---!     - on all processes every @link ulatency.run_iteration iteration@endlink,
---!     - on process if its important parameters like `UID` or `GID` change / process_new() /,
---!     - if a single process is scheduled / process_run_one() / (e.g. scheduleTask DBUS request) and
---!     - if a process is added to or removed from user active list / see ulatency.set_active_pid() /.
---!
---!     Except the case of iteration, the process will be scheduled immediately with the Scheduler.one() function
---!     even it has not been changed by the filters. In the case of @link ulatency.run_iteration iteration@endlink,
---!     Scheduler.all() is invoked and normally only changed processes are scheduled.
---!
---! From LUA (e.g. rule files) you can easily create a filter by creating a LUA table (__FILTER) and
---! registering it with the ulatency.register_filter(). This function will create internal u_filter instance and
---! add it to  `GList *filter_list`. Now you have registered a `normal filter`. The only difference between `fast` and
---! `normal` filters is to which internal list they are added. The `ulatency.register_filter()` function is easily
---! patchable to be able to create fast filters.
---!
+--! @brief This is pseudo type describing the LUA filter table you may register with the `ulatency.register_filter()`.
 --! **Filter example:** @include "desktop.lua"
---! @ingroup lua_PSEUDO lua_RULES
+--! @ingroup lua_PSEUDO lua_FILTERS
 __FILTER = {}
 
 --! @brief human readable name used in reporting

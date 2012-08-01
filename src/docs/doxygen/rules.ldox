@@ -1,0 +1,32 @@
+-- this file is for documentation purposes only
+
+--! @file rules.ldox
+--! This file is for documentation purposes only, it documents how to write the rules.
+--! @ingroup lua_DOC
+
+--! @addtogroup lua_RULES
+--! @details Rules are written in the [Lua](http://www.lua.org/) programming language. You can find good Tutorials and the Documentation
+--! on the [Lua website](http://www.lua.org/docs.html). Lua is a small, very fast functional programming language that fits perfect to do this job.
+--!
+--! Rules are lua files stored in the `ulatency.path_rules_directory`.
+--! They can implement @link lua_FILTERS filters@endlink, @link lua_TIMEOUTS timeout functions@endlink
+--! and the @link lua_SCHEDULER scheduler@endlink.
+--!
+--! The lua code in the rules files has access to some functions and variables implemented in the core. See the
+--! @link lua_CORE core module@endlink for details.
+--!
+--! The rules are loaded 
+--! according the configuration in `/etc/ulatencyd/ulatencyd.conf`, where you can exclude some rules 
+--! from being loaded. Further, when you are starting ulatencyd from command line, you can specify entirely different rules directory and
+--! the pattern files must match to be loaded.
+--!
+--! ## Two types of invocation
+--! -# Rules contain usually one or more @link lua_FILTERS Filters@endlink. These filters are called on a process which it can manipulate.
+--!    Normally these manipulations tagging the process with a flag that is later used by the scheduler.
+--! -# The second method you have is registering a @link lua_TIMEOUTS timeout function@endlink that is called independent from the @link ulatency.run_iteration() iteration@endlink interval.
+--!    This is useful for example to check the system specific conditions.
+--!
+--! Additionally, the @link lua_SCHEDULER scheduler@endlink is defined in one of the rules files (scheduler.lua), its covered in seperate
+--! documentation module.
+--!
+--! @ref rule_disambiguation "Rules disambiguation"

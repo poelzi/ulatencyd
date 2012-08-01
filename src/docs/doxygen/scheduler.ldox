@@ -1,0 +1,96 @@
+-- this file is for documentation purposes only
+
+--! @file scheduler.ldox
+--! This file is for documentation purposes only, it documents the scheduler subsystem.
+--! @ingroup lua_DOC
+
+--! @addtogroup lua_SCHEDULER
+--! @brief %Scheduler uses the information collected by the core and rules to make decisions on the processes.
+--! @details
+--! The scheduler is responsible for final process scheduling. This mostly consists of putting processes into
+--! cgroups according to @link lua_PROCESS_FLAGS process flags@endlink and creating and adjusting appropriate
+--! @link lua_CGROUPS cgroups@endlink. This process is affected by existing @link lua_SYSTEM_FLAGS system flags@endlink and
+--! other collected information. 
+--!
+--! A scheduler must implement methods from the `u_scheduler` structure (interface) and assign itself to 
+--! `ulatency.scheduler` variable. Those methods are called by the core. The scheduler interface is verbosely described in 
+--! the `__SCHEDULER` pseudo type.
+--!
+--! Currently there is only one scheduler implementation: the Scheduler class in the file `rules/scheduler.lua`.
+--! It puts processes to cgroups using a decision tree based on mapping rules. It is highly configurable by adjusting
+--! the mapping rules or creating new one.
+--!
+--! If customising or creating new mappings are not sufficient to fulfil your needs, i.e., the rule based approach does
+--! not suite you, you should be able to write entirely new scheduler:
+--! -# Create a new rule file, that will implement your scheduler. In this file:
+--!    -# Put a table implementing methods from `u_scheduler` union structure (i.e. implementing the virtual __SCHEDULER
+--!       table)
+--!    -# Register the scheduler by assigning the table to `ulatency.scheduler` variable.
+--! -# Disable the rule file with default scheduler by adjusting `/etc/ulatencyd/ulatencyd.conf`.
+--!
+--! @warning The default scheduler:
+--! - is defined in the rules/scheduler.lua file
+--! - uses `%Scheduler` name for the lua table it is implemented in
+--! - registers itself as the scheduler (assigns `Scheduler` class to the `ulatency.scheduler` variable)
+--! - uses `scheduler` configuration group for own purposes (in `/etc/ulatencyd/ulatencyd.conf`)
+--! - uses `/etc/scheduler/` directory for its configurations (mappings)<br />
+--! You should bear this in mind and choose other names for your new scheduler and disable the default scheduler rule.
+
+--! @class __SCHEDULER
+--! @implements u_scheduler
+--! @ingroup lua_SCHEDULER
+__SCHEDULER = {}
+
+--! @brief Schedule for one (new) process.
+--! @details This method is invoked on a single process every time it is changed outside the scope of 
+--! @ref ulatency.run_iteration() "full iteration",
+--! i.e., a new process is changed by fast filters, a new process left the new delay queue, important process
+--! parameters like `UID` or `GID` have been changed (e.g. as result of the `exec` syscall), a single process is to be 
+--! rescheduled (e.g. as result of `scheduleTask` DBUS request) or a process was added or removed from user active list.
+--!
+--! If a process is changed within the scope of full iteration (both regular and @ref ulatency.run_iteration() "manually"
+--! requested) it will not be scheduled alone, but within the scope of `__SCHEDULER:all()`. Same applies to new 
+--! processes that didn't left new queue before the full iteration.
+--! @param proc A #u_proc instance.
+--! @remark The scheduler should avoid scheduling of blocked processes (`u_proc.block_scheduler`, `u_proc::set_block_scheduler()`) 
+--! and avoid moving processes from cgroups created outside the ulatency daemon (see `u_proc::get_cgroups()`)
+--! @attention After the process is processed it should be marked as unchanged (`u_proc:clear_changed()`)
+--! @public @memberof __SCHEDULER
+function __SCHEDULER:one(proc)
+end
+
+--! @brief Schedules all processes, called on every iteration interval (see `ulatency.run_iteration()`).
+--! @details
+--! This function is called
+--!   - regularly on every iteration interval 
+--!     (*every `interval` seconds defined in the `core` configuration group, defaults to 12 seconds*)
+--!   - manually when invoked by `ulatency.run_iteration()`
+--!
+--! Scheduler has no facility to find out whether it was invoked on regular iteration interval or because manual request.
+--! The general mechanisms for passing informations to the scheduler are system flags and the global `system_flags_changed`
+--! variable. The `system_flags_changed` variable set usual means that important changes in system environment was
+--! detected and all processes should be rescheduled.
+--! Normally only changed processes should be scheduled in order to avoid unwanted overhead.
+--!
+--! All processes should scheduled from time to time to fix misscheduled processes and every time one of the following
+--! conditions meets:
+--!   + system_flags_changed is set (`ulatency.get_flags_changed() returns 1`)
+--!   + a system flag with name **pressure** or **emergency** exists
+--!
+--! Additionaly, if @link __SYSTEM_FLAG_SUSPEND `suspend`@endlink or @link __SYSTEM_FLAG_QUIT`quit`@endlink system flag 
+--! is set, the ulatency is going to temporarily or permanently quit,
+--! and as this is the last scheduler run, the scheduler should undertake cleanup.
+--! 
+--! @public @memberof __SCHEDULER
+function __SCHEDULER:all()
+end
+
+--! @brief Schedules empty cgroups removal.
+--! @details Informs the %scheduler it should remove unused cgroups. It is called from cgroups release agent every time
+--! last task from any cgroup is removed or explicit via DBUS request (`cgroupsCleanup`). Additional, Scheduler should
+--! call this from time to time (e.g. every 2 minutes) to remove unused cgroups if release agent could not be registered.
+--! @attention Because this may be called
+--! quiet frequently, this should rather be a wrapper that schedules the invocation of function that do the actual cleanup.
+--! @public @memberof __SCHEDULER
+function __SCHEDULER:cgroups_cleanup(instant)
+end

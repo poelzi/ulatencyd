@@ -66,7 +66,7 @@ ulatency.LOG_LEVEL_TRACE = U_LOG_LEVEL_TRACE
 --! @memberof ulatency
 --! @{
 
---! @ingroup lua_RULES
+--! @ingroup lua_FILTERS
 
 --! @brief Filter will never be run on this process.
 --! @public @memberof ulatency
@@ -248,24 +248,22 @@ end
 
 -------------------------------------------------------
 
---! @addtogroup lua_RULES
---! @{
-
 --! Sets a function to be called at regular intervals until the function returns FALSE.
 --! @param callback The function.
 --! @param interval Interval in milliseconds.
 --! @note The callback function is called with new lua_State,
 --! that is used as source for flags created in that function.
 --! @public @memberof ulatency
+--! @ingroup lua_TIMEOUTS
 function ulatency.add_timeout(callback, interval)
 end
 
 --! @brief Registers a filter to be called on processes.
 --! @param filter A table representing the filter. The filter table is described in #__FILTER pseudo type.
 --! @public @memberof ulatency
+--! @ingroup lua_FILTERS
 function ulatency.register_filter(filter)
 end
---! @} End of "addtogroup lua_RULES"
 
 -------------------------------------------------------
 
@@ -448,7 +446,7 @@ end
 --! If you want for example skip this filter for the next 5 minutes on this process you can return:
 --! `ulatency.filter_rv(0, 5*60)`
 --! If you simply return 0, the filter is executed on the next iteration again.
---! @ingroup lua_RULES
+--! @ingroup lua_FILTERS
 --! @public @memberof ulatency
 function ulatency.filter_rv(flags, timemout)
 end
@@ -495,9 +493,22 @@ end
 function ulatency.get_time(shift)
 end
 
---! Quits the ulatencyd daemon with dispatching main loop events.
+--! @brief Dispatches main loop pending events and quit daemon with exit code 1.
+--! Filters and active mappings won't get change to cleanup, cgroups created by ulatencyd won't be removed
+--! and list of remaining cgroups won't be saved for future ulatencyd instance.
+--! **This may lead to unusable system and remaining cgroups will be ignored by future ulatencyd instance,
+--! unless you manage to clean them, e.g.. with ulatency clear ALL.**
+--! **Don't call this unless you have started normal shutdown process already!**
+--! See Scheduler:quit() documentation describing the shutdown sequence and how to initiate shutdown properly.
 --! @public @memberof ulatency
-function ulatency.quit_daemon()
+function ulatency.fallback_quit()
+end
+
+--! @brief Immediately exit daemon. pending main loop events won't be dispatched.
+--! **Don't use this!**
+--! See similar ulatency.fallback_quit() that will dispatch pending main loop events.
+--! @public @memberof ulatency
+function ulatency.die(exit_code)
 end
 
 --! Load the rule file.
@@ -536,21 +547,39 @@ end
 function ulatency.process_update(pid)
 end
 
---! Wrapper to run scheduler iteration.
---! @details Normally, iteration is run every `interval` seconds defined in the `core` configuration group.
---! This calls the iterate() function indirectly, via `g_timeout_add(0, ...)`.
---! Iteration consists of following steps:
+--! Wrapper to invoke scheduler iteration.
+--! @details The core listens on the kernel when new processes are spawned or exit and runs the
+--! @link lua_FILTERS filters@endlink and @link lua_SCHEDULER scheduler@endlink (specifically the
+--! `Scheduler:one()` method) on them.
+--! Additionally, a full @ref ulatency.run_iteration "iteration" is run every configurable number of seconds
+--! (*every `interval` seconds defined in the `core` configuration group, defaults to 12 seconds*)
+--! on all processes. This is required for example when @link lua_FLAGS flags@endlink, set on a process, expire and the
+--! scheduler will make another decision. Beside this interval you may want to invoke a full iteration manually, e.g.
+--! if you detect (*usually inside a registered @ref lua_TIMEOUTS "timeout function"*) such important changes in the 
+--! system environment requiring processes rescheduling.
+--!
+--! Note, that invoking the iteration alone is not sufficient as scheduler (`Scheduler::all()`) will usually skip unchanged
+--! processes. You should discuss the Scheduler documentation to find out how force it to reschedule affected processes.
+--! The general way to force **all** processes to be rescheduled is to set `system_flags_changed` variable 
+--! (@link ulatency.set_flags_changed `ulatency.set_flags_changed(1)`@endlink) before you invoke `ulatency.run_iteration()`.
+--! Scheduler should detect this and reschedule all processes.
+--!
+--! `ulatency.run_iteration()` calls the @link iterate(gpointer rv) `iterate()`@endlink function implemented in the core, though indirectly, 
+--! via `g_timeout_add(0, ...)`, that is, any pending main loop events will be dispatched first, including eventually
+--! already running iteration.
+--! @warning Can cause endless loop if you call this within iteration scope!
+--!
+--! ##Iteration consists of following steps:
 --! - clears timed out system flags
 --! - updates average system load for last one minute, values returned
---!   by ulatency.get_last_load() and ulatency.get_last_percent().
---! - updates processes, see ulatency.process_update()
---! - runs fast filters (e.g. simple rules with instant=1 value parsed by simplerules module)
+--!   by `ulatency.get_last_load()` and `ulatency.get_last_percent()`.
+--! - updates processes, see `ulatency.process_update()`
+--! - runs fast @ref lua_FILTERS "filters" (e.g. simple rules with `instant=1` value parsed by
+--!   @ref lua_SIMPLERULES "simplerules module")
 --! - runs normal filters
---! - runs Scheduler::all()
---! - marks all processes as unchanged, see u_proc:clear_changed()
---! - clears `system_flags_changed` variable, see ulatency.set_flags_changed()
---!
---! @warning Can cause endless loop!
+--! - runs `Scheduler::all()`
+--! - marks all processes as unchanged, see `u_proc::clear_changed()`
+--! - clears `system_flags_changed` variable, see `ulatency.set_flags_changed()`
 --! @public @memberof ulatency
 function ulatency.run_iteration()
 end

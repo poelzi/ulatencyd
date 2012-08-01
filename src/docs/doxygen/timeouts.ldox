@@ -1,0 +1,20 @@
+-- this file is for documentation purposes only
+
+--! @file timeouts.ldox
+--! This file is for documentation purposes only, it documents how to use and register timeout functions in the rules.
+--! @ingroup lua_DOC
+
+--! @addtogroup lua_TIMEOUTS
+--! @details
+--! In the rules you can @link ulatency.add_timeout() register@endlink timeout function@endlink that is called independent from the 
+--! @link ulatency.run_iteration() iteration@endlink interval. These are very useful to periodically check for the system
+--! environment changes, you will not be notified otherwise, i.e., to monitor the system load, memory pressure, swapping
+--! etc. 
+--! The @ref rules/protectors.lua script for example uses the timeout function for detecting memory pressure.
+--! @todo It would be better to register to the appropriate notification system, if possible, to avoid unnecessary
+--! overhead. As this may be hard or impossible to achieve from LUA, it would be nice to have a mechanism to register
+--! LUA functions as callbacks to the modules implemented in the core, that would be triggered by requested changes, 
+--! e.g. ConsoleKit events.
+
+--! @example rules/protectors.lua
+--! Example of registering the timeout function in the rule file for detecting memory pressure.

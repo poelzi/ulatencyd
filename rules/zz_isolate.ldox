@@ -1,0 +1,106 @@
+-- this file is for documentation purposes only
+
+--! @file zz_isolate.ldox
+--! @ingroup lua_DOC
+--! This file is for documentation purposes only, it documents the Isolate filter.
+
+--! @struct __ISOLATE_FLAG
+--! @implements u_flag
+--! @brief This is pseudo type describing the u_flag instance that processes must be flagged with in order to be
+--! processed by the Isolate filer.
+--! @details You may comfortable flag processes you want to isolate through
+--! @link lua_SIMPLERULES simplerules@endlink module config file `simple.d/isolate.conf`. Its default content is:
+--! @include simple.d/isolate.conf
+--! @ingroup lua_PROCESS_FLAGS
+__ISOLATE_FLAG = {
+
+  --! @public @memberof __ISOLATE_FLAG
+  name = "isolate",
+  --! A `u_proc.block_scheduler` value the process will be set. See `u_proc:set_block_scheduler()`.
+  --! If the `threshold` value of the flag is lower than **1**, the process will not be isolated.
+  --! @public @memberof __ISOLATE_FLAG
+  threshold = <number greater than 0>,
+  --! Identifies an application. This string has two purposes: 
+  --! - It is used as the suffix of the isolation CGroup and 
+  --! - as the key to the per application isolation rules Isolate.RULES.
+  --!
+  --! If not set or empty, the process will be skipped by scheduler, but will not be moved to the new cgroup -
+  --! it will stay in its origin cgroup.
+  --! @public @memberof __ISOLATE_FLAG
+  reason = <non empty string>
+}
+
+--! @brief A table of per application isolation rules.
+--! Each application, i.e. identified by the @link __ISOLATE_FLAG.reason `reason`@endlink value of the flag 
+--! that process is labelled with, may have own isolation rules.
+--! @code{lua}
+--! Isolate.RULES = {
+--!   <application id>  = {
+--!     <subsys> = <mapping table>,
+--!     <subsys> = <mapping table>,
+--!     ...
+--!   },
+--!  ...
+--! }
+--! @endcode
+--! where:
+--!   - `<application id>` corresponds to `__ISOLATE_FLAG.reason value`, e.g. `"ulatency"`
+--!   - `<subsys>` is the cgroup subsystem name, e.g. `"cpu"` or `"memory"`
+--!   - `<mapping table>` is the table of per subsystem cgroups mappings, described in __ISOLATE_MAPPING
+--!
+--! Corresponding application rules, if found, are passed by the @link Isolate.check() `check()`@endlink
+--! function to the `CGroup.create_isolation_group()`.
+--! @note Default rules are:
+--! @snippet zz_isolate.lua RULES
+--! @public @memberof Isolate
+Isolate.RULES = {}
+
+--! @class __ISOLATE_MAPPING
+--! The table with the isolation CGroup mapping. e.g.@code
+--! {
+--!   params = {["cpu.shares"]="500"},
+--!   adjust = function(cgr, proc) end,
+--!   adjust_new = function(cgr, proc) end,
+--! }
+--! @endcode
+--! A table containing these mapping for each cgroup subsystem is accepted by the CGroup.create_isolation_group()
+--! as the `mappings` argument, e.g.: \code{lua}
+--!   {
+--!      cpu = {
+--!        params = {["cpu.shares"]="500"},
+--!        adjust = function(cgr, proc) end,
+--!        adjust_new = function(cgr, proc) end,
+--!      },
+--!      memory = {
+--!        params = {["?memory.swappiness"]="0"},
+--!        adjust = function(cgr, proc) end,
+--!        adjust_new = function(cgr, proc) end,
+--!      },
+--!    }\endcode
+--! These mappings customise the way how isolation cgroups are handled when putting processes to them.
+--! - If the CGroup in a subsystem tree does not already exist, it is created with initial @link __ISOLATE_MAPPING.params
+--!   `params`@endlink parameters, then the cgroup is committed, @link __ISOLATE_MAPPING.adjust_new 
+--!   `adjust_new(cgr, proc)`@endlink called and committed again.
+--! - The process and its tasks are added to the CGroup (recursively if requested) and with every added process the
+--!   @link __ISOLATE_MAPPING.adjust `adjust(cgr,proc)`@endlink is called and finally the cgroup is committed again.
+--! @relatesalso Isolate
+__ISOLATE_MAPPING = {}
+
+--! A table with parameters that will be committed to the newly created isolation CGroup.
+--! E.g. @code{lua} { ["cpu.shares"] = "500" }@endcode
+--! @public @memberof __ISOLATE_MAPPING
+__ISOLATE_MAPPING.params = <table with initial cgroups parameters>
+
+--! A function called with every process and the CGroup that the isolated process is added to.
+--! @param cgr An isolation CGroup where the `proc` was put in.
+--! @param proc An #u_proc process being put into isolation.
+--! @public @memberof __ISOLATE_MAPPING
+function __ISOLATE_MAPPING.adjust(cgr, proc)
+end
+
+--! A function called whenever new isolation CGroup is created.
+--! @param cgr Newly created isolation CGroup.
+--! @param proc The first #u_proc process being put into this new CGroup.
+--! @public @memberof __ISOLATE_MAPPING
+function __ISOLATE_MAPPING.adjust_new(cgr, proc)
+end
