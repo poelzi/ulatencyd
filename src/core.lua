@@ -224,6 +224,59 @@ function ulatency.find_flag(lst, match)
 end
 --! @} End of "system flags manipulation"
 
+--! Searches `haystack` (list of flags, system flags or process flags) for given flags and returns true
+--! if at least one flag was found.
+--! @param needles Array of searched flags. Each item may be either the __flag name__ or __table of flag values__<br />
+--! For example:@code
+--!   {"pressure", "emergency"}
+--!   { {name: "pressure", reason: "memory"}, "emergency" }
+--! @endcode
+--! @param where Defines haystack of flags to be searched through, this may be `table`, `u_proc` instance or `nil`:
+--! - __table__: search through given table of flags
+--! - __u_proc__: search through flags of that process
+--! - __nil__: search through system flags
+--! @return boolean TRUE if at least one flag matches
+--! @note Examples:@code
+--!   ulatency.match_flag({"emergency", {name: "pressure", reason: "memory"}})
+--!   ulatency.match_flag({"user.idle", "daemon.idle"}, proc)
+--! @endcode
+--! @public @memberof ulatency
+function ulatency.match_flag(needles, where)
+  local lst
+  if type(where) == "userdata" then       -- "where" is proc, get its flags
+    lst = where:list_flags()
+  else
+    lst = where or ulatency.list_flags()  -- "where" is already flags list or if nil, get system flag
+  end
+
+  for j, flag in pairs(lst) do
+
+    local in_flag, matching = false, false
+    for k, needle in pairs(needles) do
+      if type(k) == "string" then
+        if matching or not in_flag then
+          in_flag=true
+          matching = flag[k] == needle
+        end
+      else
+        if in_flag and matching then return true end
+        in_flag = false
+        if type(needle) == "table" then
+          if ulatency.match_flag(needle, {flag}) then return true end
+        elseif type(k) == "number" then
+          if flag.name == needle then return true end
+        else
+          ulatency.log_warning('ulatency.match_system_flag called with invalid format')
+          return nil
+        end
+      end
+    end
+    if in_flag and matching then return true end
+
+  end
+  return false
+end
+
 -- load defaults.conf
 if(not ulatency.load_rule("../cgroups.conf")) then
   if(not ulatency.load_rule("../conf/cgroups.conf")) then
