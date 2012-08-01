@@ -409,17 +409,49 @@ signal_reload (int signal)
   g_warning("FIXME: reload config");
 }
 
+int fallback_quit(gpointer exit_code)
+{
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "fallback quit");
+  if(g_main_loop_is_running(main_loop))
+    g_main_loop_quit(main_loop);
+  else
+    exit(GPOINTER_TO_INT(exit_code));
+  return 0;
+}
 
 static void
-signal_cleanup (int signal)
+signal_suspend (int signal)
 {
   // we have to make sure cgroup_unload_cgroups is called
-  printf("abort cleanup\n");
-#ifdef LIBCGROUP
-  cgroup_unload_cgroups();
-#endif
-  exit(1);
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "suspending...");
+
+  // add suspend flag and iterate
+  u_flag *flg = u_flag_new((void *)signal_suspend, "suspend");
+  flg->reason  = "signal";
+  flg->value = signal;
+  u_trace("added system flag: suspend");
+  u_flag_add(NULL, flg);
+  system_flags_changed = 1;
+  g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
+  g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
 }
+
+static void
+signal_quit (int signal)
+{
+  // we have to make sure cgroup_unload_cgroups is called
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "quitting with cgroups cleanup...");
+
+  u_flag *flg = u_flag_new((void *)signal_suspend, "quit");
+  flg->reason  = "signal";
+  flg->value = signal;
+  u_trace("added system flag: quit");
+  u_flag_add(NULL, flg);
+  system_flags_changed = 1;
+  g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
+  g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
+}
+
 
 static void
 signal_logrotate (int signal)
@@ -536,13 +568,13 @@ int main (int argc, char *argv[])
   //mount_cgroups();
 #endif
 
-  g_atexit(cleanup);
+  atexit(cleanup);
 
-  if (signal (SIGABRT, signal_cleanup) == SIG_IGN)
+  if (signal (SIGABRT, signal_suspend) == SIG_IGN)
     signal (SIGABRT, SIG_IGN);
-  if (signal (SIGINT, signal_cleanup) == SIG_IGN)
+  if (signal (SIGINT, signal_suspend) == SIG_IGN)
     signal (SIGINT, SIG_IGN);
-  if (signal (SIGTERM, signal_cleanup) == SIG_IGN)
+  if (signal (SIGTERM, signal_quit) == SIG_IGN)
     signal (SIGTERM, SIG_IGN);
   if (signal (SIGUSR1, signal_reload) == SIG_IGN)
     signal (SIGUSR1, SIG_IGN);
@@ -562,11 +594,6 @@ int main (int argc, char *argv[])
       g_warning("bad cgroup root path: %s", config_cgroup_root);
       g_free(config_cgroup_root);
       config_cgroup_root = NULL;
-  }
-
-  if(config_cgroup_root) {
-      g_debug("cleanup cgroup directory: %s", config_cgroup_root);
-      recursive_rmdir(config_cgroup_root, 2);
   }
 
   adj_oom_killer(getpid(), -1000);

@@ -34,13 +34,13 @@ target_link_libraries (ulatencyd proc lbc dl ${MY_LUA_LIBRARIES}
 
 SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 
-configure_file(ulatencyd_cleanup.lua.tmpl ulatencyd_cleanup.lua)
+configure_file(ulatencyd_cleanup.sh.tmpl ulatencyd_cleanup.sh)
 
 install(TARGETS ulatencyd 
         RUNTIME DESTINATION sbin)
 install(FILES core.lua
         DESTINATION lib/ulatencyd)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ulatencyd_cleanup.lua
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ulatencyd_cleanup.sh
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
         DESTINATION lib/ulatencyd)

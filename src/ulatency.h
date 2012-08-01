@@ -290,11 +290,12 @@ struct user_active {
 
 
 typedef struct {
-  int (*all)(void);    // make scheduler run over all processes
-  int (*one)(u_proc *);  // schedule for one (new) process
-  int (*set_config)(char *name);  // configure the scheduler for using a different configuration
-  char *(*get_config)(void);  // returns the name of current config
-  GPtrArray *(*list_configs)(void);  // returns a list of valid configs
+  int (*all)(void);    //!< make scheduler run over all processes
+  int (*one)(u_proc *);  //!< schedule for one (new) process
+  int (*cgroups_cleanup)(int instant); //!< schedule empty cgroups removal
+  int (*set_config)(char *name);  //!< configure the scheduler for using a different configuration
+  char *(*get_config)(void);  //!< returns the name of current config
+  GPtrArray *(*list_configs)(void);  //!< returns a list of valid configs
   char *(*get_config_description)(char *name);
 } u_scheduler;
 

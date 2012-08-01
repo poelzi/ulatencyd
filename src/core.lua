@@ -101,6 +101,29 @@ function re_from_table(tab)
   return table.concat(tab, "|")
 end
 
+--! @brief Quits the ulatencyd daemon with scheduler cleanup.
+--! @param flag (optional) A flag you believe will cause the scheduler cleanup, or properties of such flag. This flag
+--! will be added to the system flags if it already isn't there. Implicit flag is
+--! `{name="suspend",reason="ulatency.quit"}`. The scheduler should check at least for @link __SYSTEM_FLAG_SUSPEND
+--! `suspend`@endlink and @link __SYSTEM_FLAG_QUIT`quit`@endlink system flags.
+--! @param instant (optional) If TRUE, the flag cleanup flag is not set, normal shutdown sequence is skipped and
+--! the daemon will quit immediately (after the queue of pending events in the main event loop are dispatched).
+--! See `Scheduler:_quit()` documentation describing the shutdown sequence.
+--! @public @memberof ulatency
+function ulatency.quit(flag, instant)
+  if not instant then
+    local flag_props = flag or { name = "suspend", reason = "ulatency.quit" }
+    local added
+    flag, added = ulatency.add_adjust_flag(ulatency.list_flags(), flag_props, {})
+    if not added then
+      ulatency.add_flag(flag)
+    end
+    ulatency.set_flags_changed(1)
+    ulatency.run_iteration() -- scheduler should detect shutdown and quit the daemon
+  end
+  ulatency.add_timeout(ulatency.fallback_quit, 0) -- instant quit or fallback quit if scheduler is buggy
+end
+
 --! @public @memberof ulatency
 function ulatency.list_processes_group(key)
   procs = ulatency.list_processes()
@@ -269,30 +292,89 @@ else
   cg_log = ulatency.log_warning
 end
 
+--! @addtogroup lua_CGROUPS
+--! @{
 
-local function mkdirp(path)
-  if posix.access(path) ~= 0 then
-    local parts = path:split("/")
-    for i,v in ipairs(parts) do
-      name = "/" .. table.concat(parts, "/", 1, i)
-      if posix.access(name, posix.R_OK) ~= 0 then
-        if posix.mkdir(name) ~= 0 then
-          cg_log("can't create "..name)
-          return false
-        end
+--! @brief Returns cgroups of the #u_proc process; two tables are returned: first one contains paths
+--! under the root directory where the subsystem hierarchy is mounted, second one contains CGroup instances, if any;
+--! both tables are indexed by the cgroup subsystem.
+--! @warning Neither hierarchies identifications nor their mount points are returned. This assumes that ulatencyd knows
+--! where each subsystem is mounted (e.g. under standard `/sys/fs/cgroup/<subsystem>`) and that every subsystem is
+--! mounted as a standalone hierarchy.
+--! @note You may want to use this instead of
+--! - parsing `u_proc.cgroup` value, which is updated only once per iteration and so does not reflect previous changes
+--!   caused by the rules or scheduler mappings
+--! - updating and then parsing the `u_proc.cgroup` (e.g. `ulatency.process_update(pid)`), which can cause unexpected
+--!   situations (e.g. if the process does no more exist)
+--! - parsing `/proc/<pid>/cgroup` content, which may cause unwanted overhead (and the process may not already exist too)
+--! @internal
+--! @note
+--! **How does it work:**
+--! Paths of cgroups are internally stored in `u_proc.data.cgroups`; initially parsed from `u_proc.cgroup` and updated
+--! by `u_proc:add_cgroup()`, which should be called by every function that moves a process between cgroups.
+--! Further to this, the `u_proc.data._cgroup` contains a copy of `u_proc.cgroup`, these are compared to check if the
+--! cache values are still valid or the `u_proc.cgroup` must be parsed again.@endinternal
+--! @return `<paths>`, `<cgroups`> tables
+--! @retval <paths> example:@code
+--!   { cpuset = '/', cpu = '/usr_1000/grp_14067', memory = '/usr_1000/default', blkio = '/grp_14067', freezer = '/' }
+--! @endcode
+--! @retval <cgroups> example:@code
+--!   { cpuset = nil, cpu = <CGroup instance>, memory = <CGroup instance>, blkio = <CGroup instance>, freezer = nil }
+--! @endcode
+--! @public @memberof u_proc
+
+function u_proc:get_cgroups()
+  -- validate
+  local valid=false
+  if self.data.cgroups and self.data._cgroup then
+    local a=self.data._cgroup
+    local b=self.cgroup
+    if #a == #b then
+      for i,j in ipairs(a) do
+        if b[i] ~= j then break end
       end
+      valid=true
     end
   end
-  return true
+
+  if not valid then
+    local cgroups = {}
+    for _,line in ipairs(self.cgroup) do
+      local subsystems, path  = string.match(line,"^[0-9]+:(.+):(.+)")
+      for _,subsys in ipairs(subsystems:split(',')) do
+        cgroups[subsys] = path
+      end
+    end
+    self.data._cgroup = self.cgroup
+    self.data.cgroups = cgroups
+  end
+
+  local cgroup_instances = {}
+  for subsys,path in pairs(self.data.cgroups) do
+    cgroup_instances[subsys] = CGroup.get_group(subsys .. path)
+  end
+
+  return self.data.cgroups, cgroup_instances
 end
 
-
-
-local _CGroup_Cache = {}
+--! @brief Updates internal list of cgroups which the #u_proc belongs to.
+--! This should be called every time a process is moved between cgroups, otherwise the `u_proc:get_cgroups()`
+--! won't return correct cgroups until the #u_proc.cgroup will be updated (once per iteration).
+--! Internally this function is called everytime CGroup instance is committed, so you should not be bothered.
+--! @public @memberof u_proc
+function u_proc.add_cgroup(self, cgroup)
+  if not self.data.cgroups then
+    self:get_cgroups()
+  end
+  self.data.cgroups[cgroup.tree] = '/'..cgroup.name
+end
+--! @} End of "addtogroup lua_CGROUPS"
 
 --! @class CGroup
 --! @ingroup lua_CORE lua_CGROUPS
 CGroup = {}
+
+local _CGroup_Cache = {}
 
 function CGroup_tostring(data, key)
   return "<CGroup ".. data.tree .. ":" .. data.name ..">"
@@ -371,7 +453,7 @@ for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
     fp:close()
     -- we only write a release agent if not already one. update if it looks like
     -- a ulatencyd release agent
-    if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.lua' then
+    if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.sh' then
       local fp = io.open(path.."/release_agent", "w")
       if fp then
         fp:write(ulatency.release_agent)
@@ -394,32 +476,6 @@ end
 __found_one_group = nil
 
 CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
-
-local function cgroups_cleanup()
-  local to_remove = {}
-  for n, c in pairs(_CGroup_Cache) do
-    if c:can_be_removed() then
-      to_remove[#to_remove + 1] = n
-    end
-  end
-  for i,group in ipairs(to_remove) do
-    local needed = false
-    for i, test in ipairs(to_remove) do
-      if string.sub(test, 1, #group) == group then
-        needed = true
-        break
-      end
-    end
-    if not needed then
-      _CGroup_Cache[group]:remove()
-      _CGroup_Cache[group] = nil
-    end
-  end
-
-  return true
-end
-
-ulatency.add_timeout(cgroups_cleanup, 120000)
 
 --! @addtogroup lua_CGROUPS
 --! @{
@@ -565,6 +621,10 @@ function CGroup:add_task_list(pid, tasks, instant)
       for i,v in ipairs(tasks) do
         fp:write(tostring(v)..'\n')
         fp:flush()
+        local proc = ulatency.get_pid(v)
+        if proc then
+          proc:add_cgroup(self)
+        end
       end
       ulatency.log_sched("Move "..pid.." to "..tostring(self).." tasks: "..table.concat(tasks, ","))
       fp:close()
@@ -621,7 +681,15 @@ end
 
 --! @public @memberof CGroup
 function CGroup:remove()
-  posix.rmdir(self:path())
+  ulatency.log_debug(string.format("CGroup:remove('%s')", self:path()))
+  if posix.access(self:path()) ~= 0 then
+    return true --does not exist
+  end
+  local rv,error=posix.rmdir(self:path())
+  if not rv then
+    ulatency.log_debug(error)
+  end
+  return rv
 end
 
 --! @public @memberof CGroup
@@ -656,6 +724,10 @@ function CGroup:commit()
       for i, pid in ipairs(pids) do
         fp:write(tostring(pid)..'\n')
         fp:flush()
+        local proc = ulatency.get_pid(pid)
+        if proc then
+          proc:add_cgroup(self)
+        end
       end
       ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
       rawset(self, "new_tasks", {})
@@ -665,13 +737,11 @@ function CGroup:commit()
 end
 
 --! @public @memberof CGroup
-function CGroup:add_children(proc, fnc)
+function CGroup:add_children(proc)
   function add_childs(list)
     for i,v in pairs(list) do
-      self:add_task(v.pid)
-      if fnc then
-        fnc(v)
-      end
+      self:run_adjust(v)
+      self:add_task_list(v.pid, v:get_current_task_pids())
     end
     for i,v in pairs(list) do
       add_childs(v:get_children())
@@ -680,16 +750,54 @@ function CGroup:add_children(proc, fnc)
   add_childs(proc:get_children())
 end
 
+--! @brief Isolates the process: the passed #u_proc instance is marked to be skipped by scheduler and
+--! moved to isolation cgroups iso_<`suffix`> under each cgroup subsystem.
+--! @param proc #u_proc to isolate
+--! @param suffix (optional) The suffix of the new CGroup name: `iso_<suffix>` or `iso_<pid>`, if the suffix is nil.
+--! @param mappings A table with the CGroup @link __ISOLATE_MAPPING mappings@endlink per each cgroups subsystem.
+--! \endcode
+--! @param include_children (optional) If TRUE, the `proc` children are recursively put to the isolation.
+--! @param block_scheduler (optional) `u_proc.set_block_scheduler()` argument, defaults to 1
+--! @param fnc (optional) If passed, this function will be called with the every #u_proc putting into isolation.
 --! @public @memberof CGroup
-function CGroup.create_isolation_group(proc, children, fnc)
-  ng = CGroup.new("iso_"..tostring(pid))
-  ng:commit()
-  ng:add_task(proc.pid)
-  proc:set_block_scheduler(1)
-  if children then
-    ng:add_children(proc, fnc)
+function CGroup.create_isolation_group(proc, suffix, mappings, include_children, block_scheduler, fnc)
+
+  local tasks = proc:get_current_task_pids()
+  local cgr_name = "iso_"..suffix or tostring(pid)
+  for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
+    if ulatency.tree_loaded(subsys) then
+      -- create isolation cgroup
+      local mapping = mappings[subsys] or {}
+      local ng =  CGroup.get_group(subsys .."/".. cgr_name)
+      if not ng then
+        ng = CGroup.new(cgr_name, mapping.params or {}, subsys)
+        ng:commit()
+        if mapping.adjust then
+          ng.adjust[#ng.adjust+1] = mapping.adjust
+        end
+        if mapping.adjust_new then
+          mapping.adjust_new(ng, proc)
+        end
+        ng:commit()
+      end
+      ng:run_adjust(proc)
+      ng:add_task_list(proc.pid, tasks)
+      if include_children then
+        ng:add_children(proc)
+      end
+      ng:commit()
+      ng.ignore = true
+      ulatency.log_info(string.format('isolation group %s created for %d', ng:path(), proc.pid))
+    end
   end
-  return ng
+
+  local block = block_scheduler or 1
+  local proc_fnc = function(proc) if fnc then fnc(proc) end; proc:set_block_scheduler(block) end
+  if include_children then
+    proc:apply(proc_fnc)
+  else
+    proc_fnc(proc)
+  end
 end
 
 --! @public @memberof CGroup
@@ -706,6 +814,27 @@ end
 
 --! @addtogroup lua_HELPERS
 --! @{
+
+--! @brief Recursively creates a directory.
+--! @param path Full path of the new directory.
+--! @return boolean
+--! @retval TRUE if the directory was successfully created.
+--! @retval FALSE if creation of some directory along the `path` failed.
+function mkdirp(path)
+  if posix.access(path) ~= 0 then
+    local parts = path:split("/")
+    for i,v in ipairs(parts) do
+      name = "/" .. table.concat(parts, "/", 1, i)
+      if posix.access(name, posix.R_OK) ~= 0 then
+        if posix.mkdir(name) ~= 0 then
+          cg_log("can't create "..name)
+          return false
+        end
+      end
+    end
+  end
+  return true
+end
 
 function to_string(data, indent)
     local str = ""
@@ -765,3 +894,18 @@ function num_or_percent(conf, value, default)
   return conf
 end
 --! @} End of "defgroup helper Helper classes"
+
+--! @brief Recursively applies the function to #u_proc and its children.
+--! @param fnc A function to apply. It will be called with #u_proc passed recursively on the #u_proc and all its
+--! children.
+--! @public @memberof u_proc
+function u_proc:apply(fnc)
+  local function adjust(list)
+    for _,p in ipairs(list) do
+      adjust(p:get_children())
+      fnc(p)
+    end
+  end
+  adjust(self:get_children())
+  fnc(self)
+end

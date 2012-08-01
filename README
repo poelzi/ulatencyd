@@ -36,6 +36,9 @@ Build Requirements:
   liblua5.1-0-dev | libluajit-5.1-dev
   liblua5.1-posix1 (sometimes called luaposix)
 
+Cgroups release agent (optional):
+  dbus-send
+
 Documentation:
   doxygen
   libmoose-perl

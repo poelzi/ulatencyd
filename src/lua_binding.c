@@ -424,12 +424,15 @@ static int l_log (lua_State *L) {
   return 0;
 }
 
-static int l_quit (lua_State *L) {
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "%s", "quit called from script");
-  if(g_main_loop_is_running(main_loop))
-    g_main_loop_quit(main_loop);
-  else
-    exit(0);
+static int l_fallback_quit (lua_State *L) {
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "%s", "fallback_quit called from script");
+  fallback_quit(GUINT_TO_POINTER(2));
+  return 0;
+}
+
+static int l_die (lua_State *L) {
+    int exit_code = luaL_checkint (L, 1);
+    exit(exit_code);
   return 0;
 }
 
@@ -1063,9 +1066,9 @@ static int u_proc_index (lua_State *L)
   //char        path[PROCPATHLEN];
   u_proc *proc = check_u_proc(L, 1);
   const char *key = luaL_checkstring(L, 2);
+
   luaL_reg *lreg = (luaL_reg *)u_proc_methods;
   int rv = 0;
-
 
   for (; lreg->name; lreg++) {
     if(strcmp(lreg->name, key) == 0) {
@@ -1572,6 +1575,34 @@ static int wrap_l_scheduler_run_one(u_proc *proc) {
   return l_scheduler_run(lua_main_state, proc);
 }
 
+static int l_scheduler_cgroups_cleanup(int instant) {
+  lua_State *L = lua_main_state;
+  int base = lua_gettop(lua_main_state);
+  int rv = 1;
+
+  lua_getfield(L, LUA_GLOBALSINDEX, "ulatency"); /* function to be called */
+  lua_getfield(L, -1, "scheduler");
+  lua_remove(L, 1);
+  if(lua_istable(L, 1)) {
+    lua_getfield(L, 1, "cgroups_cleanup");
+    if(!lua_isfunction(L, 2)) {
+      goto error;
+    }
+    lua_pushvalue(L, 1);
+    lua_pushboolean(L, instant);
+    if(docall(L, 2, 0)) {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "lua scheduler.cgroups_cleanup failed");
+      goto error;
+    }
+    rv = 0;
+  }
+
+error:
+  lua_pop(L, lua_gettop(L)-base);
+  return rv;
+  //stackdump_g(L);
+}
+
 static int l_scheduler_set_config(char *name) {
   lua_State *L = lua_main_state;
   int base = lua_gettop(lua_main_state);
@@ -1706,6 +1737,7 @@ out:
 u_scheduler LUA_SCHEDULER = {
   .all=wrap_l_scheduler_run,
   .one=wrap_l_scheduler_run_one,
+  .cgroups_cleanup = l_scheduler_cgroups_cleanup,
   .list_configs = l_scheduler_list_configs,
   .set_config = l_scheduler_set_config,
   .get_config = l_scheduler_get_config,
@@ -2117,7 +2149,8 @@ static const luaL_reg R[] = {
   {"log",  l_log},
   {"get_uid", l_get_uid},
   {"get_time", l_get_time},
-  {"quit_daemon", l_quit},
+  {"fallback_quit", l_fallback_quit},
+  {"die", l_die},
   {"load_rule", user_load_lua_rule_file},
   {"load_rule_directory", user_load_rule_directory},
   {"process_update", l_process_update},

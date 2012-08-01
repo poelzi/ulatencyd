@@ -92,7 +92,7 @@ function run_suite(bla)
     current_suite = suites[current_id]
     if not current_suite then
       print("all lua tests done")
-      ulatency.quit_daemon(0)
+      ulatency.fallback_quit()
       return false
     end
     lunatest.suite(current_suite)
@@ -108,6 +108,6 @@ ulatency.add_timeout(run_suite, 500)
 
 
 --ulatency.quit_daemon()
-ulatency.add_timeout(ulatency.quit_daemon, 100000)
+ulatency.add_timeout(ulatency.fallback_quit, 100000)
 
 

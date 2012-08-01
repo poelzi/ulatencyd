@@ -121,6 +121,10 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "      <arg type=\"b\" name=\"update\" direction=\"in\" />\n"
 "      <arg type=\"b\" name=\"success\" direction=\"out\" />\n"
 "    </method>\n"
+"    <method name=\"cgroupsCleanup\">\n"
+"      <arg type=\"b\" name=\"instant\" direction=\"in\" />\n"
+"      <arg type=\"b\" name=\"scheduled\" direction=\"out\" />\n"
+"    </method>\n"
 "    <property name=\"config\" type=\"s\" access=\"read\"/>\n"
 "    <property name=\"version\" type=\"s\" access=\"read\"/>\n"
 "  </interface>\n"
@@ -671,6 +675,28 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
             g_free(desc);
         }
 
+        goto finish;
+    } else if(dbus_message_is_method_call(m, U_DBUS_SYSTEM_INTERFACE, "cgroupsCleanup")) {
+        int instant;
+
+        if (!dbus_message_get_args(m, &error,
+                                      DBUS_TYPE_BOOLEAN, &instant,
+                                      DBUS_TYPE_INVALID) ||
+            !dbus_message_iter_init (m, &imsg))
+              PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
+
+        GET_CALLER()
+
+        ret = dbus_message_new_method_return(m);
+
+        int suc = cgroups_cleanup(instant);
+
+        dbus_message_append_args (ret,
+                                  DBUS_TYPE_BOOLEAN, &suc,
+                                  DBUS_TYPE_INVALID);
+
+
+        ret = dbus_message_new_method_return(m);
         goto finish;
 
     } else if (dbus_message_is_method_call(m, DBUS_INTERFACE_PROPERTIES, "Get")) {

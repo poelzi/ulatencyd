@@ -1626,6 +1626,27 @@ int iterate(gpointer rv) {
   return GPOINTER_TO_INT(rv);
 }
 
+static int cgroups_cleanup_wrapper(gpointer instant) {
+  scheduler.cgroups_cleanup(GPOINTER_TO_INT(instant));
+  return FALSE;
+}
+
+/**
+ * Ask scheduler to remove empty cgroups.
+ * @param instant Scheduler does not clean cgroups instantly but set
+ * a timeout to avoid overhead. Set this to TRUE if timeout should be avoided.
+ * @return FALSE if scheduler does not support cgroups cleaning, otherwise TRUE
+ */
+int cgroups_cleanup(int instant) {
+  if(scheduler.cgroups_cleanup) {
+    g_timeout_add(0, cgroups_cleanup_wrapper, GUINT_TO_POINTER(instant));
+    return TRUE;
+  } else {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "no scheduler.cgroups_cleanup set");
+    return FALSE;
+  }
+}
+
 /***************************************************************************
  * scheduler stuff
  **************************************************************************/

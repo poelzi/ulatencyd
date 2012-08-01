@@ -1,0 +1,4 @@
+#!/bin/sh
+
+dbus-send --type=method_call --system --dest=org.quamquam.ulatencyd /org/quamquam/ulatencyd/System org.quamquam.ulatencyd.System.cgroupsCleanup boolean:false
+
