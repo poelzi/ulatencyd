@@ -63,6 +63,30 @@ end
 
 --! @} End of "addtogroup lua_EXT"
 
+--! @addtogroup lua_HELPERS
+--! @{
+
+--! @brief Recursively creates a directory.
+--! @param path Full path of the new directory.
+--! @return boolean
+--! @retval TRUE if the directory was successfully created.
+--! @retval FALSE if creation of some directory along the `path` failed.
+function mkdirp(path)
+  if posix.access(path) ~= 0 then
+    local parts = path:split("/")
+    for i,v in ipairs(parts) do
+      name = "/" .. table.concat(parts, "/", 1, i)
+      if posix.access(name, posix.R_OK) ~= 0 then
+        if posix.mkdir(name) ~= 0 then
+          cg_log("can't create "..name)
+          return false
+        end
+      end
+    end
+  end
+  return true
+end
+--! @} End of "addtogroup lua_HELPERS"
 
 --! @name logging shortcuts
 --! @{
@@ -814,27 +838,6 @@ end
 
 --! @addtogroup lua_HELPERS
 --! @{
-
---! @brief Recursively creates a directory.
---! @param path Full path of the new directory.
---! @return boolean
---! @retval TRUE if the directory was successfully created.
---! @retval FALSE if creation of some directory along the `path` failed.
-function mkdirp(path)
-  if posix.access(path) ~= 0 then
-    local parts = path:split("/")
-    for i,v in ipairs(parts) do
-      name = "/" .. table.concat(parts, "/", 1, i)
-      if posix.access(name, posix.R_OK) ~= 0 then
-        if posix.mkdir(name) ~= 0 then
-          cg_log("can't create "..name)
-          return false
-        end
-      end
-    end
-  end
-  return true
-end
 
 function to_string(data, indent)
     local str = ""
