@@ -7,9 +7,11 @@ these are optimizers for IO
 posix = require("posix")
 
 BottleNeck = {
-  -- detects high loads on discs and enables the cgroup group_isolation
-  -- when the treshold is over a limited time
-  -- group_isolation is only good on heavy io load
+  -- Detects high loads on discs and disable slice idling,
+  -- when the treshold is over a limited time.
+  -- When we disable slice idling (slice_idle=0), cfq start using group idling instead (group_idle)
+  --! (both defaults to 8ms). And if the disk and io port supports NCQ, cfq switches to IOPS mode
+  --! (i/o operations per seconds). This makes starting new applications under pressure faster.
   last_data = {},
   history = {},
   -- list of entries to be ignored (partitions)
@@ -74,13 +76,13 @@ BottleNeck = {
     fp:close()
   end,
 
-  set_isolation = function(self, dev, value)
+  set_slice_idling = function(self, dev, value)
     if self.last_set[dev] == value then
       return
     end
-    ulatency.log_debug("IO: set group isolation on dev "..dev.." to "..tostring(value))
+    ulatency.log_info("IO: set slice idling on dev "..dev.." to "..tostring(value))
     self.last_set[dev] = value
-    local path = ulatency.mountpoints["sysfs"] .. "/block/" .. dev .. "/queue/iosched/group_isolation"
+    local path = ulatency.mountpoints["sysfs"] .. "/block/" .. dev .. "/queue/iosched/slice_idle"
     local fp = io.open(path, "w")
     if not fp then
       return
@@ -111,9 +113,9 @@ BottleNeck = {
           end
         end
         if (yes * 100) >= (#history * self.percent) then
-          self:set_isolation(dev, 1)
+          self:set_slice_idling(dev, 0)
         else
-          self:set_isolation(dev, 0)
+          self:set_slice_idling(dev, 8)
         end
       end
     end
