@@ -164,7 +164,8 @@ Scheduler = {
   --! Cgroups paths are table keys with format `<subsystem>/path`, e.g `"memory/usr_1000/default"`, value is always TRUE.
   --! @see Scheduler::load_cgroups()
   --! @protected @memberof Scheduler
-  SAVED_CGROUPS = {}
+  SAVED_CGROUPS = {},
+  _after_hooks = {} --!< Registered `after` callbacks, see `Scheduler::register_after_hook()`. @private @memberof Scheduler
 }
 
 --! @brief Loads cgroups saved (created and not removed) by previous ulatencyd instance.
@@ -235,6 +236,30 @@ function Scheduler:_init()
   ulatency.add_timeout(cgroups_cleanup, 120000) --FIXME: or run this every scheduler:all() ?
 end
 
+--! @brief Registers a callback function to be run after the scheduling of process(es) is finished.
+--! Use this to register callbacks from mappings rules, timeout functions, filters etc.
+--! Each registered callback will be triggered from `Scheduler::all()` or `Scheduler::one()` every time scheduling is
+--! finished, until the callback returns FALSE.
+--! @param id Unique identification of callback function. Already registered callback with same `id` will be overwritten.
+--! @param func Callback function to be run after the scheduling is finished.
+--! If this function will return FALSE, it will be unregistered and not run next time.
+--! @public @memberof Scheduler
+function Scheduler:register_after_hook( id, func )
+  self._after_hooks[id] = func
+  ulatency.log_debug('Scheduler: registering after-callback with id: '..to_string(id))
+end
+
+--! @brief Runs registered callbacks after the scheduling is finished.
+--! @see `Scheduler::register_after_hook()`
+--! @private @memberof Scheduler
+function Scheduler:_run_after_hooks()
+  local callbacks = self._after_hooks
+  for id,cb in pairs(callbacks) do
+    ulatency.log_debug('Scheduler: run registered after-callback with id: '..to_string(id))
+    if not cb() then callbacks[id]=nil end
+  end
+end
+
 --! @brief Schedules all changed processes, called on every iteration.
 --! @details Implements the __SCHEDULER::all() with following extensions:
 --! - Schedules all processes if it has been run `full_run` times (as defined in configuration file) or 15 times since
@@ -271,6 +296,7 @@ function Scheduler:all()
     --print("sched", proc, proc.cmdline)
     self:_one(proc, false)
   end
+  self:_run_after_hooks()
   self.C_FILTER = true
   self.ITERATION = self.ITERATION + 1
 
@@ -408,6 +434,9 @@ function Scheduler:_one(proc, single)
     end
     proc:clear_changed()
     --pprint(build_path_parts(proc, res))
+  end
+  if single then
+      self:_run_after_hooks()
   end
   return true
 end
