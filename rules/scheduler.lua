@@ -14,13 +14,20 @@
 
 require("posix")
 
---! @relates Scheduler
+
+--------------------------------------------------------------
+-------------------- mappings parsing ------------------------
+
+--! @name mappings parsing (internal)
+--! @{
+
 --! @brief Check if the process has a flag with one of given name.
 --! @param labels Table with flag names to check (see `u_flag.name`)
 --! @param proc A #u_proc instance
 --! @return boolean TRUE if the #u_proc has a flag with one of `labels` names.
 --! @warning don't use non alpha numeric characters in name
 --! @todo build validator
+--! @protected @memberof Scheduler
 function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags(true)) do
     for k, slabel in pairs(labels) do
@@ -31,6 +38,7 @@ function check_label(labels, proc)
   end
 end
 
+--! @private @memberof Scheduler
 local function check(proc, rule)
   assert(proc)
   if rule.label then
@@ -49,6 +57,7 @@ local function check(proc, rule)
   return nil
 end
 
+--! @private @memberof Scheduler
 local function run_list(proc, lst)
   local rv = {}
   for key, rule in ipairs(lst) do
@@ -70,6 +79,7 @@ local function run_list(proc, lst)
   return rv
 end
 
+--! @private @memberof Scheduler
 local function format_name(proc, map)
   -- generates the final path for the process for the map
   if map.cgroups_name then
@@ -84,6 +94,7 @@ local function format_name(proc, map)
   return map.name
 end
 
+--! @private @memberof Scheduler
 local function build_path_parts(proc, res)
   -- build a array for 
   local rv = {}
@@ -94,6 +105,7 @@ local function build_path_parts(proc, res)
   return rv
 end
 
+--! @private @memberof Scheduler
 local function create_group(proc, prefix, mapping, subsys)
   name = format_name(proc, mapping)
   if #prefix > 0 then
@@ -123,6 +135,7 @@ local function create_group(proc, prefix, mapping, subsys)
   return rv
 end
 
+--! @private @memberof Scheduler
 local function map_to_group(proc, parts, subsys)
   local chain = build_path_parts(proc, parts)
   local path = subsys .."/".. table.concat(chain, "/")
@@ -142,6 +155,12 @@ local function map_to_group(proc, parts, subsys)
   --CGroup.new(mapping.name, )n-ar
   return cgr
 end
+
+--! @} End of "mappings parsing"
+
+
+--------------------------------------------------------------
+------------------ scheduler implementation ------------------
 
 
 --! @class Scheduler
@@ -524,7 +543,7 @@ local function _cgroups_cleanup()
   end
 end
 
---! @public @memberof ulatency
+--! @public @memberof Scheduler
 function Scheduler:cgroups_cleanup(instant)
   if not self.INITIALIZED then return end
   if instant then
