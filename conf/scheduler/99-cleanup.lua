@@ -76,3 +76,14 @@ SCHEDULER_MAPPING_CLEANUP["cpuset"] =
         end
   }
 }
+
+SCHEDULER_MAPPING_CLEANUP["freezer"] =
+{
+  {
+    name = "cleanup",
+    cgroups_name = "",
+    check = function(proc)
+          return true
+        end
+  }
+}
