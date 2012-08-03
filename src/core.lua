@@ -803,6 +803,7 @@ function CGroup.create_isolation_group(proc, suffix, mappings, include_children,
           mapping.adjust_new(ng, proc)
         end
         ng:commit()
+        ulatency.log_info(string.format('isolation group %s created.', ng:path()))
       end
       ng:run_adjust(proc)
       ng:add_task_list(proc.pid, tasks)
@@ -810,8 +811,6 @@ function CGroup.create_isolation_group(proc, suffix, mappings, include_children,
         ng:add_children(proc)
       end
       ng:commit()
-      ng.ignore = true
-      ulatency.log_info(string.format('isolation group %s created for %d', ng:path(), proc.pid))
     end
   end
 
