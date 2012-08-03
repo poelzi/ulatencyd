@@ -31,7 +31,7 @@ RunnerFix = {}
 function RunnerFix:check(proc)
   -- remove old blacklist items
   if in_list(proc.cmdfile, self.bad_starters) and
-     proc.pgrp == proc.pid then
+     proc.pgrp == proc.pid then   -- matches bad_starters themselves
     -- we save two blacklists, the pgrp blacklist and the pid blacklist
     -- so we can lookup very fast if we should change a pgrp
     self.blacklist_pgrp[proc.pgrp] = proc.pid
@@ -39,12 +39,12 @@ function RunnerFix:check(proc)
   end
   parent = proc:get_parent()
   if parent then
-    -- change direct children
+    -- dettach direct children of bad_startes to separate process groups
     if in_list(parent.cmdfile, self.bad_starters) then
       proc:set_pgid(proc.pid)
-    -- change init children
+    -- dettach bad_starters from init to separate process groups
     elseif ( parent.pid == 1 and self.blacklist_pgrp[proc.pgrp] ) or 
-           ( in_list(parent.cmdfile, self.bad_starters) and self.blacklist_pgrp[proc.pgrp] )
+           ( in_list(parent.cmdfile, self.bad_starters) and self.blacklist_pgrp[proc.pgrp] ) -- WTF? This never matches, condition is same as previous IF condition.
       then
       proc:set_pgid(proc.pid)
     end
