@@ -629,7 +629,7 @@ end
 --end
 
 --! @public @memberof CGroup
-function CGroup:add_task_list(pid, tasks, instant)
+function CGroup:add_task_list(pid, tasks)
   local nt = rawget(self, "new_tasks")
   if not nt then
     nt = {}
@@ -638,39 +638,16 @@ function CGroup:add_task_list(pid, tasks, instant)
   for i,v in ipairs(tasks) do
       nt[#nt+1] = v
   end
-  if instant then
-    local t_file = self:path("tasks")
-    fp = io.open(t_file, "w")
-    if fp then
-      for i,v in ipairs(tasks) do
-        fp:write(tostring(v)..'\n')
-        fp:flush()
-        local proc = ulatency.get_pid(v)
-        if proc then
-          proc:add_cgroup(self)
-        end
-      end
-      ulatency.log_sched("Move "..pid.." to "..tostring(self).." tasks: "..table.concat(tasks, ","))
-      fp:close()
-    else
-      cg_log("can't attach "..pid.." to group "..t_file)
-    end
-  end
 end
 
 --! @public @memberof CGroup
-function CGroup:add_task(pid, instant)
-  if instant then
-    return self:add_task_list(pid, {pid}, instant)
-  else
-    local nt = rawget(self, "new_tasks")
-    if not nt then
-      nt = {}
-      rawset(self, "new_tasks", nt)
-    end
-    nt[#nt+1] = pid
-    return
+function CGroup:add_task(pid)
+  local nt = rawget(self, "new_tasks")
+  if not nt then
+    nt = {}
+    rawset(self, "new_tasks", nt)
   end
+  nt[#nt+1] = pid
 end
 
 --! @public @memberof CGroup
