@@ -86,6 +86,24 @@ function mkdirp(path)
   end
   return true
 end
+
+--! @brief Write string to a file under SYSFS
+local function sysfs_write(path, value, quiet)
+  local rv = false
+  local fp = io.open(path, "w")
+  if fp then
+    fp:setvbuf("no")
+    local ok, err, err_code = fp:write(value)
+    if ok then
+      rv = true
+    elseif not quiet then
+      ulatency.log_warning(string.format("can't write string '%s' into %s :(%s) %s",value,path,err_code,err))
+    end
+    fp:close()
+  end
+
+  return rv
+end
 --! @} End of "addtogroup lua_HELPERS"
 
 --! @name logging shortcuts
@@ -294,14 +312,8 @@ end
 
 --! @public @memberof ulatency
 function ulatency.set_sysctl(name, value)
-  local pname = string.gsub(name, "%.", "/")
-  local fp = io.open("/proc/sys/" .. pname, "w")
-  if not fp then
-    return false
-  end
-  fp:write(value)
-  fp:close()
-  return true
+  local path = "/proc/sys/" .. string.gsub(name, "%.", "/")
+  return sysfs_write(path, value)
 end
 --! @} End of "reading / writing to /proc/sys"
 
@@ -442,11 +454,9 @@ if not is_mounted(CGROUP_ROOT) then
 end
 
 -- disable the autogrouping
-local fp = io.open("/proc/sys/kernel/sched_autogroup_enabled", "w")
-if fp then
+if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
   ulatency.log_info("disable sched_autogroup in linux kernel")
-  fp:write("0")
-  fp:close()
+  ulatency.set_sysctl("kernel.sched_autogroup_enabled", "0")
 end
 
 ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
@@ -478,17 +488,9 @@ for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
     -- we only write a release agent if not already one. update if it looks like
     -- a ulatencyd release agent
     if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.sh' then
-      local fp = io.open(path.."/release_agent", "w")
-      if fp then
-        fp:write(ulatency.release_agent)
-        fp:close()
-      end
+      sysfs_write(path.."/release_agent", ulatency.release_agent)
     end
-    local fp = io.open(path.."/notify_on_release", "w")
-    if fp then
-      fp:write("1")
-      fp:close()
-    end
+    sysfs_write(path.."/notify_on_release", "1")
   else
     ulatency.log_info("no cgroups subsystem "..subsys.." found. disable group")
   end
@@ -705,26 +707,21 @@ function CGroup:commit()
       par = nil
     end
     local path = self:path(k)
-    local fp = io.open(path, "w")
-    if fp then
-      --print("write"..path)
-      fp:write(v)
-      fp:close()
+    if sysfs_write(path, v, par == '?') or par == '?' then
       uncommited[k] = nil
-    else
-      if par ~= '?' then
-        cg_log("can't write into :"..tostring(path))
-      end
     end
   end
-  local t_file = self:path("tasks")
-  local fp = io.open(t_file, "w")
-  if fp then
-    local pids = rawget(self, "new_tasks")
-    if pids then
+  local pids = rawget(self, "new_tasks")
+  if #pids > 0 then
+    local t_file = self:path("tasks")
+    local fp = io.open(t_file, "w")
+    if fp then
+      fp:setvbuf("no")
       for i, pid in ipairs(pids) do
-        fp:write(tostring(pid)..'\n')
-        fp:flush()
+        local ok, err, err_code = fp:write(tostring(pid)..'\n')
+        if not ok and err_code ~= 3 then      -- err_code == 3 : No such process
+          ulatency.log_warning(string.format("can't write string '%s' into %s :(%s) %s",tostring(pid),t_file,err_code,err))
+        end
         local proc = ulatency.get_pid(pid)
         if proc then
           proc:add_cgroup(self)
@@ -732,8 +729,8 @@ function CGroup:commit()
       end
       ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
       rawset(self, "new_tasks", {})
+      fp:close()
     end
-    fp:close()
   end
 end
 
