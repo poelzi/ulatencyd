@@ -1,0 +1,63 @@
+#! /bin/sh
+
+set -e
+
+# cron script to update the ulatencyd applications simple rules
+#
+# Code for ionice setting has been copied from the "locate" cron file
+# written by Ian A. Murdock <imurdock@debian.org> and
+#            Kevin Dalley <kevin@aimnet.com>
+
+
+OUTPUT=/etc/ulatencyd/simple.d/applications.conf
+UPDATE_CMD=/usr/lib/ulatencyd/update-user-apps.sh
+
+[ -e $UPDATE_CMD ] || exit 0
+
+# run at this priority -- higher number means lower priority
+# (this is relative to the default which cron sets, which is usually +5)
+NICE=10
+
+# I/O priority
+# 1 for real time, 2 for best-effort, 3 for idle ("3" only allowed for root)
+IONICE_CLASS=3
+# 0-7 (only valid for IONICE_CLASS 1 and 2), 0=highest, 7=lowest
+IONICE_PRIORITY=7
+
+# Set the task to run with desired I/O priority if possible
+# Linux supports io scheduling priorities and classes since
+# 2.6.13 with the CFQ io scheduler
+if [ -x /usr/bin/ionice ]; then
+	# don't run ionice if kernel version < 2.6.13
+	KVER=$(uname -r)
+	case "$KVER" in
+		2.[012345]*) ;;
+		2.6.[0-9]) ;;
+		2.6.[0-9].*) ;;
+		2.6.1[012]*) ;;
+		*)
+		# Avoid providing "-n" when IONICE_CLASS isn't 1 or 2
+		case "$IONICE_CLASS" in
+			1|2) priority="-n ${IONICE_PRIORITY:-7}" ;;
+			*) priority="" ;;
+		esac
+		ionice -c $IONICE_CLASS $priority -p $$ > /dev/null 2>&1 || true
+		;;
+	esac
+fi
+
+tmp=$(mktemp)
+nice -n ${NICE:-10} "$UPDATE_CMD" $tmp
+set +e
+	diff -bB --brief -I"^[:blank:]*#" $tmp $OUTPUT >/dev/null 2>&1
+	res=$?
+	set -e
+cat $tmp >$OUTPUT
+rm $tmp
+
+if [ $res -eq 1 ]; then
+	if [ "$(id -u)" = "0" ]; then
+		/usr/sbin/service ulatencyd force-reload 1>/dev/null
+	fi
+fi
+
