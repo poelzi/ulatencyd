@@ -16,7 +16,6 @@ SCHEDULER_MAPPING_CLEANUP = {
   }
 }
 
--- cpu & memory configuration
 SCHEDULER_MAPPING_CLEANUP["cpu"] =
 {
   {
@@ -39,8 +38,6 @@ SCHEDULER_MAPPING_CLEANUP["memory"] =
   }
 }
 
-
--- io configuration. blkio does not support hirarchies
 SCHEDULER_MAPPING_CLEANUP["blkio"] =
 {
   {
@@ -65,6 +62,17 @@ SCHEDULER_MAPPING_CLEANUP["bfqio"] =
         end,
     adjust = function(cgroup, proc)
           restore_io_prio(proc)
+        end
+  }
+}
+
+SCHEDULER_MAPPING_CLEANUP["cpuset"] =
+{
+  {
+    name = "cleanup",
+    cgroups_name = "",
+    check = function(proc)
+          return true
         end
   }
 }
