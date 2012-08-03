@@ -75,6 +75,46 @@ function test_find_flags()
 
 end
 
+function test_match_flag()
+  local flags = {
+    ulatency.new_flag{name="hello"},
+    ulatency.new_flag{name="hello2"},
+    ulatency.new_flag{name="bla", value=3},
+    ulatency.new_flag{name="bla", threshold=4, reason="blabla"},
+  }
+  local function test_flags(desc, where)
+    assert_equal(false,ulatency.match_flag({name = "user.poison.session"}, where), desc..": name=user.poision not in list")
+    assert_equal(false,ulatency.match_flag({{name = "user.poison.session"}, "hello3"}, where), desc..": name=user.poision nor hello3 in list")
+    assert_equal(true,ulatency.match_flag({name = "hello"}, where), desc..": name=hello in list")
+    assert_equal(true,ulatency.match_flag({"hello"}, where), desc..": hello in list")
+    assert_equal(true,ulatency.match_flag({"user.poison.session", "hello"}, where), desc..": user.poison.session or hello in list")
+    assert_equal(false,ulatency.match_flag({name = "hello2", value = 32}, where), desc..": name=hello2 value not in list")
+    assert_equal(false,ulatency.match_flag({value = 32, name = "hello2"}, where), desc..": name=hello2 value not in list")
+    assert_equal(true,ulatency.match_flag({{name = "hello2", value = 32},"hello"}, where), desc..": name=hello2 value or hello in list")
+    assert_equal(true,ulatency.match_flag({{name = "hello2", value = 32},{name = "hello"}}, where), desc..": name=hello2 value or name=hello in list")
+    assert_equal(true,ulatency.match_flag({{name = "hello2", value = 32},{name = "bla", reason="blabla"}}, where), desc..": name=hello2 value or name=bla reason in list")
+    assert_equal(true,ulatency.match_flag({"hello2",{name = "bla", reason="blabla"}}, where), desc..": hello2 or name=bla reason in list")
+  end
+
+  -- flags list
+  test_flags('flags list', flags)
+
+  -- system flags
+  for _,flag in ipairs(flags) do
+    ulatency.add_flag(flag)
+  end
+  test_flags('system flags')
+  ulatency.clear_flag_source()
+
+  -- proc flags
+  proc = ulatency.get_pid(1)
+  for _,flag in ipairs(flags) do
+    proc:add_flag(flag)
+  end
+  test_flags('proc flags', proc)
+  ulatency.clear_flag_source(proc)
+end
+
 function test_sysctl()
   assert_true(ulatency.get_sysctl("kernel.version"), "kernel.version not existing")
   assert_false(ulatency.set_sysctl("kernel.version", "bla"), "kernel.version should not be writeable")

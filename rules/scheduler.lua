@@ -14,13 +14,69 @@
 
 require("posix")
 
---! @relates Scheduler
+
+--------------------------------------------------------------
+-------------------- mappings parsing ------------------------
+
+--! @name mappings parsing (internal)
+--! @{
+
+--! @brief A table holding status for each mapping `rule` during scheduler run.
+--! This table is cleared every scheduler run. Each table value (with the `rule` as a key) stores:
+--! - Whether the `rule` never matches, i.e., `sysflags` precheck exists and does not match, or any `check` function returned
+--!   FALSE as second value.
+--! - `Check` functions to be skipped, i.e., `check` functions that returned TRUE as second value.
+--! - Whether skip all `check` functions, i.e., all `check` functions returned TRUE as second value.
+--! @private @memberof Scheduler
+local _RStat = {}
+
+--! @brief A table holding status for each `CGroup` during scheduler run.
+--! This table is cleared every scheduler run. Each table value (with the `CGroup` as a key) stores:
+--! - `Adjust` functions to be skipped, i.e., `adjust` functions that returned FALSE as second value.
+--! @private @memberof Scheduler
+local _CStat = {}
+
+--! @brief Initialises #_RStat and #_CStat tables; called in the beginning of every scheduler run.
+--! @private @memberof Scheduler
+local function _mapping_status_init()
+  _RStat = setmetatable({}, { __index = _RStat_index })
+  _CStat = setmetatable({}, { __index = _CStat_index })
+end
+
+--! @brief #_RStat metatable.__index
+--! @private @memberof Scheduler
+function _RStat_index(data, rule)
+  local stat = {
+    skip = false,                                                     -- skip whole rule
+    skip_checks = rule.checks and { [ #rule.checks ] = nil } or {},   -- checks functions to be skipped (those always matching)
+    skip_all_checks = not (rule.checks and #rule.checks > 0),         -- skip all checks functions (all always match)
+  }
+  if rule.sysflags then                                               -- sysflags check (checked only once)
+    if not ulatency.match_flag(rule.sysflags) then
+      stat.skip = true
+    end
+  end
+  data[rule] = stat
+  return stat
+end
+
+--! @brief #_CStat metatable.__index
+--! @private @memberof Scheduler
+function _CStat_index(data, cgroup)
+  local stat = {
+    skip_adjusts = cgroup.adjust and { [ #cgroup.adjust ] = nil } or {}  -- adjusts functions to be skipped
+  }
+  data[cgroup] = stat
+  return stat
+end
+
 --! @brief Check if the process has a flag with one of given name.
 --! @param labels Table with flag names to check (see `u_flag.name`)
 --! @param proc A #u_proc instance
 --! @return boolean TRUE if the #u_proc has a flag with one of `labels` names.
 --! @warning don't use non alpha numeric characters in name
 --! @todo build validator
+--! @protected @memberof Scheduler
 function check_label(labels, proc)
   for j, flag in pairs(proc:list_flags(true)) do
     for k, slabel in pairs(labels) do
@@ -31,24 +87,45 @@ function check_label(labels, proc)
   end
 end
 
+local _check_label = check_label
+
+--! @private @memberof Scheduler
 local function check(proc, rule)
   assert(proc)
-  if rule.label then
-    if check_label(rule.label, proc) then
-      if rule.check then
-        return rule.check(proc) and rule or nil
-      else
-        return rule
+  local stat = _RStat[rule]
+  if stat.skip then
+    return nil
+  end
+  -- sysflags are checked only once via _RStat metatable
+  -- label check
+  if rule.label and not _check_label(rule.label, proc) then
+    return nil
+  end
+  -- checks
+  if not stat.skip_all_checks then
+    for i,c in ipairs(rule.checks) do
+      if not stat.skip_checks[i] then
+        local result, flag = c(proc)
+        if flag ~= nil then
+          if flag == true then
+            stat.skip_checks[i] = true
+            if #stat.skip_checks == #rule.checks then
+              stat.skip_all_checks = true
+            end
+          else
+            stat.skip = true
+          end
+        end
+        if not result then
+          return nil
+        end
       end
     end
-  elseif rule.check then
-    if rule.check(proc) then
-      return rule
-    end
   end
-  return nil
+  return rule
 end
 
+--! @private @memberof Scheduler
 local function run_list(proc, lst)
   local rv = {}
   for key, rule in ipairs(lst) do
@@ -70,6 +147,7 @@ local function run_list(proc, lst)
   return rv
 end
 
+--! @private @memberof Scheduler
 local function format_name(proc, map)
   -- generates the final path for the process for the map
   if map.cgroups_name then
@@ -84,6 +162,7 @@ local function format_name(proc, map)
   return map.name
 end
 
+--! @private @memberof Scheduler
 local function build_path_parts(proc, res)
   -- build a array for 
   local rv = {}
@@ -94,6 +173,7 @@ local function build_path_parts(proc, res)
   return rv
 end
 
+--! @private @memberof Scheduler
 local function create_group(proc, prefix, mapping, subsys)
   name = format_name(proc, mapping)
   if #prefix > 0 then
@@ -108,8 +188,10 @@ local function create_group(proc, prefix, mapping, subsys)
   end
   
   rv = CGroup.new(path, mapping.param, subsys)
-  if mapping.adjust then
-    rv.adjust[#rv.adjust+1] = mapping.adjust
+  if mapping.adjusts then
+    for k,v in ipairs(mapping.adjusts) do
+      rv.adjust[#rv.adjust+1] = v
+    end
   end
 
   rv:commit()  -- force commit here to set cgroup parameters before adjust_new is run or any task added.
@@ -123,25 +205,38 @@ local function create_group(proc, prefix, mapping, subsys)
   return rv
 end
 
+--! @private @memberof Scheduler
 local function map_to_group(proc, parts, subsys)
   local chain = build_path_parts(proc, parts)
   local path = subsys .."/".. table.concat(chain, "/")
   local cgr = CGroup.get_group(path)
   if cgr then
-    cgr:run_adjust(proc)
+    local skip = _CStat[cgr].skip_adjusts
+    local adjust = cgr.adjust
+    if (#skip ~= #adjust) then
+      for i,v in ipairs(adjust) do
+        if not skip[i] and v(cgr, proc) == false then
+          skip[i] = true
+        end
+      end
+    end
     return cgr
   end
 
   local prefix = ""
   for i, parrule in ipairs(parts) do
-    --local parent = create_group(proc, prefix, 
     cgr = create_group(proc, prefix, parrule, subsys)
     prefix = cgr.name
   end
   --print("final prefix", prefix)
-  --CGroup.new(mapping.name, )n-ar
   return cgr
 end
+
+--! @} End of "mappings parsing"
+
+
+--------------------------------------------------------------
+------------------ scheduler implementation ------------------
 
 
 --! @class Scheduler
@@ -164,7 +259,8 @@ Scheduler = {
   --! Cgroups paths are table keys with format `<subsystem>/path`, e.g `"memory/usr_1000/default"`, value is always TRUE.
   --! @see Scheduler::load_cgroups()
   --! @protected @memberof Scheduler
-  SAVED_CGROUPS = {}
+  SAVED_CGROUPS = {},
+  _after_hooks = {} --!< Registered `after` callbacks, see `Scheduler::register_after_hook()`. @private @memberof Scheduler
 }
 
 --! @brief Loads cgroups saved (created and not removed) by previous ulatencyd instance.
@@ -235,6 +331,39 @@ function Scheduler:_init()
   ulatency.add_timeout(cgroups_cleanup, 120000) --FIXME: or run this every scheduler:all() ?
 end
 
+--! @private @memberof Scheduler
+function Scheduler:_init_run()
+  self:update_caches()
+  if not self.MAPPING then
+    self:load_config()
+  end
+  _mapping_status_init()
+end
+
+--! @brief Registers a callback function to be run after the scheduling of process(es) is finished.
+--! Use this to register callbacks from mappings rules, timeout functions, filters etc.
+--! Each registered callback will be triggered from `Scheduler::all()` or `Scheduler::one()` every time scheduling is
+--! finished, until the callback returns FALSE.
+--! @param id Unique identification of callback function. Already registered callback with same `id` will be overwritten.
+--! @param func Callback function to be run after the scheduling is finished.
+--! If this function will return FALSE, it will be unregistered and not run next time.
+--! @public @memberof Scheduler
+function Scheduler:register_after_hook( id, func )
+  self._after_hooks[id] = func
+  ulatency.log_debug('Scheduler: registering after-callback with id: '..to_string(id))
+end
+
+--! @brief Runs registered callbacks after the scheduling is finished.
+--! @see `Scheduler::register_after_hook()`
+--! @private @memberof Scheduler
+function Scheduler:_run_after_hooks()
+  local callbacks = self._after_hooks
+  for id,cb in pairs(callbacks) do
+    ulatency.log_debug('Scheduler: run registered after-callback with id: '..to_string(id))
+    if not cb() then callbacks[id]=nil end
+  end
+end
+
 --! @brief Schedules all changed processes, called on every iteration.
 --! @details Implements the __SCHEDULER::all() with following extensions:
 --! - Schedules all processes if it has been run `full_run` times (as defined in configuration file) or 15 times since
@@ -264,13 +393,14 @@ function Scheduler:all()
     self.ITERATION = 1
   end
   -- list only changed processes
-  self:update_caches()
+  self:_init_run()
 
   ulatency.log_debug("scheduler filter:".. tostring(self.C_FILTER))
   for k,proc in ipairs(ulatency.list_processes(self.C_FILTER)) do
     --print("sched", proc, proc.cmdline)
     self:_one(proc, false)
   end
+  self:_run_after_hooks()
   self.C_FILTER = true
   self.ITERATION = self.ITERATION + 1
 
@@ -344,6 +474,33 @@ function Scheduler:load_config(name)
   ulatency.log_debug("use scheduler map \n" .. to_string(MAPPING))
   self.MAPPING = MAPPING
   self.CONFIG_NAME = name
+  -- simplify rules
+  local function _initialize_rules (rules)
+    for key, rule in ipairs(rules) do
+      -- merge adjust() and check() functions to adjusts and checks tables
+      for _,k in ipairs({"adjust", "check"}) do
+        if rule[k] then
+          local ks = k.."s"
+          if not rule[ks] then
+            rule[ks] = { rule[k] }
+          else
+            rule[ks][ #rule[ks] + 1] = rule[k]
+          end
+          rule[k] = nil
+        end
+      end
+      if rule.children then
+        _initialize_rules (rule.children)
+      end
+    end
+  end
+
+  for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
+    map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
+    if map then
+      _initialize_rules(map)
+    end
+  end
   return true
 end
 
@@ -356,17 +513,16 @@ end
 --! Schedules one process, a wrapper around `Scheduler::_one()`
 --! @public @memberof Scheduler
 function Scheduler:one(proc)
-  return self:_one(proc, true)
+  self:_init_run()
+  local rv = self:_one(proc, true)
+  self:_run_after_hooks()
+  return rv
 end
 
 --! @private @memberof Scheduler
 function Scheduler:_one(proc, single)
   if not self.MAPPING then
     self:load_config()
-  end
-
-  if single then
-    self:update_caches()
   end
 
   local group
@@ -495,7 +651,7 @@ local function _cgroups_cleanup()
   end
 end
 
---! @public @memberof ulatency
+--! @public @memberof Scheduler
 function Scheduler:cgroups_cleanup(instant)
   if not self.INITIALIZED then return end
   if instant then
