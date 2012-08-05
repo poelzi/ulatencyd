@@ -162,7 +162,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["cpu"] =
             end,
     adjust = function(cgroup, proc)
               ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                    proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match))
+                    proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match or "<no cmdline>"))
             end,
   },
 }
@@ -379,7 +379,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["memory"] =
             end,
     adjust = function(cgroup, proc)
               ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                    proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match))
+                    proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match or "<no cmdline>"))
             end,
   },
 }
@@ -530,7 +530,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["blkio"] =
               end,
     adjust = function(cgroup, proc)
                 ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                      proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match))
+                      proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match or "<no cmdline>"))
               end,
   },
 }
