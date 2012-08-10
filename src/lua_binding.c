@@ -243,10 +243,20 @@ static int l_filter_rv (lua_State *L) {
 
 static int l_get_pid (lua_State *L) {
   int pid;
+  int include_tasks = FALSE;
   u_proc *proc;
 
   pid = luaL_checkint (L, 1);
+  if (lua_isnumber(L, 2))
+    include_tasks = lua_tointeger(L, 2);
+
   proc = proc_by_pid(pid);
+
+  if(!proc && include_tasks) {
+      u_task *task = task_by_tid(pid);
+      if (task)
+        proc = task->proc;
+  }
 
   if(!proc)
     return 0;
