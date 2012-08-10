@@ -243,10 +243,20 @@ static int l_filter_rv (lua_State *L) {
 
 static int l_get_pid (lua_State *L) {
   int pid;
+  int include_tasks = FALSE;
   u_proc *proc;
 
   pid = luaL_checkint (L, 1);
+  if (lua_isnumber(L, 2))
+    include_tasks = lua_tointeger(L, 2);
+
   proc = proc_by_pid(pid);
+
+  if(!proc && include_tasks) {
+      u_task *task = task_by_tid(pid);
+      if (task)
+        proc = task->proc;
+  }
 
   if(!proc)
     return 0;
@@ -654,6 +664,20 @@ static int l_proc_list_flags (lua_State *L) {
 
   g_list_free(lst);
 
+  return 1;
+}
+
+static int l_get_tid (lua_State *L) {
+  int tid;
+  u_task *task;
+
+  tid = luaL_checkint (L, 1);
+  task = task_by_tid(tid);
+
+  if(!task)
+    return 0;
+
+  push_u_task(L, task);
   return 1;
 }
 
@@ -2116,6 +2140,7 @@ static const luaL_reg R[] = {
   {"user_from_uid",  l_user_from_uid},
   // pid receive
   {"get_pid",  l_get_pid},
+  {"get_tid",  l_get_tid},
   {"list_pids",  l_list_pids},
   {"list_processes",  l_list_processes},
   {"add_timeout", l_add_interval},
