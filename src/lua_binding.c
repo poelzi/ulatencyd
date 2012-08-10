@@ -654,6 +654,20 @@ static int l_proc_list_flags (lua_State *L) {
   return 1;
 }
 
+static int l_get_tid (lua_State *L) {
+  int tid;
+  u_task *task;
+
+  tid = luaL_checkint (L, 1);
+  task = task_by_tid(tid);
+
+  if(!task)
+    return 0;
+
+  push_u_task(L, task);
+  return 1;
+}
+
 static int u_proc_get_tasks (lua_State *L) {
   int i = 0;
   u_proc *proc = check_u_proc(L, 1);
@@ -2072,6 +2086,7 @@ static const luaL_reg R[] = {
   {"user_from_uid",  l_user_from_uid},
   // pid receive
   {"get_pid",  l_get_pid},
+  {"get_tid",  l_get_tid},
   {"list_pids",  l_list_pids},
   {"list_processes",  l_list_processes},
   {"add_timeout", l_add_interval},
