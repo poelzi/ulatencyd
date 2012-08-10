@@ -309,6 +309,7 @@ extern GList *filter_list;
 extern GKeyFile *config_data;
 extern GList* active_users;
 extern GHashTable* processes;
+extern GHashTable* tasks;
 extern GNode* processes_tree;
 extern lua_State *lua_main_state;
 extern GList* system_flags;
@@ -411,6 +412,9 @@ static inline u_proc *proc_by_pid_with_retry(pid_t pid) {
   return NULL;
 }
 
+static inline u_task *task_by_tid(pid_t tid) {
+  return g_hash_table_lookup(tasks, GUINT_TO_POINTER(tid));
+}
 
 int scheduler_run_one(u_proc *proc);
 int scheduler_run();
