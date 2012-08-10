@@ -219,10 +219,20 @@ end
 
 --! Returns process #u_proc with `pid`.
 --! @param pid A PID of the process to return.
+--! @param include_tasks (optional, default FALSE) If TRUE and #u_proc with `pid` not found, return
+--! the thread leader of the task `pid`.
 --! @retval #u_proc If process with `pid` exists in ulatency #processes table.
 --! @retval 0 If process with `pid` does not exists in ulatency #processes table.
 --! @public @memberof ulatency
-function ulatency.get_pid(pid)
+function ulatency.get_pid(pid, include_tasks)
+end
+
+--! Returns task #u_task with `tid`.
+--! @param tid A TID of the task to return.
+--! @retval #u_task If task with `tid` exists in ulatency #tasks table.
+--! @retval 0 If task with `tid` does not exists in ulatency #tasks table.
+--! @public @memberof ulatency
+function ulatency.get_tid(tid)
 end
 
 --! Returns `pids` array of all processes from ulatency #processes table.
