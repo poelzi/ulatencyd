@@ -50,6 +50,7 @@ GList *filter_list;
 GList *filter_fast_list;
 GNode *processes_tree;
 GHashTable *processes;
+GHashTable *tasks;
 u_scheduler scheduler = {NULL};
 static int iteration;
 static double _last_load;
@@ -237,6 +238,7 @@ void u_proc_free_task(void *ptr) {
      free(task->task.supgid);
   }
   //g_free(proc->supgid);
+  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->task.tid));
   g_slice_free(u_task, task);
 }
 
@@ -846,6 +848,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
       memcpy(&(task->task), &buf_task, sizeof(proc_t));
       g_ptr_array_add(proc->tasks, task);
       proc->received_rt |= (buf_task.sched == SCHED_FIFO || buf_task.sched == SCHED_RR);
+      g_hash_table_insert(tasks, GUINT_TO_POINTER(buf_task.tid), task);
     }
     if(rrt != proc->received_rt)
       proc->changed = 1;
@@ -1860,6 +1863,7 @@ int core_init() {
   processes_tree = g_node_new(NULL);
   processes = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, 
                                     processes_free_value);
+  tasks = g_hash_table_new(g_direct_hash, g_direct_equal);
 
   // configure lua
   lua_main_state = luaL_newstate();
