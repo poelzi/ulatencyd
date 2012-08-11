@@ -78,6 +78,16 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["cpu"] =
         cgroups_name = "starting",
         param = { ["cpu.shares"]="1000", ["?cpu.rt_runtime_us"] = "1"},
         label = { "application.starting" },
+        check = function(proc)
+              local startup = ulatency.match_flag({"startup"})
+              if startup then
+                for _,p in ipairs(ulatency.list_processes(true)) do
+                  p:clear_flag_name("application.starting")
+                end
+                return false, false
+              end
+              return true, true
+            end,
       },
       {
         name = "bg_high",
@@ -415,10 +425,21 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["blkio"] =
     cgroups_name = "starting-user-application",
     param = { ["blkio.weight"]="500" },
     label = { "application.starting" },
-    check = function(proc)
-            --return ( false )
+    checks = {
+          function(proc)
             return ( proc.euid > 999 and proc.euid < 60000 )
           end,
+          function(proc)
+            local startup = ulatency.match_flag({"startup"})
+            if startup then
+              for _,p in ipairs(ulatency.list_processes(true)) do
+                p:clear_flag_name("application.starting")
+              end
+              return false, false
+            end
+            return true, true
+          end,
+    },
     adjust = function(cgroup, proc)
                 if proc.is_valid and proc.changed then
                   ulatency.log_info(
