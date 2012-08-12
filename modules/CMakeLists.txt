@@ -10,6 +10,7 @@ macro(add_module LNAME)
 endmacro(add_module)
 
 add_module(simplerules simplerules.c)
+add_module(netlink_fallback netlink_fallback.c)
 
 pkg_check_modules(XCB xcb)
 pkg_check_modules(XAU xau)
