@@ -969,7 +969,7 @@ static int run_new_pid(gpointer ign) {
         td = diff(cur->when, now);
         //printf("test %d  %ld >= %ld\n",  cur->proc->pid, (td.tv_sec * 1000000000 + td.tv_nsec), delay);
         if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
-            u_trace("run filter for %d", cur->proc->pid);
+            u_trace("delay stack: run filter for %d", cur->proc->pid);
             g_array_append_val(targets, cur->proc->pid);
             // enforce the scheduler on run when moved from the delay queue
             cur->proc->changed = TRUE;
