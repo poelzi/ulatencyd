@@ -1044,7 +1044,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
     if(proc->changed)
-      scheduler_run_one(proc);
+      process_run_one(proc, FALSE, FALSE);
     proc->changed = TRUE;
   } else {
     // we got a exec event, so the process changed daramaticly.
@@ -1065,11 +1065,11 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       proc->changed = FALSE;
       filter_for_proc(proc, filter_fast_list);
       if(proc->changed)
-        scheduler_run_one(proc);
+        process_run_one(proc, FALSE, FALSE);
       proc->changed = old_changed;
     } else {
       filter_for_proc(proc, filter_fast_list);
-      scheduler_run_one(proc);
+      process_run_one(proc, FALSE, TRUE);
     }
   }
 
@@ -1130,21 +1130,19 @@ int process_new(int pid, int noupdate) {
   proc = proc_by_pid(pid);
   if(!proc)
     return FALSE;
-  filter_for_proc(proc, filter_fast_list);
-  filter_for_proc(proc, filter_list);
-  scheduler_run_one(proc);
+  process_run_one(proc, FALSE, TRUE);
   return TRUE;
 }
 
 /**
  * updates list of processes
- * @arg list array of #pid_t
- * @arg update update even if existing
- * @instant boolean if instant filters should be run first
+ * @param list array of #pid_t
+ * @param update boolean, update even if existing
+ * @param instant boolean, if instant filters should be run first
  *
  * Indicates a list of new processes and runs the rules and scheduler on it.
  *
- * @return boolean. Sucess
+ * @return boolean. Success
  */
 int process_new_list(GArray *list, int update, int instant) {
   u_proc *proc;
@@ -1166,10 +1164,7 @@ int process_new_list(GArray *list, int update, int instant) {
       continue;
     if(!u_proc_ensure(proc, BASIC, FALSE))
       continue;
-    if(instant)
-      filter_for_proc(proc, filter_fast_list);
-    filter_for_proc(proc, filter_list);
-    scheduler_run_one(proc);
+    process_run_one(proc, FALSE, instant);
   }
   free(pids);
   return TRUE;
@@ -1177,17 +1172,18 @@ int process_new_list(GArray *list, int update, int instant) {
 
 /**
  * run filters and scheduler on one process
- * @arg proc #u_proc to run
- * @update: update process before run
+ * @param proc #u_proc to run
+ * @param update boolean: update process before run
+ * @param instant boolean: if instant filters should be run too
  *
- * Run the filters and scheduler on the process
- *
- * @return boolean. Sucess
+ * @return boolean. Success
  */
 int process_run_one(u_proc *proc, int update, int instant) {
   if(update)
     process_update_pid(proc->pid);
-  filter_for_proc(proc, instant ? filter_fast_list : filter_list);
+  if (instant)
+    filter_for_proc(proc, filter_fast_list);
+  filter_for_proc(proc, filter_list);
   scheduler_run_one(proc);
   return TRUE;
 }
