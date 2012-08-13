@@ -1039,8 +1039,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     g_ptr_array_add(delay_stack, lp);
     proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
-    if(proc->changed)
+    if(proc->changed) {
       process_run_one(proc, !updated, FALSE);
+      return TRUE;
+    }
     proc->changed = TRUE;
   } else {
     // we got a exec event, so the process changed daramaticly.
@@ -1061,8 +1063,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     if(pid_in_delay_stack(proc->pid)) {
       proc->changed = FALSE;
       filter_for_proc(proc, filter_fast_list);
-      if(proc->changed)
+      if(proc->changed) {
         process_run_one(proc, !updated, FALSE);
+        return TRUE;
+      }
       proc->changed = old_changed;
     } else {
       process_run_one(proc, !updated, TRUE);
