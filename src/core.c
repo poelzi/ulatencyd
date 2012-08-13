@@ -804,7 +804,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
   if(!proctab) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
-    return 1;
+    return 0;
   }
   memset(&buf, 0, sizeof(proc_t));
   while(readproc(proctab, &buf)){
