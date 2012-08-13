@@ -828,8 +828,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
-    // remove it from delay stack
-    remove_proc_from_delay_stack(proc->pid);
     if(full)
       proc->last_update = run;
 
@@ -904,10 +902,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
     g_hash_table_foreach_remove(processes, 
                                 processes_is_last_changed,
                                 &run);
-    // we can completly clean the delay stack as all processes are now processed
-    // missing so will cause scheduling for dead processes
-    if(delay_stack->len)
-      g_ptr_array_remove_range(delay_stack, 0, delay_stack->len);
   }
   if(full_update) {
     rebuild_tree();
@@ -1179,6 +1173,8 @@ int process_new_list(GArray *list, int update, int instant) {
  * @return boolean. Success
  */
 int process_run_one(u_proc *proc, int update, int instant) {
+  // remove it from delay stack
+  remove_proc_from_delay_stack(proc->pid);
   if(update)
     process_update_pid(proc->pid);
   if (instant)
@@ -1593,6 +1589,9 @@ int iterate(gpointer rv) {
 
   last = g_timer_elapsed(timer, &dump);
   process_update_all();
+  // we can completly clean the delay stack as all processes are now to be scheduled
+  if(delay_stack->len)
+    g_ptr_array_remove_range(delay_stack, 0, delay_stack->len);
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. run filter:", (current - last));
   last = current;
