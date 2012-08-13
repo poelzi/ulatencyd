@@ -99,8 +99,9 @@ end
 function u_proc:get_tasks(update)
 end
 
---! @brief Returns array of process tasks PIDs.
---! @return Array of numeric PIDs.
+--! @brief Returns array of process current tasks PIDs or `nil` if the process is already dead.
+--! @return Array of numeric PIDs or `nil` if the process is already dead.
+--! @warning This will fail if the process is already dead. In such case nothing (`nil`) will be returned.
 --! @public @memberof u_proc
 function u_proc:get_current_task_pids()
 end
