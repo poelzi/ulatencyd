@@ -25,7 +25,7 @@ Isolate = {
   --! @public @memberof Isolate
   check = function(self, proc)
     -- we give processes marked with media flags good io prio
-    local flg = ulatency.find_flag(proc:list_flags(), {name="isolate"})
+    local flg = ulatency.find_flag(proc:list_flags(true), {name="isolate"})
     if flg and flg.threshold and flg.threshold > 0 then
       ulatency.log_info(string.format('isolating process %d (%s), euid: %d, cmdline: %s',
                             proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match))
