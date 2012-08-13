@@ -1008,6 +1008,7 @@ static int run_new_pid(gpointer ign) {
 gboolean process_new_delay(pid_t pid, pid_t parent) {
   u_proc *proc, *proc_parent;
   struct delay_proc *lp;
+  int updated = FALSE; // tracks whether expensive process_update_pid() already called
   g_assert(pid != 0);
   if(!delay) {
       return process_new(pid, TRUE);
@@ -1027,6 +1028,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     } else {
       if(!process_update_pid(pid))
         return FALSE;
+      updated = TRUE;
       proc = proc_by_pid(pid);
       if(!proc)
         return FALSE;
@@ -1038,7 +1040,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
     if(proc->changed)
-      process_run_one(proc, FALSE, FALSE);
+      process_run_one(proc, !updated, FALSE);
     proc->changed = TRUE;
   } else {
     // we got a exec event, so the process changed daramaticly.
@@ -1048,7 +1050,8 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     int old_changed = proc->changed;
 
     u_proc_ensure(proc, CMDLINE, TRUE);
-    u_proc_ensure(proc, BASIC, TRUE);
+    u_proc_ensure(proc, BASIC, TRUE); //runs process_update_pid()
+    updated = TRUE;
     u_proc_ensure(proc, EXE, TRUE);
 
     // if a process is in the new stack, his changed settings will be true
@@ -1059,11 +1062,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       proc->changed = FALSE;
       filter_for_proc(proc, filter_fast_list);
       if(proc->changed)
-        process_run_one(proc, FALSE, FALSE);
+        process_run_one(proc, !updated, FALSE);
       proc->changed = old_changed;
     } else {
-      filter_for_proc(proc, filter_fast_list);
-      process_run_one(proc, FALSE, TRUE);
+      process_run_one(proc, !updated, TRUE);
     }
   }
 
