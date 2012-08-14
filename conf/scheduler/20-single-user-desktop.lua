@@ -419,49 +419,6 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["blkio"] =
                 save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_IDLE)
               end
   },
-
-  {
-    name = "starting-application",
-    cgroups_name = "starting-user-application",
-    param = { ["blkio.weight"]="500" },
-    label = { "application.starting" },
-    checks = {
-          function(proc)
-            return ( proc.euid > 999 and proc.euid < 60000 )
-          end,
-          function(proc)
-            local startup = ulatency.match_flag({"startup"})
-            if startup then
-              for _,p in ipairs(ulatency.list_processes(true)) do
-                p:clear_flag_name("application.starting")
-              end
-              return false, false
-            end
-            return true, true
-          end,
-    },
-    adjust = function(cgroup, proc)
-                if proc.is_valid and proc.changed then
-                  ulatency.log_info(
-                    string.format("[%d] Boosting IO priority for starting application: %s [%d]",
-                      os.time(), (proc.cmdfile or "(no cmdline)"), proc.pid
-                    )
-                  )
-                end
-                --save_io_prio(proc, 1, ulatency.IOPRIO_CLASS_RT)
-                save_io_prio(proc, 1, ulatency.IOPRIO_CLASS_BE)
-
-                --[[ lower others?
-                for _, task in cgroup:get_tasks() do
-                  local parent = task:get_parent()
-                  if parent.pid ~= proc.pid and task.pgrp ~= proc.pgrp
-                    save_io_prio(t, 7, ulatency.IOPRIO_CLASS_BE)
-                  end
-                end
-                --]]
-             end,
-  },
-
   {
     name = "media",
     param = { ["blkio.weight"]="300" },
@@ -486,7 +443,56 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["blkio"] =
                 return proc.active_pos == 1
               end,
     adjust = function(cgroup, proc)
-                save_io_prio(proc, 0, ulatency.IOPRIO_CLASS_BE)
+                if ulatency.match_flag({"application.starting"}, proc) then
+                  ulatency.log_info(
+                    string.format("[%d] Boosting to Real-Time IO policy for starting active application: %s [%d]",
+                      os.time(), (proc.cmdfile or "(no cmdline)"), proc.pid
+                    )
+                  )
+                  save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
+                else
+                  save_io_prio(proc, 0, ulatency.IOPRIO_CLASS_BE)
+                end
+              end,
+  },
+  {
+    name = "starting-application",
+    cgroups_name = "starting-user-application",
+    param = { ["blkio.weight"]="500" },
+    label = { "application.starting" },
+    checks = {
+          function(proc)
+            return ( proc.euid > 999 and proc.euid < 60000 )
+          end,
+          function(proc)
+            local startup = ulatency.match_flag({"startup"})
+            if startup then
+              for _,p in ipairs(ulatency.list_processes(true)) do
+                p:clear_flag_name("application.starting")
+              end
+              return false, false
+            end
+            return true, true
+          end,
+    },
+    adjust = function(cgroup, proc)
+                --if proc.is_valid and proc.changed then
+                  ulatency.log_info(
+                    string.format("[%d] Boosting IO priority for starting application: %s [%d]",
+                      os.time(), (proc.cmdfile or "(no cmdline)"), proc.pid
+                    )
+                  )
+                --end
+                save_io_prio(proc, 1, ulatency.IOPRIO_CLASS_BE)
+
+                --[[ lower others?
+                for _, task in cgroup:get_tasks() do
+                  local parent = task:get_parent()
+                  if parent.pid ~= proc.pid and task.pgrp ~= proc.pgrp
+                    save_io_prio(t, 7, ulatency.IOPRIO_CLASS_BE)
+                  end
+                end
+                --]]
              end,
   },
   {
@@ -574,7 +580,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["freezer"] =
                 if ulatency.get_uid_stats(proc.euid) or ulatency.match_flag({"quit","suspend"}) then
                   cgroup:set_value("freezer.state", 'THAWED')
                 else
-                  Scheduler:register_after_hook('freezing group ' .. cgroup.name, function()
+                  Scheduler:register_after_hook('freeze group ' .. cgroup.name, function()
                       ulatency.log_info('freezing group ' .. cgroup.name)
                       cgroup:set_value("freezer.state", 'FROZEN')
                       cgroup:commit()
