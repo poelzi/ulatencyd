@@ -49,7 +49,7 @@
 #define BUFF_SIZE (MAX(MAX(SEND_MESSAGE_SIZE, RECV_MESSAGE_SIZE), 1024))
 #define MIN_RECV_SIZE (MIN(SEND_MESSAGE_SIZE, RECV_MESSAGE_SIZE))
 
-
+gboolean netlink_proc_listening = FALSE;
 
 /**
  * Handle a netlink message.  In the event of PROC_EVENT_UID or PROC_EVENT_GID,
@@ -72,6 +72,10 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 	/* Get the event data.  We only care about two event types. */
 	ev = (struct proc_event*)cn_hdr->data;
 	switch (ev->what) {
+	case PROC_EVENT_NONE:
+		g_debug("netlink: successfully subscribed for listening to proc events");
+		netlink_proc_listening = TRUE;
+		break;
 	// quite seldom events on old processes changing important parameters
 	case PROC_EVENT_UID:
 		u_trace("UID Event: PID = %d, tGID = %d, rUID = %d,"
@@ -137,6 +141,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	GError *error = NULL;
 	gsize len;
 	gboolean ret = TRUE;
+	static gboolean first_time = TRUE;
 
 	char buff[BUFF_SIZE];
 	size_t recv_len;
@@ -145,6 +150,11 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	struct nlmsghdr *nlh;
 	struct sockaddr_nl kern_nla;
 	struct cn_msg *cn_hdr;
+
+	if (first_time) {
+		first_time = FALSE;
+		g_socket_set_timeout(socket, 0);
+	}
 
 	kern_nla.nl_family = AF_NETLINK;
 	kern_nla.nl_groups = CN_IDX_PROC;
@@ -158,7 +168,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	/* the helper process exited */
 	// this should not happen to netlink
 	if ((condition & G_IO_HUP) > 0) {
-		g_warning ("socket was disconnected");
+		g_warning ("netlink: socket was disconnected");
 		ret = FALSE;
 		goto out;
 	}
@@ -169,13 +179,16 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 		len = g_socket_receive (socket, buff, sizeof(buff), NULL, &error);
 
 		if (error != NULL) {
-			g_warning ("failed to get data: %s", error->message);
+			g_warning ("netlink: failed to get data: %s", error->message);
+			if (error->code == G_IO_ERROR_TIMED_OUT) {
+			    g_warning("netlink: realtime monitoring disabled. compile kernel with PROC_EVENTS enabled");
+			    ret = FALSE;
+			}
 			g_error_free (error);
-			// no reason to stop
 			goto out;
 		}
 		if (len == ENOBUFS) {
-			g_warning("NETLINK BUFFER FULL, MESSAGE DROPPED!");
+			g_warning("netlink: NETLINK BUFFER FULL, MESSAGE DROPPED!");
 			return 0;
 		}
 		if (len == 0)
@@ -224,7 +237,7 @@ int init_netlink(GMainLoop *loop) {
 	socket_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
 
 	if (socket == NULL) {
-		g_warning ("failed to create socket: %s", error->message);
+		g_warning ("netlink: failed to create socket: %s", error->message);
 		g_error_free (error);
 		return 1;
 	}
@@ -235,23 +248,27 @@ int init_netlink(GMainLoop *loop) {
 	my_nla.nl_pad = 0;
 
 	if (bind(socket_fd, (struct sockaddr *)&my_nla, sizeof(my_nla)) < 0) {
-		g_warning("binding sk_nl error: %s\n", strerror(errno));
-		g_warning("realtime monitoring disabled. compile kernel with PROC_EVENTS enabled");
+		g_warning("netlink: binding sk_nl error: %s\n", strerror(errno));
+		g_warning("netlink: realtime monitoring disabled. compile kernel with PROC_EVENTS enabled");
 		goto out;
 	}
 
 	gsocket = g_socket_new_from_fd(socket_fd, NULL);
 	if(gsocket == NULL) {
-		g_warning("can't create socket");	
+		g_warning("netlink: can't create socket");
 		goto out;
 	}
 
 	nl_hdr = (struct nlmsghdr *)buff;
 	cn_hdr = (struct cn_msg *)NLMSG_DATA(nl_hdr);
 	mcop_msg = (enum proc_cn_mcast_op*)&cn_hdr->data[0];
-	g_debug("sending proc connector: PROC_CN_MCAST_LISTEN... ");
+	g_debug("netlink: sending proc connector: PROC_CN_MCAST_LISTEN... ");
 	memset(buff, 0, sizeof(buff));
 	*mcop_msg = PROC_CN_MCAST_LISTEN;
+
+	/* test if PROC_CN_MCAST_LISTEN will success */
+	netlink_proc_listening = FALSE;
+	g_socket_set_timeout(gsocket, 5);
 
 	/* fill the netlink header */
 	nl_hdr->nlmsg_len = SEND_MESSAGE_LEN;
@@ -266,10 +283,10 @@ int init_netlink(GMainLoop *loop) {
 	cn_hdr->seq = 0;
 	cn_hdr->ack = 0;
 	cn_hdr->len = sizeof(enum proc_cn_mcast_op);
-	g_debug("sending netlink message len=%d, cn_msg len=%d\n",
+	g_debug("netlink: sending netlink message len=%d, cn_msg len=%d\n",
 		nl_hdr->nlmsg_len, (int) sizeof(struct cn_msg));
 	if (send(socket_fd, nl_hdr, nl_hdr->nlmsg_len, 0) != nl_hdr->nlmsg_len) {
-		g_warning("failed to send proc connector mcast ctl op!: %s\n",
+		g_warning("netlink: failed to send proc connector mcast ctl op!: %s\n",
 			strerror(errno));
 	}
 	g_debug("sent\n");

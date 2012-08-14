@@ -806,7 +806,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
   if(!proctab) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
-    return 1;
+    return 0;
   }
   memset(&buf, 0, sizeof(proc_t));
   while(readproc(proctab, &buf)){
@@ -830,8 +830,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
 
     // detect change of important parameters that will cause a reschedule
     proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
-    // remove it from delay stack
-    remove_proc_from_delay_stack(proc->pid);
     if(full)
       proc->last_update = run;
 
@@ -907,10 +905,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
     g_hash_table_foreach_remove(processes, 
                                 processes_is_last_changed,
                                 &run);
-    // we can completly clean the delay stack as all processes are now processed
-    // missing so will cause scheduling for dead processes
-    if(delay_stack->len)
-      g_ptr_array_remove_range(delay_stack, 0, delay_stack->len);
   }
   if(full_update) {
     rebuild_tree();
@@ -978,7 +972,7 @@ static int run_new_pid(gpointer ign) {
         td = diff(cur->when, now);
         //printf("test %d  %ld >= %ld\n",  cur->proc->pid, (td.tv_sec * 1000000000 + td.tv_nsec), delay);
         if((td.tv_sec * 1000000000 + td.tv_nsec) >= delay) {
-            u_trace("run filter for %d", cur->proc->pid);
+            u_trace("delay stack: run filter for %d", cur->proc->pid);
             g_array_append_val(targets, cur->proc->pid);
             // enforce the scheduler on run when moved from the delay queue
             cur->proc->changed = TRUE;
@@ -1017,6 +1011,7 @@ static int run_new_pid(gpointer ign) {
 gboolean process_new_delay(pid_t pid, pid_t parent) {
   u_proc *proc, *proc_parent;
   struct delay_proc *lp;
+  int updated = FALSE; // tracks whether expensive process_update_pid() already called
   g_assert(pid != 0);
   if(!delay) {
       return process_new(pid, TRUE);
@@ -1036,6 +1031,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     } else {
       if(!process_update_pid(pid))
         return FALSE;
+      updated = TRUE;
       proc = proc_by_pid(pid);
       if(!proc)
         return FALSE;
@@ -1046,8 +1042,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     g_ptr_array_add(delay_stack, lp);
     proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
-    if(proc->changed)
-      scheduler_run_one(proc);
+    if(proc->changed) {
+      process_run_one(proc, !updated, FALSE);
+      return TRUE;
+    }
     proc->changed = TRUE;
   } else {
     // we got a exec event, so the process changed daramaticly.
@@ -1057,7 +1055,8 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     int old_changed = proc->changed;
 
     u_proc_ensure(proc, CMDLINE, TRUE);
-    u_proc_ensure(proc, BASIC, TRUE);
+    u_proc_ensure(proc, BASIC, TRUE); //runs process_update_pid()
+    updated = TRUE;
     u_proc_ensure(proc, EXE, TRUE);
 
     // if a process is in the new stack, his changed settings will be true
@@ -1067,12 +1066,13 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     if(pid_in_delay_stack(proc->pid)) {
       proc->changed = FALSE;
       filter_for_proc(proc, filter_fast_list);
-      if(proc->changed)
-        scheduler_run_one(proc);
+      if(proc->changed) {
+        process_run_one(proc, !updated, FALSE);
+        return TRUE;
+      }
       proc->changed = old_changed;
     } else {
-      filter_for_proc(proc, filter_fast_list);
-      scheduler_run_one(proc);
+      process_run_one(proc, !updated, TRUE);
     }
   }
 
@@ -1133,21 +1133,19 @@ int process_new(int pid, int noupdate) {
   proc = proc_by_pid(pid);
   if(!proc)
     return FALSE;
-  filter_for_proc(proc, filter_fast_list);
-  filter_for_proc(proc, filter_list);
-  scheduler_run_one(proc);
+  process_run_one(proc, FALSE, TRUE);
   return TRUE;
 }
 
 /**
  * updates list of processes
- * @arg list array of #pid_t
- * @arg update update even if existing
- * @instant boolean if instant filters should be run first
+ * @param list array of #pid_t
+ * @param update boolean, update even if existing
+ * @param instant boolean, if instant filters should be run first
  *
  * Indicates a list of new processes and runs the rules and scheduler on it.
  *
- * @return boolean. Sucess
+ * @return boolean. Success
  */
 int process_new_list(GArray *list, int update, int instant) {
   u_proc *proc;
@@ -1169,10 +1167,7 @@ int process_new_list(GArray *list, int update, int instant) {
       continue;
     if(!u_proc_ensure(proc, BASIC, FALSE))
       continue;
-    if(instant)
-      filter_for_proc(proc, filter_fast_list);
-    filter_for_proc(proc, filter_list);
-    scheduler_run_one(proc);
+    process_run_one(proc, FALSE, instant);
   }
   free(pids);
   return TRUE;
@@ -1180,17 +1175,20 @@ int process_new_list(GArray *list, int update, int instant) {
 
 /**
  * run filters and scheduler on one process
- * @arg proc #u_proc to run
- * @update: update process before run
+ * @param proc #u_proc to run
+ * @param update boolean: update process before run
+ * @param instant boolean: if instant filters should be run too
  *
- * Run the filters and scheduler on the process
- *
- * @return boolean. Sucess
+ * @return boolean. Success
  */
 int process_run_one(u_proc *proc, int update, int instant) {
+  // remove it from delay stack
+  remove_proc_from_delay_stack(proc->pid);
   if(update)
     process_update_pid(proc->pid);
-  filter_for_proc(proc, instant ? filter_fast_list : filter_list);
+  if (instant)
+    filter_for_proc(proc, filter_fast_list);
+  filter_for_proc(proc, filter_list);
   scheduler_run_one(proc);
   return TRUE;
 }
@@ -1600,6 +1598,9 @@ int iterate(gpointer rv) {
 
   last = g_timer_elapsed(timer, &dump);
   process_update_all();
+  // we can completly clean the delay stack as all processes are now to be scheduled
+  if(delay_stack->len)
+    g_ptr_array_remove_range(delay_stack, 0, delay_stack->len);
   current = g_timer_elapsed(timer, &dump);
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "took %0.2F. run filter:", (current - last));
   last = current;
