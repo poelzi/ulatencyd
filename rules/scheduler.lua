@@ -530,7 +530,10 @@ function Scheduler:_one(proc, single)
   end
 
   local group
-  if proc.block_scheduler < self.PROC_BLOCK_THRESHOLD then
+  if proc.block_scheduler >= self.PROC_BLOCK_THRESHOLD then
+    ulatency.log_debug(string.format("Scheduler:one(): pid %d skipped (proc.block_scheduler=%d, block threshold=%d)",
+                                    proc.pid, proc.block_scheduler, self.PROC_BLOCK_THRESHOLD))
+  else
     local cgr_paths, cgroups = proc:get_cgroups()
     for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
       map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
