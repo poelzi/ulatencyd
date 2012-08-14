@@ -792,7 +792,10 @@ function CGroup:add_children(proc)
   function add_childs(list)
     for i,v in pairs(list) do
       self:run_adjust(v)
-      self:add_task_list(v.pid, v:get_current_task_pids())
+      local tasks = v:get_current_task_pids()
+      if tasks then --nil if the process is already dead
+        self:add_task_list(v.pid, tasks)
+      end
     end
     for i,v in pairs(list) do
       add_childs(v:get_children())
@@ -814,6 +817,7 @@ end
 function CGroup.create_isolation_group(proc, suffix, mappings, include_children, block_scheduler, fnc)
 
   local tasks = proc:get_current_task_pids()
+  if not tasks then return end --process is already dead
   local cgr_name = "iso_"..suffix or tostring(pid)
   for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
     if ulatency.tree_loaded(subsys) then
