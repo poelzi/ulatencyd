@@ -87,22 +87,68 @@ function mkdirp(path)
   return true
 end
 
+--! @brief Log error after writing to sysfs failed: decides whether the error should be logged,
+--! the log level and composes the error message.
+--! @param filepath The file full path
+--! @param value A value that trigger the error
+--! @param err Textual representation of the error
+--! @param err_code The error code (a number)
+local function sysfs_write_error(filepath, value, err, err_code)
+
+  local s,e = string.find(filepath, CGROUP_ROOT, 1, true)
+  if s == 1 then
+
+    -- error while writing to a cgroup subsystem
+    local fields = string.split(string.sub(filepath, e+1), '/')
+    if #fields >= 2 then
+      local subsys = fields[1]
+      local file = fields[#fields]
+      local cgr_name = #fields >= 3 and table.concat(fields, '/', 2, #fields-1) or ""
+      local cgr = CGroup.get_group(subsys ..'/'.. cgr_name)
+      if cgr then
+        -- error while adding task to a cgroup
+        if file == "tasks" then
+          -- no such process; ignore this error
+          if err_code == 3 then
+            return
+          end
+          -- error while moving rt task between cgroups in cpu subsystem on kernel without CONFIG_RT_GROUP_SCHED
+          if cgr.tree == "cpu" and err_code == 22 and posix.access(cgr:path("cpu.rt_runtime_us")) ~= 0 then
+            local task = ulatency.get_tid(value)
+            if task and (task.sched == ulatency.SCHED_RR or task.sched == ulatency.SCHED_FIFO) then
+              ulatency.log_debug(string.format(
+                "Task (tid: %s, RT sched.) couldn't be moved to %s (%d: %s) (probably kernel w/o CONFIG_RT_GROUP_SCHED)",
+                tostring(value), tostring(cgr), err_code, err
+              ))
+              return
+            end
+          end
+          -- other error
+          ulatency.log_warning(
+            string.format("Task (tid: %s) couldn't be moved to %s (%d: %s)", tostring(value), tostring(cgr), err_code, err))
+          return
+        end
+      end
+    end
+  end
+
+  ulatency.log_warning(string.format("can't write string '%s' into %s: (%d) %s",tostring(value),filepath,err_code,err))
+end
+
 --! @brief Write string to a file under SYSFS
 local function sysfs_write(path, value, quiet)
-  local rv = false
+  local ok, err, err_code = false, nil, nil
   local fp = io.open(path, "w")
   if fp then
     fp:setvbuf("no")
-    local ok, err, err_code = fp:write(value)
-    if ok then
-      rv = true
-    elseif not quiet then
-      ulatency.log_warning(string.format("can't write string '%s' into %s :(%s) %s",value,path,err_code,err))
+    ok, err, err_code = fp:write(value)
+    if not ok and not quiet then
+      sysfs_write_error(path, value, err, err_code)
     end
     fp:close()
   end
 
-  return rv
+  return ok, err, err_code
 end
 --! @} End of "addtogroup lua_HELPERS"
 
@@ -772,12 +818,13 @@ function CGroup:commit()
       fp:setvbuf("no")
       for i, pid in ipairs(pids) do
         local ok, err, err_code = fp:write(tostring(pid)..'\n')
-        if not ok and err_code ~= 3 then      -- err_code == 3 : No such process
-          ulatency.log_warning(string.format("can't write string '%s' into %s :(%s) %s",tostring(pid),t_file,err_code,err))
-        end
-        local proc = ulatency.get_pid(pid)
-        if proc then
-          proc:add_cgroup(self)
+        if not ok then
+          sysfs_write_error(t_file, tostring(pid), err, err_code)
+        else
+          local proc = ulatency.get_pid(pid)
+          if proc then
+            proc:add_cgroup(self)
+          end
         end
       end
       ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))

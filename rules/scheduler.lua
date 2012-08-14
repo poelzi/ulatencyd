@@ -404,11 +404,15 @@ function Scheduler:all()
   self.C_FILTER = true
   self.ITERATION = self.ITERATION + 1
 
-  -- detect shutdown
   for j, flag in pairs(ulatency.list_flags()) do
+    -- shutdown
     if flag.name == "suspend" or flag.name == "quit" then
       self:_quit( flag )
       break
+    end
+    -- startup: first scheduler run
+    if flag.name == "startup" then
+      ulatency.del_flag(flag)
     end
   end
 
@@ -667,3 +671,7 @@ end
 ulatency.scheduler = Scheduler
 
 ulatency.load_rule_directory("scheduler/")
+
+-- add startup system flag
+local startup_flag = ulatency.new_flag("startup")
+ulatency.add_flag(startup_flag)
