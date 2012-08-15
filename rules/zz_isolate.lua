@@ -28,7 +28,7 @@ Isolate = {
     local flg = ulatency.find_flag(proc:list_flags(true), {name="isolate"})
     if flg and flg.threshold and flg.threshold > 0 then
       ulatency.log_info(string.format('isolating process %d (%s), euid: %d, cmdline: %s',
-                            proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match))
+                            proc.pid, proc.cmdfile or "NONE!", proc.euid or "NONE!", proc.cmdline_match or "NONE!"))
       if flg.reason and flg.reason ~= "" then
         CGroup.create_isolation_group(proc, flg.reason, self.RULES[flg.reason] or {}, false, flg.threshold)
       else
