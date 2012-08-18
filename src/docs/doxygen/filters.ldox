@@ -35,7 +35,7 @@
 --!    - if important process parameters like `UID` or `GID` change (`process_new()`).
 --!
 --!    If fast filters change a
---!    process it is immediately scheduled with `Scheduler:one()`. See `u_proc:clear_changed()` for descriptions
+--!    process it is immediately scheduled with `Scheduler::one()`. See `U_PROC::clear_changed()` for descriptions
 --!    what changes are considered important. For filters this mostly means adding a flag to that process.  Currently you
 --!    cannot define a fast filter from LUA. Fast filters are for example created by the
 --!    @link lua_MODULES simplerules module@endlink from lines tagging a process with instant=1.
@@ -94,7 +94,7 @@ __FILTER.precheck = function(self)
 --! @brief Check one process; this is the real heart of the filter - it gets passed an process instance which it
 --! should analyse and manipulate with it's decisions.
 --! All processes are checked in process tree from the top (init) descending all children.
---! @param proc A #u_proc instance.
+--! @param proc A #U_PROC instance.
 --! @return The return value of the check filter is used to notify the core how the filter is used on future runs
 --! on a per process bases. The return value informs the core about two things:
 --! An timeout value of 16 bits in seconds when the filter should be run again, and flags about the transversel:

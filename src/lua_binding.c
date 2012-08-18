@@ -492,7 +492,7 @@ static int l_add_interval (lua_State *L) {
 
 // type checks and pushes
 
-#define U_PROC "u_proc"
+#define U_PROC "U_PROC"
 #define U_PROC_META "U_PROC_META"
 #define U_PROC_TASK "U_PROC_TASK"
 #define U_PROC_TASK_META "U_PROC_TASK_META"

@@ -39,7 +39,7 @@
 --! manipulation` group above.
 --!
 --! If you add a flag to a process, remove a flag from process or a flag times out, the process is marked as 
---! changed (`u_proc.changed`). Changed processes are subjects for scheduling.
+--! changed (`U_PROC.changed`). Changed processes are subjects for scheduling.
 --!
 --! Processes are mostly flagged by the @link lua_FILTERS filters@endlink defined in 
 --! @link lua_RULES rule files@endlink. The simplest way is to use @link lua_SIMPLERULES simplerules@endlink.

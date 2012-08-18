@@ -2,111 +2,114 @@
 
 --! @file u_proc.ldox
 --! @ingroup lua_DOC
---! This file is for documentation purposes only, it documents the 'u_proc' table which is implemented in the core
+--! This file is for documentation purposes only, it documents the lua `U_PROC` table, the interface to `u_proc`
+--! structure implemented in the core.
 
---! @class u_proc
---! @brief Process class.
---! @note You can extend the `u_proc` class in lua, though you cannot override methods implemented in the C core.
+--! @class U_PROC
+--! @brief Process class. The `#U_PROC` is basically proxy to `u_proc` structure implemented in the core, extended
+--! with lua bindings and possibly with lua (you can extend the `U_PROC` class in lua).
 --! @attention
 --! Process objects are shared between all parts of ulatencyd. If you save a reference you do not save the
 --! data, but only a reference to it. Accessing values will always be the most recent version of it. If you
 --! want create a history of data, you have to store them as copies. If you save references they may be to
 --! a dead process, but still there. To prevent memory leaks you should check them periodically if they are
---! still valid. You can check if the process of your reference is still alive with u_proc.is_valid.
+--! still valid. You can check if the process of your reference is still valid with `U_PROC.is_valid`.
 --! @note Best practice is to store your data attached to the process, so it gets collected when the process
---! dies. Use u_proc.data for a table shared between all lua scripts. You should use u_proc.data[SOMEUNIQUESTRING]
+--! dies. Use `U_PROC.data` for a table shared between all lua scripts. You should use `U_PROC.data[SOMEUNIQUESTRING]`
 --! to prevent clashes between rules.
 --! @ingroup lua_CORE lua_FLAGS
-u_proc = {}
+U_PROC = {}
 
---! @brief Returns parent #u_proc of process #u_proc.
---! @public @memberof u_proc
---! @return #u_proc | nil
-function u_proc:get_parent()
+--! @brief Returns parent #U_PROC of process #U_PROC.
+--! @public @memberof U_PROC
+--! @return #U_PROC | nil
+function U_PROC:get_parent()
 end
 
---! @brief Returns child processes of the process #u_proc.
---! @return table of #u_proc | nil Array with children or nil if #u_proc node does not exist.
---! @public @memberof u_proc
-function u_proc:get_children()
+--! @brief Returns child processes of the process #U_PROC.
+--! @return table of #U_PROC | nil Array with children or nil if #U_PROC node does not exist.
+--! @public @memberof U_PROC
+function U_PROC:get_children()
 end
 
---! @brief Sends `signal` to process #u_proc.
+--! @brief Sends `signal` to process #U_PROC.
 --! @param signal Signal number or 15 (`SIGTERM`)
---! @public @memberof u_proc
-function u_proc:kill(signal)
+--! @public @memberof U_PROC
+function U_PROC:kill(signal)
 end
 
---! @brief Gets the number of direct children of a #u_proc.
---! @public @memberof u_proc
-function u_proc:get_n_children()
+--! @brief Gets the number of direct children of a #U_PROC.
+--! @public @memberof U_PROC
+function U_PROC:get_n_children()
 end
 
---! @brief Gets the number of all children of a #u_proc.
---! @public @memberof u_proc
-function u_proc:get_n_nodes()
+--! @brief Gets the number of all children of a #U_PROC.
+--! @public @memberof U_PROC
+function U_PROC:get_n_nodes()
 end
 
---! @brief Sets #u_proc.block_scheduler value.
+--! @brief Sets `#U_PROC.block_scheduler` value.
 --! @param value a number 
 --! - A value greater than 0 will cause Scheduler skips the process. 
 --! - A value greater then 1 will cause
 --!   Scheduler skips the process even when doing final cleanup, caused by ulatencyd daemon shutdown. This will make
 --!   the process **never** being moved from its cgroup.
 --! @remark Particular, if you have a process you want to be never moved to other cgroup, setup a cgroup, move the 
---! process to it and call `u_proc:set_block_scheduler(1)`.
+--! process to it and call `U_PROC:set_block_scheduler(1)`.
 --! @remark If you have a process you want to stay in its cgroup forever, e.g. a process that creates its private 
---! cgroups that will not be able to find if the process would be moved, call `u_proc:set_block_scheduler(2)` on it.
+--! cgroups that will not be able to find if the process would be moved, call `U_PROC:set_block_scheduler(2)` on it.
 --! @remark You may put processes to isolation with `CGroup.create_isolation_group()` or label them with 
 --! @link __ISOLATE_FLAG isolate flag@endlink.
---! @public @memberof u_proc
-function u_proc:set_block_scheduler(value)
+--! @public @memberof U_PROC
+function U_PROC:set_block_scheduler(value)
 end
 
---! @brief Sets the fake PGID of the process #u_proc.
---! This will set PGID in #u_proc structure for ulatency internal usage, real PGID cannot be changed.
---! This function will mark the process as changed (u_proc.changed).
+--! @brief Sets the fake PGID of the process #U_PROC.
+--! This will set PGID in #U_PROC structure for ulatency internal usage, real PGID cannot be changed.
+--! This function will mark the process as changed (`U_PROC.changed`).
 --! @see `man 7 credentials`
---! @see u_proc.clear_changed()
---! @public @memberof u_proc
-function u_proc:set_pgid(value)
+--! @see `U_PROC::clear_changed()`
+--! @public @memberof U_PROC
+function U_PROC:set_pgid(value)
 end
 
---! @brief Adjusts the oom-killer score for #u_proc by a `value`.
+--! @brief Adjusts the oom-killer score for #U_PROC by a `value`.
 --! While the oom-killer is doing heuristic to choose process to kill it assigns a number to each candidate task
 --! ranging from 0 (never kill) to 1000 (always kill). The value is roughly a proportion of allocated and
 --! allowed memory by the process. Passed `value` will be added to this number. So setting this to -1000 is
---! equivalent to disabling oom killing entirely for #u_proc.
+--! equivalent to disabling oom killing entirely for #U_PROC.
 --! @return TRUE if adjusted successfully, otherwise FALSE
 --! @see Linux `Documentation/filesystems/proc.txt`
---! @public @memberof u_proc
-function u_proc:set_oom_score(value)
+--! @public @memberof U_PROC
+function U_PROC:set_oom_score(value)
 end
 
---! @brief Get the number the oom-killer score is adjusted for #u_proc.
+--! @brief Get the number the oom-killer score is adjusted for #U_PROC.
 --! @return a number
 --! @retval 0 If failed.
---! @see u_proc:set_oom_score()
---! @public @memberof u_proc
-function u_proc:get_oom_score()
+--! @see `U_PROC::set_oom_score()`
+--! @public @memberof U_PROC
+function U_PROC:get_oom_score()
 end
 
---! @brief Returns array of process #u_proc tasks.
+--! @brief Returns array of process #U_PROC tasks.
 --! @param update If TRUE process tasks are updated before returned.
 --! @return Array of #u_task entities.
 --! @bug The `update` patameter not implemented.
---! @public @memberof u_proc
-function u_proc:get_tasks(update)
+--! @warning For every returned #u_task the reference count of the thread leader #u_proc is increased.
+--! @warning Do not store references to #u_task instances! The core frees these everytime the process is updated!
+--! @public @memberof U_PROC
+function U_PROC:get_tasks(update)
 end
 
 --! @brief Returns array of process current tasks PIDs or `nil` if the process is already dead.
 --! @return Array of numeric PIDs or `nil` if the process is already dead.
 --! @warning This will fail if the process is already dead. In such case nothing (`nil`) will be returned.
---! @public @memberof u_proc
-function u_proc:get_current_task_pids()
+--! @public @memberof U_PROC
+function U_PROC:get_current_task_pids()
 end
 
---! @brief Clears #u_proc.changed attribute, this process may be skipped by Scheduler until changed again.
+--! @brief Clears `#U_PROC.changed` attribute, this process may be skipped by Scheduler until changed again.
 --! Scheduler skips unchanged processes unless performing full run or normal run under special circumstances.
 --! A process is considered changed if
 --!       - recieved RT for the first time (SCHED_RR or SCHED_FIFO)
@@ -116,9 +119,9 @@ end
 --!           + new process that has been removed from delay_stack
 --!           + any flag added, removed or timed out (but not changed)
 --!
---! @see Scheduler:all() and #u_proc.changed for details.
---! @public @memberof u_proc
-function u_proc:clear_changed()
+--! @see `Scheduler::all()` and `#U_PROC.changed` for details.
+--! @public @memberof U_PROC
+function U_PROC:clear_changed()
 end
 
 -------------------------------------------------------
@@ -128,47 +131,47 @@ end
 
 --! @ingroup lua_FLAGS
 
---! @brief Returns flags from the process #u_proc.
+--! @brief Returns flags from the process #U_PROC.
 --! @param recursive (optional) TRUE, if inherited flags should be returned too. Defaults to FALSE.
 --! @return table
---! @public @memberof u_proc
-function u_proc:list_flags(recursive)
+--! @public @memberof U_PROC
+function U_PROC:list_flags(recursive)
 end
 
---! @brief Adds the flag #u_flag to the process #u_proc.
---! @note The #u_proc is marked as changed, see #u_proc.changed.
+--! @brief Adds the flag #u_flag to the process #U_PROC.
+--! @note The #U_PROC is marked as changed, see `#U_PROC.changed`.
 --! @param flag a #u_flag to add
---! @public @memberof u_proc
-function u_proc:add_flag(flag)
+--! @public @memberof U_PROC
+function U_PROC:add_flag(flag)
 end
 
---! @brief Removes a flag #u_flag from a process #u_proc.
---! @note The #u_proc is marked as changed, see #u_proc.changed.
+--! @brief Removes a flag #u_flag from a process #U_PROC.
+--! @note The #U_PROC is marked as changed, see `#U_PROC.changed`.
 --! @param flag a #u_flag to delete
---! @public @memberof u_proc
-function u_proc:del_flag(flag)
+--! @public @memberof U_PROC
+function U_PROC:del_flag(flag)
 end
 
---! @brief Removes flags with the `name` from a process #u_proc.
---! @note If a flag is removed, the #u_proc is marked as changed, see #u_proc.changed.
+--! @brief Removes flags with the `name` from a process #U_PROC.
+--! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
 --! @param name of #u_flags to delete
---! @public @memberof u_proc
-function u_proc:clear_flag_name(name)
+--! @public @memberof U_PROC
+function U_PROC:clear_flag_name(name)
 end
 
---! @brief From a process #u_proc removes all flags that was created by current lua thread.
+--! @brief From a process #U_PROC removes all flags that was created by current lua thread.
 --! Specifically, all flags created with same lua state will be removed.
 --! There is one main lua state and additional lua states for every lua thread created by
 --! ulatency.add_timeout() and ulatency.register_filter().
---! @note If a flag is removed, the #u_proc is marked as changed, see #u_proc.changed.
---! @public @memberof u_proc
-function u_proc:clear_flag_source()
+--! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @public @memberof U_PROC
+function U_PROC:clear_flag_source()
 end
 
---! @brief Removes all flags from a process #u_proc.
---! @note If a flag is removed, the #u_proc is marked as changed, see #u_proc.changed.
---! @public @memberof u_proc
-function u_proc:clear_flag_all()
+--! @brief Removes all flags from a process #U_PROC.
+--! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @public @memberof U_PROC
+function U_PROC:clear_flag_all()
 end
 --! @} End of "process flags manipulation"
 
@@ -179,7 +182,7 @@ end
 
 --! @ingroup lua_PROC_SCHED
 
---! @brief Sets scheduling `policy` and `priority` for process #u_proc.
+--! @brief Sets scheduling `policy` and `priority` for process #U_PROC.
 --! @param policy a scheduling policy number, you can use one following constants:
 --! - normal policies
 --!   - ulatency.SCHED_OTHER
@@ -195,11 +198,11 @@ end
 --!   priority based on process `nice` value
 --! @see `man 2 sched_setscheduler`
 --! @see lua_PROC_SCHED
---! @public @memberof u_proc
-function u_proc:set_rtprio(policy, priority)
+--! @public @memberof U_PROC
+function U_PROC:set_rtprio(policy, priority)
 end
 
---! @brief Sets I/O scheduling class and priority for process #u_proc.
+--! @brief Sets I/O scheduling class and priority for process #U_PROC.
 --! @param priority a priority number, valid range depends on selected `class`.
 --! - On Linux for **real-time** policies `SCHED_FIFO` and `SCHED_RR` are valid numbers
 --!   from the range 1 (lowest) - 99 (highest).
@@ -215,18 +218,18 @@ end
 --! @return TRUE if success, FALSE if failed
 --! @see `man 2 ioprio_set`
 --! @see lua_PROC_SCHED
---! @public @memberof u_proc
-function u_proc:set_ioprio(priority, class)
+--! @public @memberof U_PROC
+function U_PROC:set_ioprio(priority, class)
 end
 
---! @brief Gets I/O scheduling class and priority of process #u_proc.
+--! @brief Gets I/O scheduling class and priority of process #U_PROC.
 --! @return priority, class Priority and scheduling class number
 --! @retval 0, 0 If reading of values failed.
---! @see u_proc:set_ioprio(priority, class)
+--! @see `U_PROC::set_ioprio()`
 --! @see `man 2 ioprio_get`
 --! @see lua_PROC_SCHED
---! @public @memberof u_proc
-function u_proc:get_ioprio()
+--! @public @memberof U_PROC
+function U_PROC:get_ioprio()
   return priority, class
 end
 --! @} End of "process scheduling policies and priorities manipulation"

@@ -2,14 +2,14 @@
 --! @file
 --! @ingroup lua_CORE
 
---! @brief Saves I/O scheduling class and priority of process #u_proc and sets new values.
---! @param proc a process #u_proc instance
+--! @brief Saves I/O scheduling class and priority of process `#U_PROC` and sets new values.
+--! @param proc a process `#U_PROC` instance
 --! @param prio I/O scheduling priority
 --! @param prio I/O scheduling class
---! @see u_proc:set_ioprio(priority, class) for parameters description.
+--! @see `U_PROC::set_ioprio()` for parameters description.
 --! @see lua_PROC_SCHED
 --! @ingroup lua_PROC_SCHED
---! @relates #u_proc
+--! @relates #U_PROC
 function save_io_prio(proc, prio, class)
   if not proc.data.io_prio then
     proc.data.io_prio = {proc:get_ioprio()}
@@ -17,11 +17,11 @@ function save_io_prio(proc, prio, class)
   proc:set_ioprio(prio, class)
 end
 
---! @brief Restore saved I/O scheduling class and priority of process #u_proc.
---! Restores values previously saved by save_io_prio()
---! @param proc a process #u_proc instance
+--! @brief Restore saved I/O scheduling class and priority of process `#U_PROC`.
+--! Restores values previously saved by `save_io_prio()`.
+--! @param proc a process `#U_PROC` instance
 --! @ingroup lua_PROC_SCHED
---! @relates #u_proc
+--! @relates #U_PROC
 function restore_io_prio(proc)
   if proc.data.io_prio then
     local pr = proc.data.io_prio

@@ -76,7 +76,7 @@ ulatency.FILTER_STOP = FILTER_STOP
 ulatency.FILTER_SKIP_CHILD = FILTER_SKIP_CHILD
 --! @}
 
---! You may use these constants in u_proc:set_ioprio(priority, class) as `class` argument.
+--! You may use these constants in `U_PROC::set_ioprio()` as `class` argument.
 --! The range of `priority` levels depends on selected policy and on used I/O scheduler. Priority levels range
 --! below are for the CFQ scheduler.
 --! @name IOPRIO classes
@@ -99,7 +99,7 @@ ulatency.IOPRIO_CLASS_IDLE = IOPRIO_CLASS_IDLE
 --! @}
 
 --! @ingroup lua_PROC_SCHED
---! You may use these constants in u_proc:set_rtprio(policy, priority) as `policy` argument.
+--! You may use these constants in `U_PROC::set_rtprio()` as `policy` argument.
 --! The `priority` interpretation depends on selected policy.
 --! @see `man 2 sched_setscheduler`
 --! @name scheduling policies
@@ -217,11 +217,11 @@ end
 --! @name get processes
 --! @{
 
---! Returns process #u_proc with `pid`.
+--! Returns process `U_PROC` with `pid`.
 --! @param pid A PID of the process to return.
---! @param include_tasks (optional, default FALSE) If TRUE and #u_proc with `pid` not found, return
+--! @param include_tasks (optional, default FALSE) If TRUE and `U_PROC` with `pid` not found, return
 --! the thread leader of the task `pid`.
---! @retval #u_proc If process with `pid` exists in ulatency #processes table.
+--! @retval `U_PROC` If process with `pid` exists in ulatency #processes table.
 --! @retval 0 If process with `pid` does not exists in ulatency #processes table.
 --! @public @memberof ulatency
 function ulatency.get_pid(pid, include_tasks)
@@ -241,9 +241,9 @@ end
 function ulatency.list_pids()
 end
 
---! Returns array with #u_proc processes from ulatency #processes table.
+--! Returns array with `U_PROC` processes from ulatency #processes table.
 --! @param changed TRUE if only changed processes should be included.
---! @return Array of #u_proc instances.
+--! @return Array of `U_PROC` instances.
 --! @public @memberof ulatency
 function ulatency.list_processes(changed)
 end
@@ -358,7 +358,7 @@ end
 --! - ulatency.add_flag() or ulatency.del_flag()
 --! - changing a flag values
 --! @note The `system_flags_changed` is cleared after every iteration, see ulatency.run_iteration().
---! @note Scheduler:all() will normally schedule only processes that are marked as changed (see u_proc:clear_changed()
+--! @note `Scheduler::all()` will normally schedule only processes that are marked as changed (see `U_PROC.clear_changed()`
 --! for description of what processes are considered changed). If you want to force rescheduling of all processes, e.g.
 --! because you have added some important system flag, set the `system_flags_changed` manually.
 --! @relatesalso Scheduler
@@ -440,7 +440,7 @@ end
 --! @brief Gets array of unique values of environment variable `key` across all processes of the `uid` user.
 --! @param uid User UID
 --! @param key The name of environment variable.
---! @param update (optional) If TRUE, updates the #u_proc.environ values before searching.
+--! @param update (optional) If TRUE, updates the `U_PROC.environ` values before searching.
 --! @public @memberof ulatency
 function ulatency.search_uid_env(uid, key, update)
 end
@@ -588,7 +588,7 @@ end
 --!   @ref lua_SIMPLERULES "simplerules module")
 --! - runs normal filters
 --! - runs `Scheduler::all()`
---! - marks all processes as unchanged, see `u_proc::clear_changed()`
+--! - marks all processes as unchanged, see `U_PROC::clear_changed()`
 --! - clears `system_flags_changed` variable, see `ulatency.set_flags_changed()`
 --! @public @memberof ulatency
 function ulatency.run_iteration()
