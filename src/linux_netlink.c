@@ -236,7 +236,7 @@ int init_netlink(GMainLoop *loop) {
 	 */
 	socket_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
 
-	if (socket == NULL) {
+	if (socket_fd == -1) {
 		g_warning ("netlink: failed to create socket: %s", error->message);
 		g_error_free (error);
 		return 1;
