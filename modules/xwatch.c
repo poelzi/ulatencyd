@@ -150,7 +150,7 @@ int create_connection(struct x_server *xs) {
   g_debug("create x-watch connection: '%s'", xs->display);
 
   parsed = xcb_parse_display(xs->display, &host, &dsp, &screenNum);
-
+  free(host);
   if(!parsed) {
     g_warning("can't parse display: '%s'", xs->display);
     return FALSE;
@@ -367,14 +367,14 @@ pid_t read_pid(struct x_server *conn, int *err) {
     return 0;
 
   dprint("len: %d ", xcb_get_property_value_length (rep));
-  uint32_t *win = xcb_get_property_value(rep);
-  dprint("win: 0x%x\n", *win);
+  uint32_t win = *(uint32_t *)xcb_get_property_value(rep);
+  dprint("win: 0x%x\n", win);
   g_free(rep);
 
   xcb_get_property_cookie_t caw =
     xcb_get_property (conn->connection,
                     0,
-                    *win,
+                    win,
                     conn->atom_pid,
                     conn->cardinal_atom,
                     0,
@@ -392,14 +392,14 @@ pid_t read_pid(struct x_server *conn, int *err) {
   }
 
   dprint("len: %d ", xcb_get_property_value_length (rep2));
-  uint32_t *pid = xcb_get_property_value(rep2);
-  dprint("pid: %d\n", *pid);
+  uint32_t pid = *(uint32_t *)xcb_get_property_value(rep2);
+  dprint("pid: %d\n", pid);
   g_free(rep2);
 
   xcb_get_property_cookie_t ccaw =
     xcb_get_property (conn->connection,
                   0,
-                  *win,
+                  win,
                   conn->atom_client,
                   conn->string_atom,
                   0,
@@ -423,7 +423,7 @@ pid_t read_pid(struct x_server *conn, int *err) {
   g_free(tmp);
 #endif
   if(client && !strncmp(client, localhost, xcb_get_property_value_length(rep3))) {
-    rv = *pid;
+    rv = pid;
   }
 
   g_free(rep3);
