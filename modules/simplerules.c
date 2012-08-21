@@ -234,12 +234,15 @@ int load_simple_directory(char *path) {
     n = scandir(path, &namelist, 0, versionsort);
     if (n < 0) {
        g_warning("cant't load directory %s", path);
+       g_strfreev(disabled);
        return FALSE;
     } else {
        for(i = 0; i < n; i++) {
 
-          if(fnmatch("*.conf", namelist[i]->d_name, 0))
+          if(fnmatch("*.conf", namelist[i]->d_name, 0)) {
+            free(namelist[i]);
             continue;
+          }
           rule_name = g_strndup(namelist[i]->d_name,strlen(namelist[i]->d_name)-4);
 
           for(j = 0; j < disabled_len; j++) {
@@ -270,6 +273,7 @@ int load_simple_directory(char *path) {
        }
        free(namelist);
     }
+    g_strfreev(disabled);
     return TRUE;
 }
 

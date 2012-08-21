@@ -1721,12 +1721,15 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
 
   n = scandir(path, &namelist, 0, versionsort);
   if (n < 0) {
+     g_strfreev(disabled);
      perror("scandir");
   } else {
      for(i = 0; i < n; i++) {
 
-        if(fnmatch("*.lua", namelist[i]->d_name, 0))
+        if(fnmatch("*.lua", namelist[i]->d_name, 0)) {
+          free(namelist[i]);
           continue;
+        }
         rule_name = g_strndup(namelist[i]->d_name,strlen(namelist[i]->d_name)-4);
         if(load_pattern && (fnmatch(load_pattern, namelist[i]->d_name, 0) != 0))
           goto skip;
@@ -1759,6 +1762,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
      }
      free(namelist);
   }
+  g_strfreev(disabled);
   return 0;
 }
 
