@@ -207,7 +207,7 @@ GPtrArray* search_user_env(uid_t uid, const char *name, int update) {
     while (g_hash_table_iter_next (&iter, &ikey, &value)) 
     {
         proc = (u_proc *)value;
-        if(proc->proc.euid != uid)
+        if(proc->proc->euid != uid)
             continue;
 
         u_proc_ensure(proc, ENVIRONMENT, update);

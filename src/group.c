@@ -112,7 +112,7 @@ void set_active_pid(guint uid, guint pid)
 
 int is_active_pid(u_proc *proc) {
   GList* ups;
-  struct user_active *ua = get_userlist(proc->proc.ruid, FALSE);
+  struct user_active *ua = get_userlist(proc->proc->ruid, FALSE);
 
   if(!ua)
     return FALSE;
@@ -127,7 +127,7 @@ int is_active_pid(u_proc *proc) {
 int get_active_pos(u_proc *proc) {
   int rv = 0;
   GList *cur;
-  struct user_active *ua = get_userlist(proc->proc.ruid, FALSE);
+  struct user_active *ua = get_userlist(proc->proc->ruid, FALSE);
 
   if(!ua)
     return 0;

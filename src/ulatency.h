@@ -72,7 +72,7 @@ struct _U_HEAD {
 };
 
 enum U_PROC_STATE {
-  UPROC_NEW          = (1<<0),  //!< new process with basic properties not parsed
+  UPROC_NEW          = (1<<0),  //!< new process with basic properties not parsed, u_proc.proc is NULL
   UPROC_INVALID      = (1<<1),
   UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
   UPROC_ALIVE        = (1<<3),
@@ -151,7 +151,7 @@ typedef struct {
   U_HEAD;
   int           pid;            //!< duplicate of proc.tgid
   int           ustate;         //!< status bits for process
-  struct proc_t proc;           //!< main data storage
+  proc_t       *proc;           //!< main data storage
   char        **cgroup_origin;  //!< the original cgroups this process was created in
   GArray        proc_history;   //!< list of history elements
   int           history_len;    //!< desigered history len
@@ -182,7 +182,7 @@ typedef struct {
 
 typedef struct {
   u_proc *proc;   //!< process this task belongs to
-  proc_t task;
+  proc_t *task;
 } u_task;
 
 typedef struct _filter {

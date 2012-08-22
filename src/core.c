@@ -223,8 +223,8 @@ void u_proc_free(void *ptr) {
 
   g_assert(g_node_n_children(proc->node) == 0);
   g_node_destroy(proc->node);
-  freesupgrp(&(proc->proc));
-  freeproc_light(&(proc->proc));
+  freesupgrp(proc->proc);
+  freeproc(proc->proc);
   g_slice_free(u_proc, proc);
 }
 
@@ -232,13 +232,13 @@ void u_proc_free_task(void *ptr) {
   u_task *task = ptr;
   // the task group owner has the same pointers, so we shall not free them 
   // when the task is removed
-  if(task->task.nsupgid > 0 && 
-     task->task.supgid &&
-     task->task.supgid != task->proc->proc.supgid) {
-     free(task->task.supgid);
+  if(task->task->nsupgid > 0 &&
+     task->task->supgid &&
+     task->task->supgid != task->proc->proc->supgid) {
+     free(task->task->supgid);
   }
   //g_free(proc->supgid);
-  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->task.tid));
+  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->task->tid));
   g_slice_free(u_task, task);
 }
 
@@ -273,7 +273,7 @@ u_proc* u_proc_new(proc_t *proc) {
   if(proc) {
     rv->pid = proc->tid;
     U_PROC_SET_STATE(rv,UPROC_ALIVE);
-    memcpy(&(rv->proc), proc, sizeof(proc_t));
+    rv->proc = proc;
   } else {
     U_PROC_SET_STATE(rv,UPROC_NEW);
   }
@@ -557,19 +557,19 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
             g_array_append_val(updates, update_pid);
             process_update_pid(update_pid);
             remove_parent_caller_stack(updates, update_pid);
-        } else if(!find_parent_caller_stack(updates, child->proc.ppid)) {
+        } else if(!find_parent_caller_stack(updates, child->proc->ppid)) {
             // we try to get the parent as last resort
-            update_pid = child->proc.ppid;
+            update_pid = child->proc->ppid;
             g_array_append_val(updates, update_pid);
             process_update_pid(update_pid);
             remove_parent_caller_stack(updates, update_pid);
         }
 
-        parent = proc_by_pid(child->proc.ppid);
+        parent = proc_by_pid(child->proc->ppid);
         if(!parent) {
-            g_debug("parent missing, second try: %d parent %d", child->pid, child->proc.ppid);
-            process_update_pid(child->proc.ppid);
-            parent = proc_by_pid(child->proc.ppid);
+            g_debug("parent missing, second try: %d parent %d", child->pid, child->proc->ppid);
+            process_update_pid(child->proc->ppid);
+            parent = proc_by_pid(child->proc->ppid);
         }
     }
     if(!parent) {
@@ -614,10 +614,10 @@ static void rebuild_tree() {
   {
     proc = (u_proc *)g_hash_table_lookup(processes,cur->data);
 
-    g_assert(proc->proc.ppid != proc->pid);
-    if(proc->proc.ppid) {
+    g_assert(proc->proc->ppid != proc->pid);
+    if(proc->proc->ppid) {
       // get a parent, hopfully the real one
-      parent = parent_proc_by_pid(proc->proc.ppid, proc);
+      parent = parent_proc_by_pid(proc->proc->ppid, proc);
 
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
 
@@ -752,17 +752,17 @@ void clear_process_skip_filters(u_proc *proc, int block_types) {
 // copy the fake value of a parent pid to the child until the real value
 // of the child changes from the parent
 #define fake_var_fix(FAKE, ORG) \
-  if(proc->FAKE && ((proc-> FAKE##_old != proc->proc.ORG) || (proc->FAKE == proc->proc.ORG))) { \
+  if(proc->FAKE && ((proc-> FAKE##_old != proc->proc->ORG) || (proc->FAKE == proc->proc->ORG))) { \
     /* when real value was set, the fake value disapears. */ \
-    /*printf("unset fake: %d %d %d %d\n", proc->pid, proc->proc.ORG, proc->FAKE##_old, proc-> FAKE);*/ \
+    /*printf("unset fake: %d %d %d %d\n", proc->pid, proc->proc->ORG, proc->FAKE##_old, proc-> FAKE);*/ \
     proc-> FAKE = 0; \
     proc->FAKE##_old = 0; \
     proc->changed = 1; \
   } else if(parent-> FAKE && !proc->FAKE && \
-            parent->proc.ORG == proc->proc.ORG && \
+            parent->proc->ORG == proc->proc->ORG && \
             parent-> FAKE != proc->FAKE) { \
     proc-> FAKE = parent->FAKE; \
-    proc->FAKE##_old = proc->proc.ORG; \
+    proc->FAKE##_old = proc->proc->ORG; \
     proc->changed = 1; \
     /*printf("set fake: pid:%d ppid:%d fake:%d fake_old:%d\n", proc->pid, parent->pid, proc->FAKE, proc->FAKE##_old);*/ \
   }
@@ -797,8 +797,8 @@ static void process_workarrounds(u_proc *proc, u_proc *parent) {
  * @return int number of parsed records
  */
 int update_processes_run(PROCTAB *proctab, int full) {
-  proc_t buf;
-  proc_t buf_task;
+  proc_t *p;
+  proc_t *t;
   u_proc *proc;
   u_proc *parent;
   time_t timeout = time(NULL);
@@ -821,9 +821,8 @@ int update_processes_run(PROCTAB *proctab, int full) {
     g_assert(proctab->flags & PROC_PID);
     pids = proctab->pids; // used later do detect dead processes
   }
-  memset(&buf, 0, sizeof(proc_t));
-  while(readproc(proctab, &buf)){
-    proc = proc_by_pid(buf.tid);
+  while((p = readproc(proctab, NULL))){
+    proc = proc_by_pid(p->tid);
     if(proc) {
       // we need to clear the task array first to detect which dynamic mallocs
       // need to be freed as readproc likes to reuse pointers on some dynamic
@@ -832,40 +831,40 @@ int update_processes_run(PROCTAB *proctab, int full) {
         g_ptr_array_remove_range(proc->tasks, 0, proc->tasks->len);
 
       // free all changable allocated buffers
-      freesupgrp(&(proc->proc));
-      freeproc_light(&(proc->proc));
+      freesupgrp(proc->proc);
+      freeproc(proc->proc);
     } else {
-      proc = u_proc_new(&buf);
+      proc = u_proc_new(p);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
       // we save the origin of cgroups for scheduler constrains
     }
     // must still have the process allocated
 
     // detect change of important parameters that will cause a reschedule
-    proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
+    proc->changed = proc->changed | detect_changed(proc->proc, p);
     if(full)
       proc->last_update = run;
 
     //save rt received flag
     rrt = proc->received_rt;
 
-    memcpy(&(proc->proc), &buf, sizeof(proc_t));
+    proc->proc = p;
 
-    proc->received_rt |= (proc->proc.sched == SCHED_FIFO || proc->proc.sched == SCHED_RR);
+    proc->received_rt |= (proc->proc->sched == SCHED_FIFO || proc->proc->sched == SCHED_RR);
 
-    while(readtask(proctab,&buf,&buf_task)) {
+    while((t = readtask(proctab,p,NULL))) {
       u_task *task = g_slice_new0(u_task);
       task->proc = proc;
-      memcpy(&(task->task), &buf_task, sizeof(proc_t));
+      task->task = t;
       g_ptr_array_add(proc->tasks, task);
-      proc->received_rt |= (buf_task.sched == SCHED_FIFO || buf_task.sched == SCHED_RR);
-      g_hash_table_insert(tasks, GUINT_TO_POINTER(buf_task.tid), task);
+      proc->received_rt |= (t->sched == SCHED_FIFO || t->sched == SCHED_RR);
+      g_hash_table_insert(tasks, GUINT_TO_POINTER(t->tid), task);
     }
     if(rrt != proc->received_rt)
       proc->changed = 1;
 
     if(!proc->cgroup_origin)
-      proc->cgroup_origin = g_strdupv(proc->proc.cgroup);
+      proc->cgroup_origin = g_strdupv(proc->proc->cgroup);
 
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
@@ -878,17 +877,14 @@ int update_processes_run(PROCTAB *proctab, int full) {
     updated = g_list_append(updated, proc);
 
     rv++;
-    memset(&buf, 0, sizeof(proc_t));
-    //g_list_foreach(filter_list, filter_run_for_proc, &buf);
-    //freesupgrp(&buf);
   }
 
   // we update the parent links after all processes are updated
   for(i = 0; i < rv; i++) {
     proc = g_list_nth_data(updated, i);
 
-    if(proc->proc.ppid && proc->proc.ppid != proc->pid) {
-      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
+    if(proc->proc->ppid && proc->proc->ppid != proc->pid) {
+      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc->ppid));
       // the parent should exist. in case it is missing we have to run a full
       // tree rebuild then
       if(parent && parent->node) {
@@ -1041,8 +1037,8 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     if(parent) {
       proc = u_proc_new(NULL);
       proc->pid = pid;
-      proc->proc.tid = pid;
-      proc->proc.ppid = parent;
+      proc->proc->tid = pid;
+      proc->proc->ppid = parent;
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
       // put it into the lists
       proc_parent = parent_proc_by_pid(parent, proc);
