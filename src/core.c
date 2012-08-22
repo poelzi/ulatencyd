@@ -340,7 +340,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
     if(U_PROC_HAS_STATE(proc,UPROC_BASIC) && !update)
       return TRUE;
     else
-      return process_update_pid(proc->pid);
+      return U_PROC_HAS_STATE(proc, UPROC_DEAD) ? FALSE : process_update_pid(proc->pid);
 
   } else if(what == TASKS) {
       // FIXME
@@ -351,24 +351,31 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
           proc->environ = NULL;
       }
       if(!proc->environ)
-          proc->environ = u_read_env_hash (proc->pid);
+          proc->environ = U_PROC_HAS_STATE(proc, UPROC_DEAD) ? NULL : u_read_env_hash (proc->pid);
       return (proc->environ != NULL);
   } else if(what == CMDLINE) {
       if(update && proc->cmdline) {
           g_ptr_array_unref(proc->cmdline);
           proc->cmdline = NULL;
+          if (U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+            g_free(proc->cmdline_match);
+            proc->cmdline_match = NULL;
+            g_free(proc->cmdfile);
+            proc->cmdfile = NULL;
+            return FALSE;
+          }
       }
-      if(!proc->cmdline) {
+      if(!proc->cmdline && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
           int i;
           gchar *tmp, *tmp2;
 
           g_free(proc->cmdline_match);
           proc->cmdline_match = NULL;
 
-          GString *match = g_string_new("");
           proc->cmdline = u_read_0file (proc->pid, "cmdline");
           // update cmd
           if(proc->cmdline) {
+              GString *match = g_string_new("");
               for(i = 0; i < proc->cmdline->len; i++) {
                   if(i)
                       match = g_string_append_c(match, ' ');
@@ -405,9 +412,10 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
           g_free(proc->exe);
           proc->exe = NULL;
       }
-      if(!proc->exe) {
+      if(!proc->exe && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
         path = g_strdup_printf ("/proc/%u/exe", (guint)proc->pid);
         out = readlink(path, (char *)&buf, PATH_MAX);
+        g_free(path);
         buf[out] = 0;
         if(out > 0) {
             // strip out the ' (deleted)' suffix
@@ -416,13 +424,10 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
                 out -= 10;
             }
             proc->exe = g_strndup((char *)&buf, out);
-        } else {
-            g_free(path);
-            return FALSE;
+            return TRUE;
         }
-        g_free(path);
       }
-      return TRUE;
+      return (proc->exe != NULL);
   }
   return FALSE;
 }
@@ -434,11 +439,12 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
  *
  * Returns a GArray of #pid_t of all tasks from given #u_proc process
  *
- * @return none
+ * @return a GArray of #pid_t of all tasks from given #u_proc process
+ * @retval NULL if process is dead or `/proc/#/task` could not be read
  */
 GArray *u_proc_get_current_task_pids(u_proc *proc) {
-    if(!U_PROC_SET_STATE(proc, UPROC_ALIVE))
-      return FALSE;
+    if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+      return NULL;
 
     GArray *rv = g_array_new(TRUE, TRUE, sizeof(pid_t));
 
@@ -465,6 +471,7 @@ GArray *u_proc_get_current_task_pids(u_proc *proc) {
 out:
     g_free(path);
     g_array_unref(rv);
+    U_PROC_SET_STATE(proc, UPROC_DEAD);
     return NULL;
 }
 
@@ -484,6 +491,7 @@ static void processes_free_value(gpointer data) {
   u_filter *flt;
 
   U_PROC_UNSET_STATE(proc, UPROC_ALIVE);
+  U_PROC_SET_STATE(proc, UPROC_DEAD);
 
   // run exit hooks
   GList *cur = g_list_first(filter_list);
@@ -800,6 +808,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   int rv = 0;
   int i;
   GList *updated = NULL;
+  pid_t *pids = NULL;
   
   if(full)
     run++;
@@ -807,6 +816,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
   if(!proctab) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
     return 0;
+  }
+  if (!full) {
+    g_assert(proctab->flags & PROC_PID);
+    pids = proctab->pids; // used later do detect dead processes
   }
   memset(&buf, 0, sizeof(proc_t));
   while(readproc(proctab, &buf)){
@@ -897,20 +910,28 @@ int update_processes_run(PROCTAB *proctab, int full) {
       }
     }
   }
-  // remove old processes
-
-  g_list_free(updated);
 
   if(full) {
+    // remove dead processes
     g_hash_table_foreach_remove(processes, 
                                 processes_is_last_changed,
                                 &run);
+  } else {
+    // mark dead processes
+    while (*pids) {
+      proc = proc_by_pid(*pids);
+      if (proc && !g_list_find(updated, proc)) {
+        g_debug("setting state UPROC_DEAD to process - pid: %d", proc->pid);
+        U_PROC_SET_STATE(proc, UPROC_DEAD);
+      }
+      pids++;
+    }
   }
   if(full_update) {
     rebuild_tree();
   }
+  g_list_free(updated);
   return rv;
-
 }
 
 /**
@@ -1011,7 +1032,6 @@ static int run_new_pid(gpointer ign) {
 gboolean process_new_delay(pid_t pid, pid_t parent) {
   u_proc *proc, *proc_parent;
   struct delay_proc *lp;
-  int updated = FALSE; // tracks whether expensive process_update_pid() already called
   g_assert(pid != 0);
   if(!delay) {
       return process_new(pid, TRUE);
@@ -1030,10 +1050,9 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
     } else {
       if(!process_update_pid(pid))
-        return FALSE;
-      updated = TRUE;
+        return FALSE;  // already dead
       proc = proc_by_pid(pid);
-      if(!proc)
+      if(!proc)       // if process_update_pid(pid) was successful, this cannot happen, right?
         return FALSE;
     }
     lp = g_malloc(sizeof(struct delay_proc));
@@ -1043,7 +1062,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
     if(proc->changed) {
-      process_run_one(proc, !updated, FALSE);
+      process_run_one(proc, FALSE, FALSE);
       return TRUE;
     }
     proc->changed = TRUE;
@@ -1056,7 +1075,6 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
 
     u_proc_ensure(proc, CMDLINE, TRUE);
     u_proc_ensure(proc, BASIC, TRUE); //runs process_update_pid()
-    updated = TRUE;
     u_proc_ensure(proc, EXE, TRUE);
 
     // if a process is in the new stack, his changed settings will be true
@@ -1067,12 +1085,12 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       proc->changed = FALSE;
       filter_for_proc(proc, filter_fast_list);
       if(proc->changed) {
-        process_run_one(proc, !updated, FALSE);
+        process_run_one(proc, FALSE, FALSE);
         return TRUE;
       }
       proc->changed = old_changed;
     } else {
-      process_run_one(proc, !updated, TRUE);
+      process_run_one(proc, FALSE, TRUE);
     }
   }
 
@@ -1165,8 +1183,6 @@ int process_new_list(GArray *list, int update, int instant) {
     proc = proc_by_pid(g_array_index(list,pid_t,i));
     if(!proc)
       continue;
-    if(!u_proc_ensure(proc, BASIC, FALSE))
-      continue;
     process_run_one(proc, FALSE, instant);
   }
   free(pids);
@@ -1184,8 +1200,18 @@ int process_new_list(GArray *list, int update, int instant) {
 int process_run_one(u_proc *proc, int update, int instant) {
   // remove it from delay stack
   remove_proc_from_delay_stack(proc->pid);
-  if(update)
+
+  // update process if requested
+  if (update)
     process_update_pid(proc->pid);
+
+  // we must ensure BASIC properties are set and not schedule already dead processes
+  if (!u_proc_ensure(proc, BASIC, FALSE) || U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+    // process is dead
+    process_remove(proc);
+    return FALSE;
+  }
+
   if (instant)
     filter_for_proc(proc, filter_fast_list);
   filter_for_proc(proc, filter_list);

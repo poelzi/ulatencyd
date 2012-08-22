@@ -72,11 +72,15 @@ struct _U_HEAD {
 };
 
 enum U_PROC_STATE {
-  UPROC_NEW          = (1<<0),
+  UPROC_NEW          = (1<<0),  //!< new process with basic properties not parsed
   UPROC_INVALID      = (1<<1),
-  UPROC_BASIC        = (1<<2),
+  UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
   UPROC_ALIVE        = (1<<3),
   UPROC_HAS_PARENT   = (1<<4),
+  //! Process is dead, but still may have UPROC_NEW or UPROC_ALIVE state.
+  //! This is set if the process could not be found in /proc filesystem while trying to update its properties.
+  //! Since this, no function accepting #u_proc will try to update its properties.
+  UPROC_DEAD         = (1<<5),
 };
 
 #define U_PROC_OK_MASK ~UPROC_INVALID

@@ -805,7 +805,7 @@ static int u_proc_get_n_children (lua_State *L) {
 static int u_proc_get_n_nodes (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(!U_PROC_IS_VALID(proc))
     return 0;
 
   lua_pushinteger(L, g_node_n_nodes(proc->node, G_TRAVERSE_ALL));
@@ -817,7 +817,7 @@ static int u_proc_set_block_scheduler (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(!U_PROC_IS_VALID(proc))
     return 0;
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "block_scheduler set to: %d by %s", value, "(FIXME)");
@@ -834,7 +834,7 @@ static int u_proc_set_rtprio (lua_State *L) {
     param.sched_priority = lua_tointeger(L, 3);
 
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
 
@@ -903,7 +903,7 @@ static int u_proc_set_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   lua_pushboolean(L, !adj_oom_killer(proc->pid, value));
@@ -914,7 +914,7 @@ static int u_proc_set_oom_score (lua_State *L) {
 static int u_proc_get_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   lua_pushinteger(L, !get_oom_killer(proc->pid));
@@ -927,7 +927,7 @@ static int u_proc_ioprio_set (lua_State *L) {
   int prio = luaL_checkint(L, 2);
   int class = luaL_checkint(L, 3);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, class));
@@ -940,7 +940,7 @@ static int u_proc_ioprio_get (lua_State *L) {
   int prio = 0;
   int class = 0;
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   ioprio_getpid(proc->pid, &prio, &class);
