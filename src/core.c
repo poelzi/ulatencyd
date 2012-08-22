@@ -223,8 +223,8 @@ void u_proc_free(void *ptr) {
 
   g_assert(g_node_n_children(proc->node) == 0);
   g_node_destroy(proc->node);
-  freesupgrp(&(proc->proc));
-  freeproc_light(&(proc->proc));
+  freesupgrp(proc->proc);
+  freeproc(proc->proc);
   g_slice_free(u_proc, proc);
 }
 
@@ -232,13 +232,13 @@ void u_proc_free_task(void *ptr) {
   u_task *task = ptr;
   // the task group owner has the same pointers, so we shall not free them 
   // when the task is removed
-  if(task->task.nsupgid > 0 && 
-     task->task.supgid &&
-     task->task.supgid != task->proc->proc.supgid) {
-     free(task->task.supgid);
+  if(task->task->nsupgid > 0 &&
+     task->task->supgid &&
+     task->task->supgid != task->proc->proc->supgid) {
+     free(task->task->supgid);
   }
   //g_free(proc->supgid);
-  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->task.tid));
+  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->task->tid));
   g_slice_free(u_task, task);
 }
 
@@ -273,7 +273,7 @@ u_proc* u_proc_new(proc_t *proc) {
   if(proc) {
     rv->pid = proc->tid;
     U_PROC_SET_STATE(rv,UPROC_ALIVE);
-    memcpy(&(rv->proc), proc, sizeof(proc_t));
+    rv->proc = proc;
   } else {
     U_PROC_SET_STATE(rv,UPROC_NEW);
   }
@@ -340,7 +340,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
     if(U_PROC_HAS_STATE(proc,UPROC_BASIC) && !update)
       return TRUE;
     else
-      return process_update_pid(proc->pid);
+      return U_PROC_HAS_STATE(proc, UPROC_DEAD) ? FALSE : process_update_pid(proc->pid);
 
   } else if(what == TASKS) {
       // FIXME
@@ -351,24 +351,31 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
           proc->environ = NULL;
       }
       if(!proc->environ)
-          proc->environ = u_read_env_hash (proc->pid);
+          proc->environ = U_PROC_HAS_STATE(proc, UPROC_DEAD) ? NULL : u_read_env_hash (proc->pid);
       return (proc->environ != NULL);
   } else if(what == CMDLINE) {
       if(update && proc->cmdline) {
           g_ptr_array_unref(proc->cmdline);
           proc->cmdline = NULL;
+          if (U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+            g_free(proc->cmdline_match);
+            proc->cmdline_match = NULL;
+            g_free(proc->cmdfile);
+            proc->cmdfile = NULL;
+            return FALSE;
+          }
       }
-      if(!proc->cmdline) {
+      if(!proc->cmdline && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
           int i;
           gchar *tmp, *tmp2;
 
           g_free(proc->cmdline_match);
           proc->cmdline_match = NULL;
 
-          GString *match = g_string_new("");
           proc->cmdline = u_read_0file (proc->pid, "cmdline");
           // update cmd
           if(proc->cmdline) {
+              GString *match = g_string_new("");
               for(i = 0; i < proc->cmdline->len; i++) {
                   if(i)
                       match = g_string_append_c(match, ' ');
@@ -405,9 +412,10 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
           g_free(proc->exe);
           proc->exe = NULL;
       }
-      if(!proc->exe) {
+      if(!proc->exe && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
         path = g_strdup_printf ("/proc/%u/exe", (guint)proc->pid);
         out = readlink(path, (char *)&buf, PATH_MAX);
+        g_free(path);
         buf[out] = 0;
         if(out > 0) {
             // strip out the ' (deleted)' suffix
@@ -416,13 +424,10 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
                 out -= 10;
             }
             proc->exe = g_strndup((char *)&buf, out);
-        } else {
-            g_free(path);
-            return FALSE;
+            return TRUE;
         }
-        g_free(path);
       }
-      return TRUE;
+      return (proc->exe != NULL);
   }
   return FALSE;
 }
@@ -434,11 +439,12 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
  *
  * Returns a GArray of #pid_t of all tasks from given #u_proc process
  *
- * @return none
+ * @return a GArray of #pid_t of all tasks from given #u_proc process
+ * @retval NULL if process is dead or `/proc/#/task` could not be read
  */
 GArray *u_proc_get_current_task_pids(u_proc *proc) {
-    if(!U_PROC_SET_STATE(proc, UPROC_ALIVE))
-      return FALSE;
+    if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+      return NULL;
 
     GArray *rv = g_array_new(TRUE, TRUE, sizeof(pid_t));
 
@@ -465,6 +471,7 @@ GArray *u_proc_get_current_task_pids(u_proc *proc) {
 out:
     g_free(path);
     g_array_unref(rv);
+    U_PROC_SET_STATE(proc, UPROC_DEAD);
     return NULL;
 }
 
@@ -484,6 +491,7 @@ static void processes_free_value(gpointer data) {
   u_filter *flt;
 
   U_PROC_UNSET_STATE(proc, UPROC_ALIVE);
+  U_PROC_SET_STATE(proc, UPROC_DEAD);
 
   // run exit hooks
   GList *cur = g_list_first(filter_list);
@@ -549,19 +557,19 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
             g_array_append_val(updates, update_pid);
             process_update_pid(update_pid);
             remove_parent_caller_stack(updates, update_pid);
-        } else if(!find_parent_caller_stack(updates, child->proc.ppid)) {
+        } else if(!find_parent_caller_stack(updates, child->proc->ppid)) {
             // we try to get the parent as last resort
-            update_pid = child->proc.ppid;
+            update_pid = child->proc->ppid;
             g_array_append_val(updates, update_pid);
             process_update_pid(update_pid);
             remove_parent_caller_stack(updates, update_pid);
         }
 
-        parent = proc_by_pid(child->proc.ppid);
+        parent = proc_by_pid(child->proc->ppid);
         if(!parent) {
-            g_debug("parent missing, second try: %d parent %d", child->pid, child->proc.ppid);
-            process_update_pid(child->proc.ppid);
-            parent = proc_by_pid(child->proc.ppid);
+            g_debug("parent missing, second try: %d parent %d", child->pid, child->proc->ppid);
+            process_update_pid(child->proc->ppid);
+            parent = proc_by_pid(child->proc->ppid);
         }
     }
     if(!parent) {
@@ -606,10 +614,10 @@ static void rebuild_tree() {
   {
     proc = (u_proc *)g_hash_table_lookup(processes,cur->data);
 
-    g_assert(proc->proc.ppid != proc->pid);
-    if(proc->proc.ppid) {
+    g_assert(proc->proc->ppid != proc->pid);
+    if(proc->proc->ppid) {
       // get a parent, hopfully the real one
-      parent = parent_proc_by_pid(proc->proc.ppid, proc);
+      parent = parent_proc_by_pid(proc->proc->ppid, proc);
 
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
 
@@ -744,17 +752,17 @@ void clear_process_skip_filters(u_proc *proc, int block_types) {
 // copy the fake value of a parent pid to the child until the real value
 // of the child changes from the parent
 #define fake_var_fix(FAKE, ORG) \
-  if(proc->FAKE && ((proc-> FAKE##_old != proc->proc.ORG) || (proc->FAKE == proc->proc.ORG))) { \
+  if(proc->FAKE && ((proc-> FAKE##_old != proc->proc->ORG) || (proc->FAKE == proc->proc->ORG))) { \
     /* when real value was set, the fake value disapears. */ \
-    /*printf("unset fake: %d %d %d %d\n", proc->pid, proc->proc.ORG, proc->FAKE##_old, proc-> FAKE);*/ \
+    /*printf("unset fake: %d %d %d %d\n", proc->pid, proc->proc->ORG, proc->FAKE##_old, proc-> FAKE);*/ \
     proc-> FAKE = 0; \
     proc->FAKE##_old = 0; \
     proc->changed = 1; \
   } else if(parent-> FAKE && !proc->FAKE && \
-            parent->proc.ORG == proc->proc.ORG && \
+            parent->proc->ORG == proc->proc->ORG && \
             parent-> FAKE != proc->FAKE) { \
     proc-> FAKE = parent->FAKE; \
-    proc->FAKE##_old = proc->proc.ORG; \
+    proc->FAKE##_old = proc->proc->ORG; \
     proc->changed = 1; \
     /*printf("set fake: pid:%d ppid:%d fake:%d fake_old:%d\n", proc->pid, parent->pid, proc->FAKE, proc->FAKE##_old);*/ \
   }
@@ -789,8 +797,8 @@ static void process_workarrounds(u_proc *proc, u_proc *parent) {
  * @return int number of parsed records
  */
 int update_processes_run(PROCTAB *proctab, int full) {
-  proc_t buf;
-  proc_t buf_task;
+  proc_t *p;
+  proc_t *t;
   u_proc *proc;
   u_proc *parent;
   time_t timeout = time(NULL);
@@ -800,6 +808,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   int rv = 0;
   int i;
   GList *updated = NULL;
+  pid_t *pids = NULL;
   
   if(full)
     run++;
@@ -808,9 +817,12 @@ int update_processes_run(PROCTAB *proctab, int full) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open /proc");
     return 0;
   }
-  memset(&buf, 0, sizeof(proc_t));
-  while(readproc(proctab, &buf)){
-    proc = proc_by_pid(buf.tid);
+  if (!full) {
+    g_assert(proctab->flags & PROC_PID);
+    pids = proctab->pids; // used later do detect dead processes
+  }
+  while((p = readproc(proctab, NULL))){
+    proc = proc_by_pid(p->tid);
     if(proc) {
       // we need to clear the task array first to detect which dynamic mallocs
       // need to be freed as readproc likes to reuse pointers on some dynamic
@@ -819,40 +831,40 @@ int update_processes_run(PROCTAB *proctab, int full) {
         g_ptr_array_remove_range(proc->tasks, 0, proc->tasks->len);
 
       // free all changable allocated buffers
-      freesupgrp(&(proc->proc));
-      freeproc_light(&(proc->proc));
+      freesupgrp(proc->proc);
+      freeproc(proc->proc);
     } else {
-      proc = u_proc_new(&buf);
+      proc = u_proc_new(p);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
       // we save the origin of cgroups for scheduler constrains
     }
     // must still have the process allocated
 
     // detect change of important parameters that will cause a reschedule
-    proc->changed = proc->changed | detect_changed(&(proc->proc), &buf);
+    proc->changed = proc->changed | detect_changed(proc->proc, p);
     if(full)
       proc->last_update = run;
 
     //save rt received flag
     rrt = proc->received_rt;
 
-    memcpy(&(proc->proc), &buf, sizeof(proc_t));
+    proc->proc = p;
 
-    proc->received_rt |= (proc->proc.sched == SCHED_FIFO || proc->proc.sched == SCHED_RR);
+    proc->received_rt |= (proc->proc->sched == SCHED_FIFO || proc->proc->sched == SCHED_RR);
 
-    while(readtask(proctab,&buf,&buf_task)) {
+    while((t = readtask(proctab,p,NULL))) {
       u_task *task = g_slice_new0(u_task);
       task->proc = proc;
-      memcpy(&(task->task), &buf_task, sizeof(proc_t));
+      task->task = t;
       g_ptr_array_add(proc->tasks, task);
-      proc->received_rt |= (buf_task.sched == SCHED_FIFO || buf_task.sched == SCHED_RR);
-      g_hash_table_insert(tasks, GUINT_TO_POINTER(buf_task.tid), task);
+      proc->received_rt |= (t->sched == SCHED_FIFO || t->sched == SCHED_RR);
+      g_hash_table_insert(tasks, GUINT_TO_POINTER(t->tid), task);
     }
     if(rrt != proc->received_rt)
       proc->changed = 1;
 
     if(!proc->cgroup_origin)
-      proc->cgroup_origin = g_strdupv(proc->proc.cgroup);
+      proc->cgroup_origin = g_strdupv(proc->proc->cgroup);
 
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
@@ -865,17 +877,14 @@ int update_processes_run(PROCTAB *proctab, int full) {
     updated = g_list_append(updated, proc);
 
     rv++;
-    memset(&buf, 0, sizeof(proc_t));
-    //g_list_foreach(filter_list, filter_run_for_proc, &buf);
-    //freesupgrp(&buf);
   }
 
   // we update the parent links after all processes are updated
   for(i = 0; i < rv; i++) {
     proc = g_list_nth_data(updated, i);
 
-    if(proc->proc.ppid && proc->proc.ppid != proc->pid) {
-      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc.ppid));
+    if(proc->proc->ppid && proc->proc->ppid != proc->pid) {
+      parent = g_hash_table_lookup(processes, GUINT_TO_POINTER(proc->proc->ppid));
       // the parent should exist. in case it is missing we have to run a full
       // tree rebuild then
       if(parent && parent->node) {
@@ -897,20 +906,28 @@ int update_processes_run(PROCTAB *proctab, int full) {
       }
     }
   }
-  // remove old processes
-
-  g_list_free(updated);
 
   if(full) {
+    // remove dead processes
     g_hash_table_foreach_remove(processes, 
                                 processes_is_last_changed,
                                 &run);
+  } else {
+    // mark dead processes
+    while (*pids) {
+      proc = proc_by_pid(*pids);
+      if (proc && !g_list_find(updated, proc)) {
+        g_debug("setting state UPROC_DEAD to process - pid: %d", proc->pid);
+        U_PROC_SET_STATE(proc, UPROC_DEAD);
+      }
+      pids++;
+    }
   }
   if(full_update) {
     rebuild_tree();
   }
+  g_list_free(updated);
   return rv;
-
 }
 
 /**
@@ -1011,7 +1028,6 @@ static int run_new_pid(gpointer ign) {
 gboolean process_new_delay(pid_t pid, pid_t parent) {
   u_proc *proc, *proc_parent;
   struct delay_proc *lp;
-  int updated = FALSE; // tracks whether expensive process_update_pid() already called
   g_assert(pid != 0);
   if(!delay) {
       return process_new(pid, TRUE);
@@ -1021,8 +1037,8 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     if(parent) {
       proc = u_proc_new(NULL);
       proc->pid = pid;
-      proc->proc.tid = pid;
-      proc->proc.ppid = parent;
+      proc->proc->tid = pid;
+      proc->proc->ppid = parent;
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
       // put it into the lists
       proc_parent = parent_proc_by_pid(parent, proc);
@@ -1030,10 +1046,9 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
     } else {
       if(!process_update_pid(pid))
-        return FALSE;
-      updated = TRUE;
+        return FALSE;  // already dead
       proc = proc_by_pid(pid);
-      if(!proc)
+      if(!proc)       // if process_update_pid(pid) was successful, this cannot happen, right?
         return FALSE;
     }
     lp = g_malloc(sizeof(struct delay_proc));
@@ -1043,7 +1058,7 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     proc->changed = FALSE;
     filter_for_proc(proc, filter_fast_list);
     if(proc->changed) {
-      process_run_one(proc, !updated, FALSE);
+      process_run_one(proc, FALSE, FALSE);
       return TRUE;
     }
     proc->changed = TRUE;
@@ -1056,7 +1071,6 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
 
     u_proc_ensure(proc, CMDLINE, TRUE);
     u_proc_ensure(proc, BASIC, TRUE); //runs process_update_pid()
-    updated = TRUE;
     u_proc_ensure(proc, EXE, TRUE);
 
     // if a process is in the new stack, his changed settings will be true
@@ -1067,12 +1081,12 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       proc->changed = FALSE;
       filter_for_proc(proc, filter_fast_list);
       if(proc->changed) {
-        process_run_one(proc, !updated, FALSE);
+        process_run_one(proc, FALSE, FALSE);
         return TRUE;
       }
       proc->changed = old_changed;
     } else {
-      process_run_one(proc, !updated, TRUE);
+      process_run_one(proc, FALSE, TRUE);
     }
   }
 
@@ -1165,8 +1179,6 @@ int process_new_list(GArray *list, int update, int instant) {
     proc = proc_by_pid(g_array_index(list,pid_t,i));
     if(!proc)
       continue;
-    if(!u_proc_ensure(proc, BASIC, FALSE))
-      continue;
     process_run_one(proc, FALSE, instant);
   }
   free(pids);
@@ -1184,8 +1196,18 @@ int process_new_list(GArray *list, int update, int instant) {
 int process_run_one(u_proc *proc, int update, int instant) {
   // remove it from delay stack
   remove_proc_from_delay_stack(proc->pid);
-  if(update)
+
+  // update process if requested
+  if (update)
     process_update_pid(proc->pid);
+
+  // we must ensure BASIC properties are set and not schedule already dead processes
+  if (!u_proc_ensure(proc, BASIC, FALSE) || U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+    // process is dead
+    process_remove(proc);
+    return FALSE;
+  }
+
   if (instant)
     filter_for_proc(proc, filter_fast_list);
   filter_for_proc(proc, filter_list);
@@ -1695,12 +1717,15 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
 
   n = scandir(path, &namelist, 0, versionsort);
   if (n < 0) {
+     g_strfreev(disabled);
      perror("scandir");
   } else {
      for(i = 0; i < n; i++) {
 
-        if(fnmatch("*.lua", namelist[i]->d_name, 0))
+        if(fnmatch("*.lua", namelist[i]->d_name, 0)) {
+          free(namelist[i]);
           continue;
+        }
         rule_name = g_strndup(namelist[i]->d_name,strlen(namelist[i]->d_name)-4);
         if(load_pattern && (fnmatch(load_pattern, namelist[i]->d_name, 0) != 0))
           goto skip;
@@ -1733,6 +1758,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
      }
      free(namelist);
   }
+  g_strfreev(disabled);
   return 0;
 }
 

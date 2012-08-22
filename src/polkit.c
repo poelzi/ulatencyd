@@ -72,13 +72,13 @@ int check_polkit(const char *methode,
       {
         g_snprintf(&tmp[0], DMAX, "%d", proc->pid);
         polkit_details_insert (details, "pid", &tmp[0]);
-        g_snprintf(&tmp[0], DMAX, "%d", proc->proc.ppid);
+        g_snprintf(&tmp[0], DMAX, "%d", proc->proc->ppid);
         polkit_details_insert (details, "ppid", &tmp[0]);
-        g_snprintf(&tmp[0], DMAX, "%d", proc->proc.tpgid);
+        g_snprintf(&tmp[0], DMAX, "%d", proc->proc->tpgid);
         polkit_details_insert (details, "gid", &tmp[0]);
-        g_snprintf(&tmp[0], DMAX, "%d", proc->proc.pgrp);
+        g_snprintf(&tmp[0], DMAX, "%d", proc->proc->pgrp);
         polkit_details_insert (details, "pgrp", &tmp[0]);
-        g_snprintf(&tmp[0], DMAX, "%d", proc->proc.session);
+        g_snprintf(&tmp[0], DMAX, "%d", proc->proc->session);
         polkit_details_insert (details, "session", &tmp[0]);
 
       }

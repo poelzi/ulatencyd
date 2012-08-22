@@ -72,8 +72,8 @@ end
 
 --! @brief Check if the process has a flag with one of given name.
 --! @param labels Table with flag names to check (see `u_flag.name`)
---! @param proc A #u_proc instance
---! @return boolean TRUE if the #u_proc has a flag with one of `labels` names.
+--! @param proc A #U_PROC instance
+--! @return boolean TRUE if the #U_PROC has a flag with one of `labels` names.
 --! @warning don't use non alpha numeric characters in name
 --! @todo build validator
 --! @protected @memberof Scheduler
@@ -254,7 +254,7 @@ Scheduler = {
   C_FILTER = false, --!< If FALSE current iteration does not skip unchanged processes. @protected @memberof Scheduler
   ITERATION = 1, --!< Scheduler iteration (range 1 - `full_run` or 15). @protected @memberof Scheduler
   INITIALIZED = false, --!< Set by `Scheduler::_init()` on first `Scheduler::all()` execution. @protected @memberof Scheduler
-  PROC_BLOCK_THRESHOLD = 1, --!< u_proc.block_scheduler threshold. @protected @memberof Scheduler
+  PROC_BLOCK_THRESHOLD = 1, --!< `U_PROC.block_scheduler` threshold. @protected @memberof Scheduler
   --! Paths of cgroups left behind previous ulatencyd instance.
   --! Cgroups paths are table keys with format `<subsystem>/path`, e.g `"memory/usr_1000/default"`, value is always TRUE.
   --! @see Scheduler::load_cgroups()

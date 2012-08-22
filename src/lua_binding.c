@@ -492,7 +492,7 @@ static int l_add_interval (lua_State *L) {
 
 // type checks and pushes
 
-#define U_PROC "u_proc"
+#define U_PROC "U_PROC"
 #define U_PROC_META "U_PROC_META"
 #define U_PROC_TASK "U_PROC_TASK"
 #define U_PROC_TASK_META "U_PROC_TASK_META"
@@ -805,7 +805,7 @@ static int u_proc_get_n_children (lua_State *L) {
 static int u_proc_get_n_nodes (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(!U_PROC_IS_VALID(proc))
     return 0;
 
   lua_pushinteger(L, g_node_n_nodes(proc->node, G_TRAVERSE_ALL));
@@ -817,7 +817,7 @@ static int u_proc_set_block_scheduler (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(!U_PROC_IS_VALID(proc))
     return 0;
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "block_scheduler set to: %d by %s", value, "(FIXME)");
@@ -834,7 +834,7 @@ static int u_proc_set_rtprio (lua_State *L) {
     param.sched_priority = lua_tointeger(L, 3);
 
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
 
@@ -886,8 +886,8 @@ static int u_proc_set_pgid (lua_State *L) {
     return 0;
 
   // we only set the fake value when it's differs from the original
-  if(proc->proc.pgrp != value) {
-    proc->fake_pgrp_old = proc->proc.pgrp;
+  if(proc->proc->pgrp != value) {
+    proc->fake_pgrp_old = proc->proc->pgrp;
     proc->fake_pgrp = value;
   }
 
@@ -903,7 +903,7 @@ static int u_proc_set_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   lua_pushboolean(L, !adj_oom_killer(proc->pid, value));
@@ -914,7 +914,7 @@ static int u_proc_set_oom_score (lua_State *L) {
 static int u_proc_get_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   lua_pushinteger(L, !get_oom_killer(proc->pid));
@@ -927,7 +927,7 @@ static int u_proc_ioprio_set (lua_State *L) {
   int prio = luaL_checkint(L, 2);
   int class = luaL_checkint(L, 3);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, class));
@@ -940,7 +940,7 @@ static int u_proc_ioprio_get (lua_State *L) {
   int prio = 0;
   int class = 0;
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
   ioprio_getpid(proc->pid, &prio, &class);
@@ -1162,7 +1162,7 @@ static int u_proc_index (lua_State *L)
     lua_error(L);
   }
 
-  rv = handle_proc_t (L, &(proc->proc), key);
+  rv = handle_proc_t (L, proc->proc, key);
   if(rv)
     return rv;
 
@@ -1215,8 +1215,8 @@ static int u_proc_index (lua_State *L)
 
 //     	**supgrp, // status        supplementary groups
   if(!strcmp(key, "groups")) {
-      if(proc->proc.supgrp) {
-          l_vstr_to_table(L, proc->proc.supgrp, proc->proc.nsupgid);
+      if(proc->proc->supgrp) {
+          l_vstr_to_table(L, proc->proc->supgrp, proc->proc->nsupgid);
           return 1;
       } else {
           return 0;
@@ -1229,17 +1229,17 @@ static int u_proc_index (lua_State *L)
 
   //PUSH_INT(pgrp)
   if(!strcmp(key, "pgrp" )) {
-    lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc.pgrp);
+    lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc->pgrp);
     return 1;
   }
   if(!strcmp(key, "session" )) {
-    lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc.session);
+    lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc->session);
     return 1;
   }
 
   if(!strcmp(key, "cgroup" )) {
-    if(proc->proc.cgroup) {
-      l_vstr_to_table(L, proc->proc.cgroup, -1);
+    if(proc->proc->cgroup) {
+      l_vstr_to_table(L, proc->proc->cgroup, -1);
       return 1;
     } else {
       return 0;
@@ -1260,13 +1260,13 @@ static int u_task_index (lua_State *L) {
   u_task *task = check_u_task(L, 1);
   const char *key = luaL_checkstring(L, 2);
 
-  return handle_proc_t (L, &(task->task), key);
+  return handle_proc_t (L, task->task, key);
 }
 
 static int u_proc_tostring (lua_State *L)
 {
   u_proc **proc = lua_touserdata(L, 1);
-  lua_pushfstring(L, "u_proc: <%p> pid:%d %s", (*proc), (*proc)->pid, &(*proc)->proc.cmd);
+  lua_pushfstring(L, "u_proc: <%p> pid:%d %s", (*proc), (*proc)->pid, &(*proc)->proc->cmd);
   return 1;
 }
 
@@ -1294,7 +1294,7 @@ static const luaL_reg u_proc_meta[] = {
 static int u_task_tostring (lua_State *L)
 {
   u_task **task = lua_touserdata(L, 1);
-  lua_pushfstring(L, "u_task: <%p> pid:%d tid:%d %s", (*task), (*task)->task.tgid, (*task)->task.tid, &(*task)->task.cmd);
+  lua_pushfstring(L, "u_task: <%p> pid:%d tid:%d %s", (*task), (*task)->task->tgid, (*task)->task->tid, &(*task)->task->cmd);
   return 1;
 }
 

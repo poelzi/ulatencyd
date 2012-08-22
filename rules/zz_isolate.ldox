@@ -16,7 +16,7 @@ __ISOLATE_FLAG = {
 
   --! @public @memberof __ISOLATE_FLAG
   name = "isolate",
-  --! A `u_proc.block_scheduler` value the process will be set. See `u_proc:set_block_scheduler()`.
+  --! A `U_PROC.block_scheduler` value the process will be set. See `U_PROC::set_block_scheduler()`.
   --! If the `threshold` value of the flag is lower than **1**, the process will not be isolated.
   --! @public @memberof __ISOLATE_FLAG
   threshold = <number greater than 0>,
@@ -93,14 +93,14 @@ __ISOLATE_MAPPING.params = <table with initial cgroups parameters>
 
 --! A function called with every process and the CGroup that the isolated process is added to.
 --! @param cgr An isolation CGroup where the `proc` was put in.
---! @param proc An #u_proc process being put into isolation.
+--! @param proc An #U_PROC process being put into isolation.
 --! @public @memberof __ISOLATE_MAPPING
 function __ISOLATE_MAPPING.adjust(cgr, proc)
 end
 
 --! A function called whenever new isolation CGroup is created.
 --! @param cgr Newly created isolation CGroup.
---! @param proc The first #u_proc process being put into this new CGroup.
+--! @param proc The first #U_PROC process being put into this new CGroup.
 --! @public @memberof __ISOLATE_MAPPING
 function __ISOLATE_MAPPING.adjust_new(cgr, proc)
 end

@@ -51,10 +51,10 @@ __SCHEDULER = {}
 --! If a process is changed within the scope of full iteration (both regular and @ref ulatency.run_iteration() "manually"
 --! requested) it will not be scheduled alone, but within the scope of `__SCHEDULER:all()`. Same applies to new 
 --! processes that didn't left new queue before the full iteration.
---! @param proc A #u_proc instance.
---! @remark The scheduler should avoid scheduling of blocked processes (`u_proc.block_scheduler`, `u_proc::set_block_scheduler()`) 
---! and avoid moving processes from cgroups created outside the ulatency daemon (see `u_proc::get_cgroups()`)
---! @attention After the process is processed it should be marked as unchanged (`u_proc:clear_changed()`)
+--! @param proc A #U_PROC instance.
+--! @remark The scheduler should avoid scheduling of blocked processes (`U_PROC.block_scheduler`, `U_PROC::set_block_scheduler()`)
+--! and avoid moving processes from cgroups created outside the ulatency daemon (see `U_PROC::get_cgroups()`)
+--! @attention After the process is processed it should be marked as unchanged (`U_PROC::clear_changed()`)
 --! @public @memberof __SCHEDULER
 function __SCHEDULER:one(proc)
 end

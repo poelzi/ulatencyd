@@ -277,9 +277,9 @@ end
 --!   {"pressure", "emergency"}
 --!   { {name: "pressure", reason: "memory"}, "emergency" }
 --! @endcode
---! @param where Defines haystack of flags to be searched through, this may be `table`, `u_proc` instance or `nil`:
+--! @param where Defines haystack of flags to be searched through, this may be `table`, `U_PROC` instance or `nil`:
 --! - __table__: search through given table of flags
---! - __u_proc__: search through flags of that process
+--! - __U_PROC__: search through flags of that process
 --! - __nil__: search through system flags
 --! @return boolean TRUE if at least one flag matches
 --! @note Examples:@code
@@ -430,25 +430,25 @@ end
 --! @addtogroup lua_CGROUPS
 --! @{
 
---! @brief Returns cgroups of the #u_proc process; two tables are returned: first one contains paths
+--! @brief Returns cgroups of the #U_PROC process; two tables are returned: first one contains paths
 --! under the root directory where the subsystem hierarchy is mounted, second one contains CGroup instances, if any;
 --! both tables are indexed by the cgroup subsystem.
 --! @warning Neither hierarchies identifications nor their mount points are returned. This assumes that ulatencyd knows
 --! where each subsystem is mounted (e.g. under standard `/sys/fs/cgroup/<subsystem>`) and that every subsystem is
 --! mounted as a standalone hierarchy.
 --! @note You may want to use this instead of
---! - parsing `u_proc.cgroup` value, which is updated only once per iteration and so does not reflect previous changes
+--! - parsing `U_PROC.cgroup` value, which is updated only once per iteration and so does not reflect previous changes
 --!   caused by the rules or scheduler mappings
---! - updating and then parsing the `u_proc.cgroup` (e.g. `ulatency.process_update(pid)`), which can cause unexpected
+--! - updating and then parsing the `U_PROC.cgroup` (e.g. `ulatency.process_update(pid)`), which can cause unexpected
 --!   situations (e.g. if the process does no more exist)
 --! - parsing `/proc/<pid>/cgroup` content, which may cause unwanted overhead (and the process may not already exist too)
 --! @internal
 --! @note
 --! **How does it work:**
---! Paths of cgroups are internally stored in `u_proc.data.cgroups`; initially parsed from `u_proc.cgroup` and updated
---! by `u_proc:add_cgroup()`, which should be called by every function that moves a process between cgroups.
---! Further to this, the `u_proc.data._cgroup` contains a copy of `u_proc.cgroup`, these are compared to check if the
---! cache values are still valid or the `u_proc.cgroup` must be parsed again.@endinternal
+--! Paths of cgroups are internally stored in `U_PROC.data.cgroups`; initially parsed from `U_PROC.cgroup` and updated
+--! by `U_PROC:add_cgroup()`, which should be called by every function that moves a process between cgroups.
+--! Further to this, the `U_PROC.data._cgroup` contains a copy of `U_PROC.cgroup`, these are compared to check if the
+--! cache values are still valid or the `U_PROC.cgroup` must be parsed again.@endinternal
 --! @return `<paths>`, `<cgroups`> tables
 --! @retval <paths> example:@code
 --!   { cpuset = '/', cpu = '/usr_1000/grp_14067', memory = '/usr_1000/default', blkio = '/grp_14067', freezer = '/' }
@@ -456,9 +456,9 @@ end
 --! @retval <cgroups> example:@code
 --!   { cpuset = nil, cpu = <CGroup instance>, memory = <CGroup instance>, blkio = <CGroup instance>, freezer = nil }
 --! @endcode
---! @public @memberof u_proc
+--! @public @memberof U_PROC
 
-function u_proc:get_cgroups()
+function U_PROC:get_cgroups()
   -- validate
   local valid=false
   if self.data.cgroups and self.data._cgroup then
@@ -492,12 +492,12 @@ function u_proc:get_cgroups()
   return self.data.cgroups, cgroup_instances
 end
 
---! @brief Updates internal list of cgroups which the #u_proc belongs to.
---! This should be called every time a process is moved between cgroups, otherwise the `u_proc:get_cgroups()`
---! won't return correct cgroups until the #u_proc.cgroup will be updated (once per iteration).
+--! @brief Updates internal list of cgroups which the #U_PROC belongs to.
+--! This should be called every time a process is moved between cgroups, otherwise the `U_PROC:get_cgroups()`
+--! won't return correct cgroups until the #U_PROC.cgroup will be updated (once per iteration).
 --! Internally this function is called everytime CGroup instance is committed, so you should not be bothered.
---! @public @memberof u_proc
-function u_proc.add_cgroup(self, cgroup)
+--! @public @memberof U_PROC
+function U_PROC.add_cgroup(self, cgroup)
   if not self.data.cgroups then
     self:get_cgroups()
   end
@@ -851,15 +851,15 @@ function CGroup:add_children(proc)
   add_childs(proc:get_children())
 end
 
---! @brief Isolates the process: the passed #u_proc instance is marked to be skipped by scheduler and
+--! @brief Isolates the process: the passed #U_PROC instance is marked to be skipped by scheduler and
 --! moved to isolation cgroups iso_<`suffix`> under each cgroup subsystem.
---! @param proc #u_proc to isolate
+--! @param proc #U_PROC to isolate
 --! @param suffix (optional) The suffix of the new CGroup name: `iso_<suffix>` or `iso_<pid>`, if the suffix is nil.
 --! @param mappings A table with the CGroup @link __ISOLATE_MAPPING mappings@endlink per each cgroups subsystem.
 --! \endcode
 --! @param include_children (optional) If TRUE, the `proc` children are recursively put to the isolation.
---! @param block_scheduler (optional) `u_proc.set_block_scheduler()` argument, defaults to 1
---! @param fnc (optional) If passed, this function will be called with the every #u_proc putting into isolation.
+--! @param block_scheduler (optional) `U_PROC::set_block_scheduler()` argument, defaults to 1
+--! @param fnc (optional) If passed, this function will be called with the every #U_PROC putting into isolation.
 --! @public @memberof CGroup
 function CGroup.create_isolation_group(proc, suffix, mappings, include_children, block_scheduler, fnc)
 
@@ -975,11 +975,11 @@ function num_or_percent(conf, value, default)
 end
 --! @} End of "defgroup helper Helper classes"
 
---! @brief Recursively applies the function to #u_proc and its children.
---! @param fnc A function to apply. It will be called with #u_proc passed recursively on the #u_proc and all its
+--! @brief Recursively applies the function to #U_PROC and its children.
+--! @param fnc A function to apply. It will be called with #U_PROC passed recursively on the #U_PROC and all its
 --! children.
---! @public @memberof u_proc
-function u_proc:apply(fnc)
+--! @public @memberof U_PROC
+function U_PROC:apply(fnc)
   local function adjust(list)
     for _,p in ipairs(list) do
       adjust(p:get_children())

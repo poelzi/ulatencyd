@@ -72,11 +72,15 @@ struct _U_HEAD {
 };
 
 enum U_PROC_STATE {
-  UPROC_NEW          = (1<<0),
+  UPROC_NEW          = (1<<0),  //!< new process with basic properties not parsed, u_proc.proc is NULL
   UPROC_INVALID      = (1<<1),
-  UPROC_BASIC        = (1<<2),
+  UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
   UPROC_ALIVE        = (1<<3),
   UPROC_HAS_PARENT   = (1<<4),
+  //! Process is dead, but still may have UPROC_NEW or UPROC_ALIVE state.
+  //! This is set if the process could not be found in /proc filesystem while trying to update its properties.
+  //! Since this, no function accepting #u_proc will try to update its properties.
+  UPROC_DEAD         = (1<<5),
 };
 
 #define U_PROC_OK_MASK ~UPROC_INVALID
@@ -147,7 +151,7 @@ typedef struct {
   U_HEAD;
   int           pid;            //!< duplicate of proc.tgid
   int           ustate;         //!< status bits for process
-  struct proc_t proc;           //!< main data storage
+  proc_t       *proc;           //!< main data storage
   char        **cgroup_origin;  //!< the original cgroups this process was created in
   GArray        proc_history;   //!< list of history elements
   int           history_len;    //!< desigered history len
@@ -178,7 +182,7 @@ typedef struct {
 
 typedef struct {
   u_proc *proc;   //!< process this task belongs to
-  proc_t task;
+  proc_t *task;
 } u_task;
 
 typedef struct _filter {
@@ -346,6 +350,9 @@ int check_polkit(const char *methode,
 
 //extern gchar *load_pattern;
 
+// ulatencyd.c
+int fallback_quit(gpointer exit_code);
+
 // core.c
 int load_modules(char *path);
 int load_rule_directory(const char *path, const char *load_pattern, int fatal);
@@ -423,6 +430,8 @@ u_scheduler *scheduler_get();
 int scheduler_set(u_scheduler *scheduler);
 
 int iterate(void *);
+
+int cgroups_cleanup(int instant);
 
 int core_init();
 void core_unload();

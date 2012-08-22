@@ -475,7 +475,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         if(!proc)
             PUSH_ERROR(U_DBUS_ERROR_NO_PID, "wrong arguments")
 
-        if(caller != 0 && caller != proc->proc.euid)
+        if(caller != 0 && caller != proc->proc->euid)
             PUSH_ERROR(DBUS_ERROR_ACCESS_DENIED, "access denied")
 
         flag = u_flag_new((void *)U_DBUS_POINTER, name);
@@ -523,7 +523,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         if(!proc)
             PUSH_ERROR(U_DBUS_ERROR_NO_PID, "wrong arguments")
 
-        if(caller != 0 && caller != proc->proc.euid)
+        if(caller != 0 && caller != proc->proc->euid)
             PUSH_ERROR(DBUS_ERROR_ACCESS_DENIED, "access denied")
 
         if(is2) {
@@ -556,7 +556,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         if(!proc)
             PUSH_ERROR(U_DBUS_ERROR_NO_PID, "wrong arguments")
 
-        if(caller != 0 && caller != proc->proc.euid)
+        if(caller != 0 && caller != proc->proc->euid)
             PUSH_ERROR(DBUS_ERROR_ACCESS_DENIED, "access denied")
 
         ret = dbus_message_new_method_return(m);

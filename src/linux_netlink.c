@@ -123,7 +123,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		u_proc *rparent = proc_by_pid(ev->event_data.fork.parent_tgid);
 		if(rparent) {
 			u_proc_ensure(rparent, BASIC, FALSE);
-			process_new_delay(ev->event_data.fork.child_tgid, rparent->proc.ppid); //ev->event_data.fork.parent_pid);
+			process_new_delay(ev->event_data.fork.child_tgid, rparent->proc->ppid); //ev->event_data.fork.parent_pid);
 		} else
 			process_new_delay(ev->event_data.fork.child_tgid, 0);
 		break;
@@ -236,7 +236,7 @@ int init_netlink(GMainLoop *loop) {
 	 */
 	socket_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
 
-	if (socket == NULL) {
+	if (socket_fd == -1) {
 		g_warning ("netlink: failed to create socket: %s", error->message);
 		g_error_free (error);
 		return 1;
