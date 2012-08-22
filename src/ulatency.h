@@ -345,6 +345,9 @@ int check_polkit(const char *methode,
 
 //extern gchar *load_pattern;
 
+// ulatencyd.c
+int fallback_quit(gpointer exit_code);
+
 // core.c
 int load_modules(char *path);
 int load_rule_directory(const char *path, const char *load_pattern, int fatal);
@@ -419,6 +422,8 @@ u_scheduler *scheduler_get();
 int scheduler_set(u_scheduler *scheduler);
 
 int iterate(void *);
+
+int cgroups_cleanup(int instant);
 
 int core_init();
 void core_unload();
