@@ -102,6 +102,7 @@ void set_active_pid(guint uid, guint pid)
       up = g_list_last(ua->actives)->data;
       proc = proc_by_pid(up->pid);
       ua->actives = g_list_remove(ua->actives, up);
+      g_free(up);
       if(proc) {
         proc->changed = 1;
         process_run_one(proc, FALSE, FALSE);
