@@ -361,10 +361,12 @@ pid_t read_pid(struct x_server *conn, int *err) {
   xcb_get_property_reply_t *rep =
     xcb_get_property_reply (conn->connection,
                           naw,
-                          &error);
+                          NULL);
 
-  if(!rep || !xcb_get_property_value_length(rep))
+  if(!rep || !xcb_get_property_value_length(rep)) {
+    g_free(rep);
     return 0;
+  }
 
   dprint("len: %d ", xcb_get_property_value_length (rep));
   uint32_t win = *(uint32_t *)xcb_get_property_value(rep);
@@ -427,15 +429,20 @@ pid_t read_pid(struct x_server *conn, int *err) {
   }
 
   g_free(rep3);
+  g_free(error);
 
   return rv;
 error:
   // error in connection. free x_server connection
-  if(error && error->response_type == 0 && error->error_code == 3)
+  if(error && error->response_type == 0 && error->error_code == 3) {
+    g_free(error);
     return 0;
+  }
   *err = 1;
-  if(error)
+  if(error) {
     g_debug("xcb error: %d %d\n", error->response_type, error->error_code);
+    g_free(error);
+  }
   return 0;
 }
 
