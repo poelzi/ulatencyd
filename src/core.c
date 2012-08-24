@@ -216,6 +216,7 @@ void u_proc_free(void *ptr) {
   }
   g_hash_table_destroy (proc->skip_filter);
 
+  u_flag_clear_all(proc);
   //if(proc->tasks)
   g_ptr_array_free(proc->tasks, TRUE);
 

@@ -355,6 +355,7 @@ void simple_add_flag(u_filter *filter, u_proc *proc, struct simple_rule *rule) {
     u_trace("add flag %s to %d", nf->name, proc->pid); 
 
     u_flag_add(proc, nf);
+    DEC_REF(nf);
 }
 
 int simplerules_run_proc(u_proc *proc, u_filter *filter) {
