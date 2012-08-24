@@ -276,6 +276,7 @@ u_proc* u_proc_new(proc_t *proc) {
     rv->proc = proc;
   } else {
     U_PROC_SET_STATE(rv,UPROC_NEW);
+    rv->proc = g_new0(proc_t, 1);
   }
 
   return rv;
