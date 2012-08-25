@@ -350,7 +350,7 @@ end
 --! @public @memberof Scheduler
 function Scheduler:register_after_hook( id, func )
   self._after_hooks[id] = func
-  ulatency.log_debug('Scheduler: registering after-callback with id: '..to_string(id))
+  ulatency.log_debug('Scheduler: registering after-callback with id: '..tostring(id))
 end
 
 --! @brief Runs registered callbacks after the scheduling is finished.
@@ -359,7 +359,7 @@ end
 function Scheduler:_run_after_hooks()
   local callbacks = self._after_hooks
   for id,cb in pairs(callbacks) do
-    ulatency.log_debug('Scheduler: run registered after-callback with id: '..to_string(id))
+    ulatency.log_debug('Scheduler: run registered after-callback with id: '..tostring(id))
     if not cb() then callbacks[id]=nil end
   end
 end
