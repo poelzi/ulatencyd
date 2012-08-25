@@ -372,6 +372,7 @@ static void ck_session_removed(DBusGProxy *proxy, gchar *name, gpointer ignored)
         g_free(sess->dbus_session);
 
         U_session_list = g_list_remove(U_session_list, sess);
+        g_free(sess);
         break;
       }
       cur = g_list_next(cur);
