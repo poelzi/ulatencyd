@@ -90,6 +90,171 @@ guint get_plugin_id() {
   return ++last;
 }
 
+/*************************************************************
+ * u_task code
+ ************************************************************/
+
+/**
+ * free u_task instance
+ * @param ptr pointer to #u_task
+ *
+ * frees all memory of a u_task. This function should never be called directly.
+ * It as called automatically when the ref counter drops 0
+ */
+
+static void u_task_free(void *ptr) {
+  u_task *task = ptr;
+
+  g_assert(task->ref == 0);
+
+  // task must be already invalidated
+  g_assert(U_TASK_IS_INVALID(task));
+
+  if(task->lua_data) {
+    luaL_unref(lua_main_state, LUA_REGISTRYINDEX, task->lua_data);
+  }
+
+  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->tid));
+
+  g_slice_free(u_task, task);
+}
+
+/**
+ * Invalidate the #u_task instance.
+ * @param task a #u_task pointer
+ *
+ * Frees task->task, decrement reference counter for task->proc and set task->proc to NULL.
+ */
+void u_task_invalidate(u_task *task) {
+  if (U_TASK_IS_INVALID(task)) {
+    // already invalid
+    return;
+  }
+
+  // free task->task
+  // the task group owner may gave the same pointers, so we shall not free them
+  // when the task is removed
+  if(task->task->nsupgid > 0 &&
+     task->task->supgid &&
+     task->task->supgid != task->proc->proc->supgid) {
+     free(task->task->supgid);
+  }
+  // - cmdline, environ and cgroup point to the task group owner storages, so we will not free them here
+  // - supgrp is not filled for tasks
+  free(task->task);
+  task->task = NULL;
+
+  DEC_REF(task->proc);
+  task->proc = NULL;
+}
+
+/**
+ * attach task to the process
+ * @param proc pointer to #u_proc to which add the task
+ * @param t pointer to #proc_t datastructure defining the task
+ *
+ * If there is no #u_task with the t->tid in the #tasks list, the new #u_task will be allocated
+ * (with ref counter 0) and added to the #tasks list. The existing or newly created task will
+ * be then attached to the passed #u_proc instance, if not already there, and #u_task ref counter
+ * incremented by one.
+ *
+ * @return newly allocated #u_task reference
+ */
+
+u_task* u_proc_add_task(u_proc *proc, proc_t *t) {
+  u_task *task;
+
+  // find if the task already exists
+  task = g_hash_table_lookup(tasks, GUINT_TO_POINTER(t->tid));
+
+  if (!task) {
+
+    // just create new u_task
+    task = g_slice_new0(u_task);
+    task->free_fnk = u_task_free;
+    g_hash_table_insert(tasks, GUINT_TO_POINTER(t->tid), task);
+    g_ptr_array_add(proc->tasks, task);
+    task->ref = 1; // tracks only proc->tasks' or lua's references, not references in the task list
+  } else {
+
+    // u_task is already in the tasks list
+    // assumptions:
+    // - any u_task may be attached to at most one u_proc instance at the same time
+    // - still our u_task may be attached to a foreign process and be not invalidated, we must handle this
+
+    u_proc *old_proc; // old process containing our u_task
+    u_task *cur;
+    int i;
+
+    u_task_invalidate(task); //just make sure the task is invalidated (to prevent memleaks)!
+
+    #ifdef DEVELOP_MODE
+    // check assumptions - SLOW !!
+    GHashTableIter iter;
+    gpointer key;
+    u_proc *i_proc;
+    gboolean found = FALSE;
+
+    g_hash_table_iter_init (&iter, processes);
+    while (g_hash_table_iter_next (&iter, &key, (gpointer *) &i_proc))
+      {
+        if (FALSE == (i_proc->tasks && i_proc->tasks->len))
+          continue;
+        for(i = 0; i < i_proc->tasks->len; i++) {
+          cur = g_ptr_array_index(i_proc->tasks, i);
+          if (cur == task || cur->tid == task->tid) {
+            g_assert(found == FALSE);
+            g_assert(cur == task);
+            g_assert(cur->tid == task->tid);
+            g_assert(task->proc_pid == i_proc->pid);
+            found = TRUE;
+          }
+        }
+      }
+    #endif
+
+    old_proc = g_hash_table_lookup(processes, GUINT_TO_POINTER(task->proc_pid));
+
+    if (old_proc != proc) {
+      // FIRST, add the task to our process
+      g_ptr_array_add(proc->tasks, task);
+      INC_REF(task);
+      // SECOND (!), remove the task from that other process
+      if (old_proc) {
+        for(i = 0; i < old_proc->tasks->len; i++) {
+          cur = g_ptr_array_index(old_proc->tasks, i);
+          if (cur == task) {
+            g_ptr_array_remove_index_fast(old_proc->tasks, i);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  task->tid = t->tid;
+  task->proc_pid = proc->pid;
+  g_assert(t->tgid == proc->pid); //this will fail if the proc is not thread leader, this should not happen
+
+  task->task = t;
+  task->proc = proc;
+  INC_REF(task->proc); // task holds the proc reference
+
+  return task;
+}
+
+/**
+ * called when the task is removed from the #u_proc.tasks array.
+ * @param ptr a #u_task pointer
+ *
+ * Invalidates the #u_task (see `u_task_invalidate()`), decrement #u_task reference counter.
+ */
+static void u_proc_free_task(void *ptr) {
+  u_task *task = ptr;
+  u_task_invalidate(task);
+  DEC_REF(task);
+}
+
 
 /*************************************************************
  * u_proc code
@@ -223,8 +388,6 @@ void u_proc_free(void *ptr) {
   g_hash_table_destroy (proc->skip_filter);
 
   u_flag_clear_all(proc);
-  //if(proc->tasks)
-  g_ptr_array_free(proc->tasks, TRUE);
 
   u_proc_remove_child_nodes(proc);
 
@@ -234,21 +397,6 @@ void u_proc_free(void *ptr) {
   freeproc(proc->proc);
   g_slice_free(u_proc, proc);
 }
-
-void u_proc_free_task(void *ptr) {
-  u_task *task = ptr;
-  // the task group owner has the same pointers, so we shall not free them 
-  // when the task is removed
-  if(task->task->nsupgid > 0 &&
-     task->task->supgid &&
-     task->task->supgid != task->proc->proc->supgid) {
-     free(task->task->supgid);
-  }
-  //g_free(proc->supgid);
-  g_hash_table_remove(tasks, GUINT_TO_POINTER(task->task->tid));
-  g_slice_free(u_task, task);
-}
-
 
 /**
  * allocate new #u_proc
@@ -436,7 +584,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
 
   } else if(what == TASKS) {
       // FIXME
-      return TRUE;
+      return (U_PROC_IS_VALID(proc) ? TRUE : FALSE);
   } else if(what == ENVIRONMENT) {
       if(update && proc->environ) {
           g_hash_table_unref(proc->environ);
@@ -604,6 +752,8 @@ static void processes_free_value(gpointer data) {
   }
 
   U_PROC_SET_STATE(proc, UPROC_INVALID);
+  g_ptr_array_free(proc->tasks, TRUE);
+  proc->tasks = NULL;
   u_proc_remove_child_nodes(proc);
   // remove it from the delay stack
   remove_proc_from_delay_stack(proc->pid);
@@ -902,6 +1052,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   proc_t *t;
   u_proc *proc;
   u_proc *parent;
+  u_task *task;
   time_t timeout = time(NULL);
   gboolean full_update = FALSE;
   static int run = 0;
@@ -925,42 +1076,46 @@ int update_processes_run(PROCTAB *proctab, int full) {
   while((p = readproc(proctab, NULL))){
     proc = proc_by_pid(p->tid);
     if(proc) {
+      // detect change of important parameters that will cause a reschedule
+      proc->changed = proc->changed | detect_changed(proc->proc, p);
       // we need to clear the task array first to detect which dynamic mallocs
       // need to be freed as readproc likes to reuse pointers on some dynamic
       // allocations
       if(proc->tasks->len)
-        g_ptr_array_remove_range(proc->tasks, 0, proc->tasks->len);
-
+        g_ptr_array_foreach(proc->tasks, (GFunc)u_task_invalidate, NULL);
       // free all changable allocated buffers
       freesupgrp(proc->proc);
       freeproc(proc->proc);
+      proc->proc = p;
     } else {
       proc = u_proc_new(p);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
-      // we save the origin of cgroups for scheduler constrains
     }
     // must still have the process allocated
 
-    // detect change of important parameters that will cause a reschedule
-    proc->changed = proc->changed | detect_changed(proc->proc, p);
     if(full)
       proc->last_update = run;
 
     //save rt received flag
     rrt = proc->received_rt;
 
-    proc->proc = p;
-
     proc->received_rt |= (proc->proc->sched == SCHED_FIFO || proc->proc->sched == SCHED_RR);
 
     while((t = readtask(proctab,p,NULL))) {
-      u_task *task = g_slice_new0(u_task);
-      task->proc = proc;
-      task->task = t;
-      g_ptr_array_add(proc->tasks, task);
+      u_proc_add_task(proc, t);
       proc->received_rt |= (t->sched == SCHED_FIFO || t->sched == SCHED_RR);
-      g_hash_table_insert(tasks, GUINT_TO_POINTER(t->tid), task);
     }
+    // remove invalid (not readded) tasks
+    for(i = 0; i < proc->tasks->len;) {
+        task = g_ptr_array_index(proc->tasks, i);
+        if(U_TASK_IS_INVALID(task)) {
+            u_trace("remove task %d", task->tid);
+            g_ptr_array_remove_index_fast(proc->tasks, i);
+        } else {
+          i++;
+        }
+    }
+
     if(rrt != proc->received_rt)
       proc->changed = 1;
 

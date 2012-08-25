@@ -166,7 +166,7 @@ typedef struct {
   GList         *flags;         //!< list of #u_flag
   int           changed;        //!< flags or main parameters of process like uid, gid, sid changed
   int           block_scheduler; //!< indicates that the process should not be touched by the scheduler
-  GPtrArray     *tasks;         //!< pointer array to all process tasks of type #u_task 
+  GPtrArray    *tasks;          //!< array of all process tasks of type #u_task
   int           received_rt;    //!< indicates a process had realtime prio at least once
 
   int           lua_data;       //!< id for per process lua storage
@@ -186,9 +186,35 @@ typedef struct {
 } u_proc;
 
 typedef struct {
-  u_proc *proc;   //!< process this task belongs to
-  proc_t *task;
+  U_HEAD;
+  int     tid;        //!< duplicate of task.tid, but available even if the task was invalidated
+  u_proc *proc;       //!< process this task belongs to (NULL if the task was invalidated)
+  //! PID of process the task is/was attached to. This is duplicate of proc->pid, task->tgid, proc->tgid, proc->tid,
+  //! but it is available even if the task is invalidated.
+  int     proc_pid;
+  proc_t *task;       //!< pointer to #proc_t datastructure (NULL if the task was invalidated)
+  int     lua_data;   //!< id for per task lua storage
 } u_task;
+
+#ifdef DEVELOP_MODE
+
+static inline gboolean U_TASK_IS_INVALID(u_task *T) {
+  if (T->proc) { g_assert(T->task); g_assert(U_PROC_IS_VALID(T->proc)); return FALSE; }
+  else { g_assert(T->task == NULL); return TRUE; }
+}
+
+static inline gboolean U_TASK_IS_VALID(u_task *T) {
+  if (T->proc) { g_assert(T->task); g_assert(U_PROC_IS_VALID(T->proc)); return TRUE; }
+  else { g_assert(T->task == NULL); return FALSE; }
+}
+
+#else
+
+#define U_TASK_IS_INVALID(T) ( T ->proc == NULL )
+#define U_TASK_IS_VALID(T)   ( T ->proc != NULL )
+
+#endif
+
 
 typedef struct _filter {
   U_HEAD;
