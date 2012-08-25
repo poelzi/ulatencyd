@@ -56,7 +56,7 @@
 
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP | PROC_LOOSE_TASKS)
+  PROC_FILLWCHAN | PROC_FILLSUPGRP | PROC_LOOSE_TASKS)
 
 #define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
 
@@ -152,7 +152,12 @@ typedef struct {
   int           pid;            //!< duplicate of proc.tgid
   int           ustate;         //!< status bits for process
   proc_t       *proc;           //!< main data storage
-  char        **cgroup_origin;  //!< the original cgroups this process was created in
+  char        **cgroup_origin_raw;  //!< the original cgroups this process was created in
+  GHashTable   *cgroup_origin;  //!< the original cgroups this process was created in, table of paths indexed by subsystem
+  char        **cgroup_raw;     //!< process cgroups
+  //! current cgroups, table of paths indexed by subsystem (update with `process_update_pid()` or manually)
+  //! @note cgroup_raw is in field `proc.cgroup`
+  GHashTable   *cgroup;
   GArray        proc_history;   //!< list of history elements
   int           history_len;    //!< desigered history len
   guint         last_update;    //!< counter for detecting dead processes
@@ -376,6 +381,7 @@ enum ENSURE_WHAT {
   CMDLINE,
   EXE,
   TASKS,
+  CGROUP
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);

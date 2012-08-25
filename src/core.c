@@ -205,11 +205,17 @@ void u_proc_free(void *ptr) {
   g_free(proc->cmdfile);
   g_free(proc->exe);
   g_free(proc->cmdline_match);
-  g_strfreev(proc->cgroup_origin);
+  g_strfreev(proc->cgroup_origin_raw);
+  g_strfreev(proc->cgroup_raw);
   if(proc->environ)
       g_hash_table_unref(proc->environ);
   if(proc->cmdline)
       g_ptr_array_unref(proc->cmdline);
+  if(proc->cgroup)
+      g_hash_table_unref(proc->cgroup);
+  if(proc->cgroup_origin)
+      g_hash_table_unref(proc->cgroup_origin);
+
 
   if(proc->lua_data) {
     luaL_unref(lua_main_state, LUA_REGISTRYINDEX, proc->lua_data);
@@ -326,6 +332,90 @@ GList *u_proc_list_flags (u_proc *proc, gboolean recrusive) {
 }
 
 /**
+ * fills all `#u_proc` fields containing information about the process cgroups
+ * @param proc[in,out] a #u_proc
+ * @param force_update Force `/proc/#/cgroup` parsing
+ *
+ * Ensures that fields storing the raw cgroups paths are set (`#uproc.cgroup_raw` and `#u_proc.cgroup_origin`).
+ * If not or `force_update` requested, fills them with `/proc/#/cgroup` content.
+ * Then parse these raw values to `#u_proc.cgroup` and `#u_proc.cgroup_origin` hash tables. Each table item is
+ * cgroup path relative to the root of each hierarchy, hashed by the name of the hierarchy subsystem.
+ *
+ * @retval TRUE if cgroup was set
+ * @retval FALSE on failure. `#u_proc.cgroup` will be set to NULL, `#u_proc.cgroup_origin` not touched.
+ */
+gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
+  GHashTable *cgroups, *cgroups_origin;
+  char       *content;
+  char       *path;
+  GError     *error = NULL;
+  int        i;
+
+  if (proc->cgroup) {
+    g_hash_table_unref(proc->cgroup);
+    proc->cgroup = NULL;
+  }
+
+  if (U_PROC_HAS_STATE(proc, UPROC_DEAD))
+    return FALSE;
+
+  //  if needed or requested, read raw values from /proc/#/cgroup into proc->cgroup_raw
+  if (!proc->cgroup_raw || force_update) {
+
+    g_strfreev(proc->cgroup_raw);
+
+    path = g_strdup_printf ("/proc/%u/cgroup", (guint)proc->pid);
+
+    if(g_file_get_contents(path, &content, NULL, &error)) {
+      proc->cgroup_raw = g_strsplit_set(content, "\n", -1);
+    } else {
+        g_debug("setting state UPROC_DEAD to process - pid: %d", proc->pid);
+        U_PROC_SET_STATE(proc, UPROC_DEAD);
+        g_error_free(error);
+    }
+
+    g_free(path);
+    g_free(content);
+
+    if (! proc->cgroup_raw)
+      return FALSE;
+  }
+
+  // fill proc->cgroup_origin_raw if not already set
+  if (!proc->cgroup_origin_raw)
+    proc->cgroup_origin_raw = g_strdupv(proc->cgroup_raw);
+
+  /* parse */
+
+  char **lines = proc->cgroup_raw;
+  cgroups_origin = NULL;
+
+  cgroups = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  if (!proc->cgroup_origin) {
+    cgroups_origin = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  }
+
+  for(i = 0; lines[i]; i++) {
+      char **vals;
+      vals = g_strsplit (lines[i], ":", 3); // or is regex ^[0-9]+:(.+):(.+) needed?
+      if (vals != NULL && g_strv_length(vals) == 3) {
+        g_hash_table_insert (cgroups, g_strdup (vals[1]), g_strdup (vals[2]));
+        if (cgroups_origin)
+          g_hash_table_insert (cgroups_origin, g_strdup (vals[1]), g_strdup (vals[2]));
+      }
+      g_strfreev (vals);
+  }
+
+  if (cgroups_origin)
+    proc->cgroup_origin = cgroups_origin;
+  if (cgroups) {
+    proc->cgroup = cgroups;
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
  * ensures fields on #u_proc
  * @arg proc a #u_proc
  * @arg what set of varibles to fill from #ENSURE_WHAT
@@ -355,6 +445,15 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
       if(!proc->environ)
           proc->environ = U_PROC_HAS_STATE(proc, UPROC_DEAD) ? NULL : u_read_env_hash (proc->pid);
       return (proc->environ != NULL);
+  } else if(what == CGROUP) {
+      if(update && proc->cgroup) {
+          g_hash_table_unref(proc->cgroup);
+          proc->cgroup = NULL;
+      }
+      if(!proc->cgroup && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+          u_proc_parse_cgroup(proc, update);
+      }
+      return (proc->cgroup != NULL);
   } else if(what == CMDLINE) {
       if(update && proc->cmdline) {
           g_ptr_array_unref(proc->cmdline);
@@ -865,8 +964,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
     if(rrt != proc->received_rt)
       proc->changed = 1;
 
-    if(!proc->cgroup_origin)
-      proc->cgroup_origin = g_strdupv(proc->proc->cgroup);
+    u_proc_ensure(proc, CGROUP, TRUE);
 
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);

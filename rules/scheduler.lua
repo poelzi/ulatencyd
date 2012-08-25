@@ -534,16 +534,16 @@ function Scheduler:_one(proc, single)
     ulatency.log_debug(string.format("Scheduler:one(): pid %d skipped (proc.block_scheduler=%d, block threshold=%d)",
                                     proc.pid, proc.block_scheduler, self.PROC_BLOCK_THRESHOLD))
   else
-    local cgr_paths, cgroups = proc:get_cgroups()
     for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
       map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
       if map and ulatency.tree_loaded(subsys) then
 
         -- skip foreign cgroups
-        local cgr_name = subsys .. cgr_paths[subsys]
-        if not (cgr_paths[subsys] == "/" or cgroups[subsys] or self.SAVED_CGROUPS[cgr_name]) then
+        local cgr_path = proc:get_cgroup(subsys)
+        local cgr_name = subsys .. cgr_path
+        if not (cgr_path == "/" or CGroup.get_group(cgr_name) or self.SAVED_CGROUPS[cgr_name]) then
           ulatency.log_info(string.format("scheduler subsys %s: skippping %s (pid: %d) because its cgroup %s is foreign",
-            subsys, proc.cmdfile or "unknown", proc.pid or -1, cgr_name))
+            subsys, proc.cmdfile or "unknown", proc.pid, cgr_name))
         else
 
           local mappings = run_list(proc, map)

@@ -951,8 +951,40 @@ static int u_proc_ioprio_get (lua_State *L) {
   return 2;
 }
 
+static int u_proc_get_cgroup (lua_State *L) {
+  const char *subsys;
+  char *cgroup;
 
+  u_proc *proc = check_u_proc(L, 1);
+  subsys = luaL_checkstring (L, 2);
 
+  if(!u_proc_ensure(proc, CGROUP, FALSE))
+      return 0;
+
+  cgroup = g_hash_table_lookup(proc->cgroup, subsys);
+  if (cgroup) {
+    lua_pushstring(L, cgroup);
+    return 1;
+  }
+
+  return 0;
+}
+
+static int u_proc_set_cgroup (lua_State *L) {
+  const char *subsys, *cgroup;
+
+  u_proc *proc = check_u_proc(L, 1);
+  subsys = luaL_checkstring (L, 2);
+  cgroup = luaL_checkstring (L, 3);
+
+  if(!u_proc_ensure(proc, CGROUP, FALSE))
+      // process is already dead - but we create proc->cgroup, just for sure
+      proc->cgroup = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+
+  g_hash_table_replace(proc->cgroup, g_strdup(subsys), g_strdup(cgroup));
+
+  return 0;
+}
 
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
@@ -988,6 +1020,8 @@ static const luaL_reg u_proc_methods[] = {
   {"get_ioprio", u_proc_ioprio_get},
   {"get_tasks", u_proc_get_tasks},
   {"get_current_task_pids", _u_proc_get_current_task_pids},
+  {"get_cgroup", u_proc_get_cgroup},
+  {"set_cgroup", u_proc_set_cgroup},
   {NULL,NULL}
 };
 
@@ -1061,7 +1095,6 @@ static int handle_proc_t (lua_State *L, proc_t *proc, const char *key) {
   PUSH_STR(fgroup)
   PUSH_STR(cmd)
   PUSH_INT(nlwp)
-  PUSH_INT(tid)
   PUSH_INT(tgid)
   PUSH_INT(tty)
   PUSH_INT(euid)
@@ -1148,27 +1181,19 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "received_rt" )) {
     lua_pushboolean(L, proc->received_rt);
     return 1;
-  }
-  
-
-  if(!u_proc_ensure(proc, BASIC, FALSE)) {
-    lua_pushfstring (L, "u_proc<pid %d> basic data not available ", proc->pid);
-    lua_error(L);
-  }
-
-  // data of proc.proc must be invalidated as the process is already dead
-  if(U_PROC_IS_INVALID(proc)) {
-    lua_pushliteral(L, "u_proc state is invalid");
-    lua_error(L);
-  }
-
-  rv = handle_proc_t (L, proc->proc, key);
-  if(rv)
-    return rv;
-
-  //FIXME
-// 	**environ,	// (special)       environment string vector (/proc/#/environ)
-// 	**cmdline;	// (special)       command line string vector (/proc/#/cmdline)
+  } else if(!strcmp(key, "has_basic_props" )) {
+    lua_pushboolean(L, u_proc_ensure(proc, BASIC, FALSE));
+    return 1;
+  } else
+  // always available basic properties
+  if(!strcmp(key, "tid" )) {
+    lua_pushinteger(L, proc->proc.tid);
+    return 1;
+  } else if(!strcmp(key, "ppid" )) {
+    lua_pushinteger(L, proc->proc.ppid);
+    return 1;
+  } else
+  // other properties that don't need basic properties parsed
   if(!strcmp(key, "environ" )) {
     // lazy read
     u_proc_ensure(proc, ENVIRONMENT, TRUE);
@@ -1177,41 +1202,73 @@ static int u_proc_index (lua_State *L)
       return 1;
     }
     return 0;
-  }
-  if(!strcmp(key, "cmdline" )) {
+  } else if(!strcmp(key, "cmdline" )) {
     if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline) {
       l_ptrarray_to_table(L, proc->cmdline);
       return 1;
     } else {
       return 0;
     }
-  }
-  if(!strcmp(key, "cmdline_match" )) {
+  } else if(!strcmp(key, "cmdline_match" )) {
     if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline_match) {
       lua_pushstring(L, proc->cmdline_match);
       return 1;
     } else {
       return 0;
     }
-  }
-  if(!strcmp(key, "cmdfile" )) {
+  } else if(!strcmp(key, "cmdfile" )) {
     if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) {
       lua_pushstring(L, proc->cmdfile);
       return 1;
     } else {
       return 0;
     }
-  }
-  if(!strcmp(key, "exe" )) {
+  } else if(!strcmp(key, "exe" )) {
     if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) {
       lua_pushstring(L, proc->exe);
       return 1;
     } else {
       return 0;
     }
+  } else
+  if(!strcmp(key, "cgroup" )) {
+    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup) {
+      l_hash_to_table(L, proc->cgroup);
+      return 1;
+    } else {
+      return 0;
+    }
+  } else if (!strcmp(key, "cgroup_raw" )) {
+    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup_raw) {
+      l_vstr_to_table(L, proc->proc->cgroup, -1);
+      return 1;
+    } else {
+      return 0;
+    }
+  } else if(!strcmp(key, "cgroup_origin" )) {
+    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup_origin) {
+      l_hash_to_table(L, proc->cgroup);
+      return 1;
+    } else {
+      return 0;
+    }
+  } else if(!strcmp(key, "cgroup_origin_raw" )) {
+    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup_origin_raw) {
+      l_vstr_to_table(L, proc->cgroup_origin_raw, -1);
+      return 1;
+    } else {
+      return 0;
+    }
   }
 
+  if(!u_proc_ensure(proc, BASIC, FALSE)) {
+    lua_pushfstring (L, "u_proc<pid %d> basic data not available ", proc->pid);
+    lua_error(L);
+  }
 
+  rv = handle_proc_t (L, &(proc->proc), key);
+  if(rv)
+    return rv;
 
 //     	**supgrp, // status        supplementary groups
   if(!strcmp(key, "groups")) {
@@ -1235,22 +1292,6 @@ static int u_proc_index (lua_State *L)
   if(!strcmp(key, "session" )) {
     lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc->session);
     return 1;
-  }
-
-  if(!strcmp(key, "cgroup" )) {
-    if(proc->proc->cgroup) {
-      l_vstr_to_table(L, proc->proc->cgroup, -1);
-      return 1;
-    } else {
-      return 0;
-    }
-  } else if(!strcmp(key, "cgroup_origin" )) {
-    if(proc->cgroup_origin) {
-      l_vstr_to_table(L, proc->cgroup_origin, -1);
-      return 1;
-    } else {
-      return 0;
-    }
   }
 
   return 0;

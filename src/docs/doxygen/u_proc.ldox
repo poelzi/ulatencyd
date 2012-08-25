@@ -124,6 +124,28 @@ end
 function U_PROC:clear_changed()
 end
 
+--! @brief Returns process cgroup of given `subsystem`.
+--! @param subsys a cgroup subsystem
+--! Returns the value of `U_PROC.cgroup[<subsystem>]`.
+--! @retval <string> The cgroup is returned as the path relative to the root directory where the `subsystem` hierarchy
+--! is mounted.
+--! @retval nil If non-existent `subsystem` given, or if the process is already dead and its cgroups were never been parsed.
+--! @public @memberof U_PROC
+function U_PROC:get_cgroup(subsys)
+end
+
+--! @brief Informs the core process has been added to the `cgroup`.
+--! @param subsys a cgroup subsystem
+--! @param cgroup_path cgroup path relative to the root directory where the `subsystem` hierarchy is mounted.
+--! This sets the value of `U_PROC.cgroup[<subsystem>]`.
+--! This should be called every time a process is moved between cgroups, otherwise the `U_PROC.cgroup` property and
+--! `U_PROC:get_cgroup()` function won't return correct values until the `U_PROC.cgroup_raw` will be updated
+--! (usually once per iteration).
+--! Internally this function is called everytime `CGroup` instance is committed, so you should not be bothered.
+--! @public @memberof U_PROC
+function U_PROC:set_cgroup(subsys, cgroup_path)
+end
+
 -------------------------------------------------------
 
 --! @name process flags manipulation
