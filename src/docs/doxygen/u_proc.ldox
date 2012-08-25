@@ -7,7 +7,11 @@
 
 --! @class U_PROC
 --! @brief Process class. The `#U_PROC` is basically proxy to `u_proc` structure implemented in the core, extended
---! with lua bindings and possibly with lua (you can extend the `U_PROC` class in lua).
+--! with lua bindings and possibly with lua (you can extend the `U_PROC` table in lua).
+--!
+--! @internal
+--! All tasks in system and known to `ulatencyd` are stored in the `tasks` hash table as `u_task` instances.
+--!
 --! @attention
 --! Process objects are shared between all parts of ulatencyd. If you save a reference you do not save the
 --! data, but only a reference to it. Accessing values will always be the most recent version of it. If you
@@ -49,16 +53,16 @@ function U_PROC:get_n_nodes()
 end
 
 --! @brief Sets `#U_PROC.block_scheduler` value.
---! @param value a number 
---! - A value greater than 0 will cause Scheduler skips the process. 
+--! @param value a number
+--! - A value greater than 0 will cause Scheduler skips the process.
 --! - A value greater then 1 will cause
 --!   Scheduler skips the process even when doing final cleanup, caused by ulatencyd daemon shutdown. This will make
 --!   the process **never** being moved from its cgroup.
---! @remark Particular, if you have a process you want to be never moved to other cgroup, setup a cgroup, move the 
+--! @remark Particular, if you have a process you want to be never moved to other cgroup, setup a cgroup, move the
 --! process to it and call `U_PROC:set_block_scheduler(1)`.
---! @remark If you have a process you want to stay in its cgroup forever, e.g. a process that creates its private 
+--! @remark If you have a process you want to stay in its cgroup forever, e.g. a process that creates its private
 --! cgroups that will not be able to find if the process would be moved, call `U_PROC:set_block_scheduler(2)` on it.
---! @remark You may put processes to isolation with `CGroup.create_isolation_group()` or label them with 
+--! @remark You may put processes to isolation with `CGroup.create_isolation_group()` or label them with
 --! @link __ISOLATE_FLAG isolate flag@endlink.
 --! @public @memberof U_PROC
 function U_PROC:set_block_scheduler(value)
@@ -94,10 +98,8 @@ end
 
 --! @brief Returns array of process #U_PROC tasks.
 --! @param update If TRUE process tasks are updated before returned.
---! @return Array of #u_task entities.
+--! @return Array of #U_TASK instances or `nil` if the `#U_PROC` is invalid (see `U_PROC.is_invalid`)
 --! @bug The `update` patameter not implemented.
---! @warning For every returned #u_task the reference count of the thread leader #u_proc is increased.
---! @warning Do not store references to #u_task instances! The core frees these everytime the process is updated!
 --! @public @memberof U_PROC
 function U_PROC:get_tasks(update)
 end
@@ -255,3 +257,283 @@ function U_PROC:get_ioprio()
   return priority, class
 end
 --! @} End of "process scheduling policies and priorities manipulation"
+
+
+
+
+--! @name read/write properties
+--! @{
+
+--! @brief custom process data
+--! @details This is lua table shared between all lua scripts. You should use `U_PROC.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @public @memberof U_PROC
+U_PROC.data = {}
+--! @}
+
+--! @name always accessible read-only properties
+--! @{
+
+--! If TRUE, the `#U_PROC` instance is valid, see `U_PROC.is_invalid`.
+--! @public @memberof U_PROC
+U_PROC.is_valid = <boolean>
+--! If TRUE, the `#U_PROC` instance is invalid:
+--! - the process is dead
+--! - correspondent `#u_proc` instance has been already removed from `GHashTable processes` implemented in the core
+--! - filter's exit hooks  `__FILTER::exit()` have been already called on this `#U_PROC` instance.
+--! - it has no children (removed or reparented)
+--! - waiting until lua references drop to zero so the `#u_proc` instance may be freed
+--!
+--! @attention If you have stored references to this process somewhere, remove them, so the `#u_proc` may be freed.
+--! @note `#U_PROC` instances passed to filters, `Scheduler::one()` function and those returned by any core
+--! function are always valid.
+--! @public @memberof U_PROC
+U_PROC.is_invalid = <boolean>
+--! @see `U_PROC::clear_changed()`
+--! @public @memberof U_PROC
+U_PROC.changed = <boolean>
+--! See `U_PROC::set_block_scheduler()`
+--! @public @memberof U_PROC
+U_PROC.block_scheduler = <number>
+--! If the process is in user active list.
+--! @public @memberof U_PROC
+U_PROC.is_active = <boolean>
+--! Position in active list.
+--! @public @memberof U_PROC
+U_PROC.active_pos = <number>
+--! TRUE, if any of process tasks was scheduled in the past with SCHED_FIFO or SCHED_RR policy.
+--! @note Scheduling policies are updated only when the `/proc/#` is parsed again (`update_processes_run()`),
+--! usually every iteration, therefore short lasting RT policy may  not be detected.
+--! @warning `U_PROC::set_rtprio()` does not affect this property directly.
+--! @public @memberof U_PROC
+U_PROC.recieved_rt = <boolean>
+--! TRUE, if @ref U_PROC_BASIC "BASIC process properties" are accessible.
+--! This is always TRUE for processes passed to normal filters, `Scheduler:one()` function and for
+--! processes returned by `ulatency.list_processes()` if called from previously mentioned or from Scheduler:all().
+--! @public @memberof U_PROC
+U_PROC.has_basic_props = <boolean>
+--! @public @memberof U_PROC
+U_PROC.pid = <number>
+--! pid of parent process
+--! @public @memberof U_PROC
+U_PROC.ppid = <number>
+--! task id, the POSIX thread ID
+--! @public @memberof U_PROC
+U_PROC.tid = <number>
+--! @}
+
+
+--! @name Misc
+--! Some of these properties are automatically fill whenever the process is updated, rest of them is filled on request.
+--! Basically they will be `nil` if the process is already dead and have not been filled before.
+
+--! Hash table containing process environment variables; indexed by variable names.
+--! @bug This property is parsed from `/proc/#/environ` whenever accessed and therefore slow.
+--! @warning If the process is dead, this property is always `nil`.
+--! @public @memberof U_PROC
+U_PROC.environ = {} or nil,
+--! Table of command line arguments parsed from `/proc/#/cmdline`.
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.cmdline = {} or nil
+--! Concatenated command line parsed from `/proc/#/cmdline`.
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.cmdline_match = <string> or nil
+--! The basename of first command line argument from `/proc/#/cmdline`.
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.cmdfile = <string> or nil
+--! Path to executable; if symbolic link, the file the link points to (dereferenced only once).
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.exe = <string> or nil
+--! @brief Hash table of cgroups of the #U_PROC process; index of each item is the subsystem name, value is the cgroup path
+--! relative to the root directory where the subsystem hierarchy is mounted.
+--! @warning Neither hierarchies identifications nor their mount points are available. This assumes that ulatencyd knows
+--! where each subsystem is mounted (e.g. under standard `/sys/fs/cgroup/<subsystem>`) and that every subsystem is
+--! mounted in the standalone hierarchy.
+--!
+--! Example:@code
+--!   { cpuset = '/', cpu = '/usr_1000/grp_14067', memory = '/usr_1000/default', blkio = '/grp_14067', freezer = '/' }
+--! @endcode
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup = {} or nil
+--! @brief Table containing lines from `/proc/#/cgroup`.
+--! This is updated whenever `#u_proc` is updated. E.g on every iteration and when the single process is to be scheduled.
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup_raw = {} or nil
+--! @brief Hash table of process original cgroups. Same structure as for `U_PROC.cgroup`.
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup_origin = {} or nil
+--! @brief Table of process original cgroups. Same structure as for `U_PROC.cgroup_raw`.
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup_origin_raw = {} or nil
+--! @}
+
+
+--! @name BASIC read-only properties
+--! @anchor U_PROC_BASIC
+--! These are properties inherited from `u_proc.proc` implemented in C (see `proc_t`).
+--! Properties are accessible since the process basic properties have been parsed (`U_PROC.has_basic_props`).
+--! These is true for every process passed to normal filters, `Scheduler::one()` and for every process returned by
+--! `ulatency.list_processes()` if called from previously mentioned or from `Scheduler::all()`.
+--! @warning These properties may not be accessible for processes:
+--! - passed to the fast filters (though, these cannot be implemented in lua)
+--! - inside timeout functions
+--! - from filter's exit hooks `__FILTER.exit()`
+--! @{
+
+--! @public @memberof U_PROC
+U_PROC.state = <number>
+--! @public @memberof U_PROC
+U_PROC.utime = <number>
+--! @public @memberof U_PROC
+U_PROC.stime = <number>
+--! @public @memberof U_PROC
+U_PROC.cutime = <number>
+--! @public @memberof U_PROC
+U_PROC.cstime = <number>
+--! @public @memberof U_PROC
+U_PROC.start_time = <number>
+
+--! @public @memberof U_PROC
+U_PROC.signal = <string>
+--! @public @memberof U_PROC
+U_PROC.blocked = <string>
+--! @public @memberof U_PROC
+U_PROC.sigignore = <string>
+--! @public @memberof U_PROC
+U_PROC.sigcatch = <string>
+--! @public @memberof U_PROC
+U_PROC._sigpnd = <string>
+
+--! @public @memberof U_PROC
+U_PROC.start_code = <number>
+--! @public @memberof U_PROC
+U_PROC.end_code = <number>
+--! @public @memberof U_PROC
+U_PROC.start_stack = <number>
+--! @public @memberof U_PROC
+U_PROC.kstk_esp = <number>
+--! @public @memberof U_PROC
+U_PROC.kstk_eip = <number>
+--! @public @memberof U_PROC
+U_PROC.wchan = <number>
+
+--! @public @memberof U_PROC
+U_PROC.priority = <number>
+--! @public @memberof U_PROC
+U_PROC.nice = <number>
+--! @public @memberof U_PROC
+U_PROC.rss = <number>
+--! @public @memberof U_PROC
+U_PROC.alarm = <number>
+--! @public @memberof U_PROC
+U_PROC.size = <number>
+--! @public @memberof U_PROC
+U_PROC.resident = <number>
+--! @public @memberof U_PROC
+U_PROC.share = <number>
+--! @public @memberof U_PROC
+U_PROC.trs = <number>
+--! @public @memberof U_PROC
+U_PROC.lrs = <number>
+--! @public @memberof U_PROC
+U_PROC.drs = <number>
+--! @public @memberof U_PROC
+U_PROC.dt = <number>
+
+--! @public @memberof U_PROC
+U_PROC.vm_size = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_lock = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_rss = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_data = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_stack = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_exe = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_lib = <number>
+--! @public @memberof U_PROC
+U_PROC.rtprio = <number>
+--! @public @memberof U_PROC
+U_PROC.sched = <number>
+--! @public @memberof U_PROC
+U_PROC.vsize = <number>
+--! @public @memberof U_PROC
+U_PROC.rss_rlim = <number>
+--! @public @memberof U_PROC
+U_PROC.flags = <number>
+--! @public @memberof U_PROC
+U_PROC.min_flt = <number>
+--! @public @memberof U_PROC
+U_PROC.maj_flt = <number>
+--! @public @memberof U_PROC
+U_PROC.cmin_flt = <number>
+--! @public @memberof U_PROC
+U_PROC.cmaj_flt = <number>
+
+--! @public @memberof U_PROC
+U_PROC.euser = <string>
+--! @public @memberof U_PROC
+U_PROC.ruser = <string>
+--! @public @memberof U_PROC
+U_PROC.suser = <string>
+--! @public @memberof U_PROC
+U_PROC.fuser = <string>
+--! @public @memberof U_PROC
+U_PROC.rgroup = <string>
+--! @public @memberof U_PROC
+U_PROC.egroup = <string>
+--! @public @memberof U_PROC
+U_PROC.sgroup = <string>
+--! @public @memberof U_PROC
+U_PROC.fgroup = <string>
+--! @public @memberof U_PROC
+U_PROC.cmd = <string>
+
+--! @public @memberof U_PROC
+U_PROC.nlwp = <number>
+--! @public @memberof U_PROC
+U_PROC.tgid = <number>
+--! @public @memberof U_PROC
+U_PROC.tgid = <number>
+--! @public @memberof U_PROC
+U_PROC.tty = <number>
+--! @public @memberof U_PROC
+U_PROC.euid = <number>
+--! @public @memberof U_PROC
+U_PROC.egid = <number>
+--! @public @memberof U_PROC
+U_PROC.ruid = <number>
+--! @public @memberof U_PROC
+U_PROC.rgid = <number>
+--! @public @memberof U_PROC
+U_PROC.suid = <number>
+--! @public @memberof U_PROC
+U_PROC.sgid = <number>
+--! @public @memberof U_PROC
+U_PROC.fuid = <number>
+--! @public @memberof U_PROC
+U_PROC.fgid = <number>
+--! @public @memberof U_PROC
+U_PROC.tpgid = <number>
+--! @public @memberof U_PROC
+U_PROC.nsupgid = <number>
+--! @public @memberof U_PROC
+U_PROC.exit_signal = <number>
+--! @public @memberof U_PROC
+U_PROC.processor = <number>
+--! @}
