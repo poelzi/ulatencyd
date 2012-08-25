@@ -1,0 +1,215 @@
+-- this file is for documentation purposes only
+
+--! @file U_TASK.ldox
+--! @ingroup lua_DOC
+--! This file is for documentation purposes only, it documents the lua `U_TASK` table, the interface to `u_task`
+--! structure implemented in the core.
+
+--! @class U_TASK
+--! @brief Task class. The `#U_TASK` is basically a proxy to `u_task` structure implemented in the core, extended
+--! with lua bindings and possibly with lua (you can extend the `U_TASK` table in lua).
+--!
+--! @internal
+--! All tasks in system and known to `ulatencyd` are stored in the `tasks` hash table as `u_task` instances.
+--! @attention
+--! Tasks objects are shared between all parts of ulatencyd. If you save a reference you do not save the
+--! data, but only a reference to it. Accessing values will always be the most recent version of it. If you
+--! want create a history of data, you have to store them as copies. If you save references they may be to
+--! a dead task, but still there. To prevent memory leaks you should check them periodically if they are
+--! still valid. You can check if the task of your reference is still valid with `U_TASK.is_valid`.
+--! @note Best practice is to store your data attached to the task, so it gets collected when the task
+--! dies. Use `U_TASK.data` for a table shared between all lua scripts. You should use `U_TASK.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @ingroup lua_CORE
+U_TASK = {}
+
+
+--! @name read/write properties
+--! @{
+
+--! @brief custom process data 
+--! @details This is lua table shared between all lua scripts. You should use `U_TASK.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @public @memberof U_TASK
+U_TASK.data = {}
+--! @}
+
+--! @name Always available read-only properties
+--! @{
+
+--! TRUE, if the task is attached to a `#U_PROC` instance and that process is still valid.
+--! Valid tasks contain the `U_TASK.proc` and @ref U_TASK_BASIC "other" `proc_t` properties.
+--! @public @memberof U_TASK
+U_TASK.is_valid = <boolean>
+--! TRUE, if the task is not attached to a `#U_PROC` instance or that process is no more valid.
+--! Invalid tasks **do not** contain the `U_TASK.proc` and @ref U_TASK_BASIC "other" `proc_t` properties.
+--! @attention If you have stored references to invalidated task, remove them, so the `U_TASK` may be freed.
+--! @public @memberof U_TASK
+U_TASK.is_invalid = <boolean>
+--! PID of process (maybe already dead) the task is/was attached to. This is duplicate of proc->pid, task->tgid, proc->tgid, 
+--! proc->tid, but it is available even if the task is invalidated.
+--! @public @memberof U_TASK
+U_TASK.proc_pid = <number>
+--! task id
+--! Unlike others proc_t properties, this one is available even if the task is invalidated.
+--! @public @memberof U_TASK
+U_TASK.tid = <number>
+--! @}
+
+--! @name Read-only properties available for valid tasks
+--! Except for `U_TASK.proc`, following properties are inherited from `u_task->task` implemented in C.
+--! @see `U_TASK.is_valid`
+--! @todo Describe `proc_t` properties.
+--! @{
+
+--! `#U_PROC` process to which this task is attached.
+--! @link U_TASK_BASIC
+--! @warning May be `nil`, see `U_TASK.is_valid`.
+--! @public @memberof U_TASK
+U_TASK.proc = <U_PROC instance> or nil
+--! pid of parent process
+--! @public @memberof U_TASK
+U_TASK.ppid = <number>
+--! @public @memberof U_TASK
+U_TASK.state = <number>
+--! @public @memberof U_TASK
+U_TASK.utime = <number>
+--! @public @memberof U_TASK
+U_TASK.stime = <number>
+--! @public @memberof U_TASK
+U_TASK.cutime = <number>
+--! @public @memberof U_TASK
+U_TASK.cstime = <number>
+--! @public @memberof U_TASK
+U_TASK.start_time = <number>
+
+--! @public @memberof U_TASK
+U_TASK.signal = <string>
+--! @public @memberof U_TASK
+U_TASK.blocked = <string>
+--! @public @memberof U_TASK
+U_TASK.sigignore = <string>
+--! @public @memberof U_TASK
+U_TASK.sigcatch = <string>
+--! @public @memberof U_TASK
+U_TASK._sigpnd = <string>
+
+--! @public @memberof U_TASK
+U_TASK.start_code = <number>
+--! @public @memberof U_TASK
+U_TASK.end_code = <number>
+--! @public @memberof U_TASK
+U_TASK.start_stack = <number>
+--! @public @memberof U_TASK
+U_TASK.kstk_esp = <number>
+--! @public @memberof U_TASK
+U_TASK.kstk_eip = <number>
+--! @public @memberof U_TASK
+U_TASK.wchan = <number>
+
+--! @public @memberof U_TASK
+U_TASK.priority = <number>
+--! @public @memberof U_TASK
+U_TASK.nice = <number>
+--! @public @memberof U_TASK
+U_TASK.rss = <number>
+--! @public @memberof U_TASK
+U_TASK.alarm = <number>
+--! @public @memberof U_TASK
+U_TASK.size = <number>
+--! @public @memberof U_TASK
+U_TASK.resident = <number>
+--! @public @memberof U_TASK
+U_TASK.share = <number>
+--! @public @memberof U_TASK
+U_TASK.trs = <number>
+--! @public @memberof U_TASK
+U_TASK.lrs = <number>
+--! @public @memberof U_TASK
+U_TASK.drs = <number>
+--! @public @memberof U_TASK
+U_TASK.dt = <number>
+
+--! @public @memberof U_TASK
+U_TASK.vm_size = <number>
+--! @public @memberof U_TASK
+U_TASK.vm_lock = <number>
+--! @public @memberof U_TASK
+U_TASK.vm_rss = <number>
+--! @public @memberof U_TASK
+U_TASK.vm_data = <number>
+--! @public @memberof U_TASK
+U_TASK.vm_stack = <number>
+--! @public @memberof U_TASK
+U_TASK.vm_exe = <number>
+--! @public @memberof U_TASK
+U_TASK.vm_lib = <number>
+--! @public @memberof U_TASK
+U_TASK.rtprio = <number>
+--! @public @memberof U_TASK
+U_TASK.sched = <number>
+--! @public @memberof U_TASK
+U_TASK.vsize = <number>
+--! @public @memberof U_TASK
+U_TASK.rss_rlim = <number>
+--! @public @memberof U_TASK
+U_TASK.flags = <number>
+--! @public @memberof U_TASK
+U_TASK.min_flt = <number>
+--! @public @memberof U_TASK
+U_TASK.maj_flt = <number>
+--! @public @memberof U_TASK
+U_TASK.cmin_flt = <number>
+--! @public @memberof U_TASK
+U_TASK.cmaj_flt = <number>
+
+--! @public @memberof U_TASK
+U_TASK.euser = <string>
+--! @public @memberof U_TASK
+U_TASK.ruser = <string>
+--! @public @memberof U_TASK
+U_TASK.suser = <string>
+--! @public @memberof U_TASK
+U_TASK.fuser = <string>
+--! @public @memberof U_TASK
+U_TASK.rgroup = <string>
+--! @public @memberof U_TASK
+U_TASK.egroup = <string>
+--! @public @memberof U_TASK
+U_TASK.sgroup = <string>
+--! @public @memberof U_TASK
+U_TASK.fgroup = <string>
+--! @public @memberof U_TASK
+U_TASK.cmd = <string>
+
+--! @public @memberof U_TASK
+U_TASK.nlwp = <number>
+--! @public @memberof U_TASK
+U_TASK.tgid = <number>
+--! @public @memberof U_TASK
+U_TASK.tty = <number>
+--! @public @memberof U_TASK
+U_TASK.euid = <number>
+--! @public @memberof U_TASK
+U_TASK.egid = <number>
+--! @public @memberof U_TASK
+U_TASK.ruid = <number>
+--! @public @memberof U_TASK
+U_TASK.rgid = <number>
+--! @public @memberof U_TASK
+U_TASK.suid = <number>
+--! @public @memberof U_TASK
+U_TASK.sgid = <number>
+--! @public @memberof U_TASK
+U_TASK.fuid = <number>
+--! @public @memberof U_TASK
+U_TASK.fgid = <number>
+--! @public @memberof U_TASK
+U_TASK.tpgid = <number>
+--! @public @memberof U_TASK
+U_TASK.nsupgid = <number>
+--! @public @memberof U_TASK
+U_TASK.exit_signal = <number>
+--! @public @memberof U_TASK
+U_TASK.processor = <number>
+--! @}

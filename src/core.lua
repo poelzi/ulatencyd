@@ -427,84 +427,6 @@ else
   cg_log = ulatency.log_warning
 end
 
---! @addtogroup lua_CGROUPS
---! @{
-
---! @brief Returns cgroups of the #U_PROC process; two tables are returned: first one contains paths
---! under the root directory where the subsystem hierarchy is mounted, second one contains CGroup instances, if any;
---! both tables are indexed by the cgroup subsystem.
---! @warning Neither hierarchies identifications nor their mount points are returned. This assumes that ulatencyd knows
---! where each subsystem is mounted (e.g. under standard `/sys/fs/cgroup/<subsystem>`) and that every subsystem is
---! mounted as a standalone hierarchy.
---! @note You may want to use this instead of
---! - parsing `U_PROC.cgroup` value, which is updated only once per iteration and so does not reflect previous changes
---!   caused by the rules or scheduler mappings
---! - updating and then parsing the `U_PROC.cgroup` (e.g. `ulatency.process_update(pid)`), which can cause unexpected
---!   situations (e.g. if the process does no more exist)
---! - parsing `/proc/<pid>/cgroup` content, which may cause unwanted overhead (and the process may not already exist too)
---! @internal
---! @note
---! **How does it work:**
---! Paths of cgroups are internally stored in `U_PROC.data.cgroups`; initially parsed from `U_PROC.cgroup` and updated
---! by `U_PROC:add_cgroup()`, which should be called by every function that moves a process between cgroups.
---! Further to this, the `U_PROC.data._cgroup` contains a copy of `U_PROC.cgroup`, these are compared to check if the
---! cache values are still valid or the `U_PROC.cgroup` must be parsed again.@endinternal
---! @return `<paths>`, `<cgroups`> tables
---! @retval <paths> example:@code
---!   { cpuset = '/', cpu = '/usr_1000/grp_14067', memory = '/usr_1000/default', blkio = '/grp_14067', freezer = '/' }
---! @endcode
---! @retval <cgroups> example:@code
---!   { cpuset = nil, cpu = <CGroup instance>, memory = <CGroup instance>, blkio = <CGroup instance>, freezer = nil }
---! @endcode
---! @public @memberof U_PROC
-
-function U_PROC:get_cgroups()
-  -- validate
-  local valid=false
-  if self.data.cgroups and self.data._cgroup then
-    local a=self.data._cgroup
-    local b=self.cgroup
-    if #a == #b then
-      for i,j in ipairs(a) do
-        if b[i] ~= j then break end
-      end
-      valid=true
-    end
-  end
-
-  if not valid then
-    local cgroups = {}
-    for _,line in ipairs(self.cgroup) do
-      local subsystems, path  = string.match(line,"^[0-9]+:(.+):(.+)")
-      for _,subsys in ipairs(subsystems:split(',')) do
-        cgroups[subsys] = path
-      end
-    end
-    self.data._cgroup = self.cgroup
-    self.data.cgroups = cgroups
-  end
-
-  local cgroup_instances = {}
-  for subsys,path in pairs(self.data.cgroups) do
-    cgroup_instances[subsys] = CGroup.get_group(subsys .. path)
-  end
-
-  return self.data.cgroups, cgroup_instances
-end
-
---! @brief Updates internal list of cgroups which the #U_PROC belongs to.
---! This should be called every time a process is moved between cgroups, otherwise the `U_PROC:get_cgroups()`
---! won't return correct cgroups until the #U_PROC.cgroup will be updated (once per iteration).
---! Internally this function is called everytime CGroup instance is committed, so you should not be bothered.
---! @public @memberof U_PROC
-function U_PROC.add_cgroup(self, cgroup)
-  if not self.data.cgroups then
-    self:get_cgroups()
-  end
-  self.data.cgroups[cgroup.tree] = '/'..cgroup.name
-end
---! @} End of "addtogroup lua_CGROUPS"
-
 --! @class CGroup
 --! @ingroup lua_CORE lua_CGROUPS
 CGroup = {}
@@ -823,7 +745,7 @@ function CGroup:commit()
         else
           local proc = ulatency.get_pid(pid)
           if proc then
-            proc:add_cgroup(self)
+            proc:set_cgroup(self.tree, "/".. self.name)
           end
         end
       end

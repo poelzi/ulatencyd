@@ -227,10 +227,10 @@ end
 function ulatency.get_pid(pid, include_tasks)
 end
 
---! Returns task #u_task with `tid`.
+--! Returns `#U_TASK` with `tid`.
 --! @param tid A TID of the task to return.
---! @retval #u_task If task with `tid` exists in ulatency #tasks table.
---! @retval 0 If task with `tid` does not exists in ulatency #tasks table.
+--! @retval `#U_TASK` instance if a task with `tid` exists in ulatency internal `#tasks` table.
+--! @retval 0 If a task with `tid` does not exists in ulatency `#tasks` table.
 --! @public @memberof ulatency
 function ulatency.get_tid(tid)
 end
@@ -352,10 +352,10 @@ end
 --! @param value a boolean
 --! @note The `system_flags_changed` is automatically set if:
 --! - Some of the system flags has timed out.
---! - Some of the system flags has been removed as result of calling ulatency.clear_flag_name(),
---!   ulatency.clear_flag_source() or ulatency.clear_flag_all().
+--! - Some of the system flags has been removed as result of calling `ulatency.clear_flag_name()`,
+--!   `ulatency.clear_flag_source()` or `ulatency.clear_flag_all()`.
 --! @note The `system_flags_changed` is not set by:
---! - ulatency.add_flag() or ulatency.del_flag()
+--! - `ulatency.add_flag()` or `ulatency.del_flag()`
 --! - changing a flag values
 --! @note The `system_flags_changed` is cleared after every iteration, see ulatency.run_iteration().
 --! @note `Scheduler::all()` will normally schedule only processes that are marked as changed (see `U_PROC.clear_changed()`

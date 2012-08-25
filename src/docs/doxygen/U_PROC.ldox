@@ -1,0 +1,539 @@
+-- this file is for documentation purposes only
+
+--! @file U_PROC.ldox
+--! @ingroup lua_DOC
+--! This file is for documentation purposes only, it documents the lua `U_PROC` table, the interface to `u_proc`
+--! structure implemented in the core.
+
+--! @class U_PROC
+--! @brief Process class. The `#U_PROC` is basically proxy to `u_proc` structure implemented in the core, extended
+--! with lua bindings and possibly with lua (you can extend the `U_PROC` table in lua).
+--!
+--! @internal
+--! All tasks in system and known to `ulatencyd` are stored in the `tasks` hash table as `u_task` instances.
+--!
+--! @attention
+--! Process objects are shared between all parts of ulatencyd. If you save a reference you do not save the
+--! data, but only a reference to it. Accessing values will always be the most recent version of it. If you
+--! want create a history of data, you have to store them as copies. If you save references they may be to
+--! a dead process, but still there. To prevent memory leaks you should check them periodically if they are
+--! still valid. You can check if the process of your reference is still valid with `U_PROC.is_valid`.
+--! @note Best practice is to store your data attached to the process, so it gets collected when the process
+--! dies. Use `U_PROC.data` for a table shared between all lua scripts. You should use `U_PROC.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @ingroup lua_CORE lua_FLAGS
+U_PROC = {}
+
+--! @brief Returns parent #U_PROC of process #U_PROC.
+--! @public @memberof U_PROC
+--! @return #U_PROC | nil
+function U_PROC:get_parent()
+end
+
+--! @brief Returns child processes of the process #U_PROC.
+--! @return table of #U_PROC | nil Array with children or nil if #U_PROC node does not exist.
+--! @public @memberof U_PROC
+function U_PROC:get_children()
+end
+
+--! @brief Sends `signal` to process #U_PROC.
+--! @param signal Signal number or 15 (`SIGTERM`)
+--! @public @memberof U_PROC
+function U_PROC:kill(signal)
+end
+
+--! @brief Gets the number of direct children of a #U_PROC.
+--! @public @memberof U_PROC
+function U_PROC:get_n_children()
+end
+
+--! @brief Gets the number of all children of a #U_PROC.
+--! @public @memberof U_PROC
+function U_PROC:get_n_nodes()
+end
+
+--! @brief Sets `#U_PROC.block_scheduler` value.
+--! @param value a number
+--! - A value greater than 0 will cause Scheduler skips the process.
+--! - A value greater then 1 will cause
+--!   Scheduler skips the process even when doing final cleanup, caused by ulatencyd daemon shutdown. This will make
+--!   the process **never** being moved from its cgroup.
+--! @remark Particular, if you have a process you want to be never moved to other cgroup, setup a cgroup, move the
+--! process to it and call `U_PROC:set_block_scheduler(1)`.
+--! @remark If you have a process you want to stay in its cgroup forever, e.g. a process that creates its private
+--! cgroups that will not be able to find if the process would be moved, call `U_PROC:set_block_scheduler(2)` on it.
+--! @remark You may put processes to isolation with `CGroup.create_isolation_group()` or label them with
+--! @link __ISOLATE_FLAG isolate flag@endlink.
+--! @public @memberof U_PROC
+function U_PROC:set_block_scheduler(value)
+end
+
+--! @brief Sets the fake PGID of the process #U_PROC.
+--! This will set PGID in #U_PROC structure for ulatency internal usage, real PGID cannot be changed.
+--! This function will mark the process as changed (`U_PROC.changed`).
+--! @see `man 7 credentials`
+--! @see `U_PROC::clear_changed()`
+--! @public @memberof U_PROC
+function U_PROC:set_pgid(value)
+end
+
+--! @brief Adjusts the oom-killer score for #U_PROC by a `value`.
+--! While the oom-killer is doing heuristic to choose process to kill it assigns a number to each candidate task
+--! ranging from 0 (never kill) to 1000 (always kill). The value is roughly a proportion of allocated and
+--! allowed memory by the process. Passed `value` will be added to this number. So setting this to -1000 is
+--! equivalent to disabling oom killing entirely for #U_PROC.
+--! @return TRUE if adjusted successfully, otherwise FALSE
+--! @see Linux `Documentation/filesystems/proc.txt`
+--! @public @memberof U_PROC
+function U_PROC:set_oom_score(value)
+end
+
+--! @brief Get the number the oom-killer score is adjusted for #U_PROC.
+--! @return a number
+--! @retval 0 If failed.
+--! @see `U_PROC::set_oom_score()`
+--! @public @memberof U_PROC
+function U_PROC:get_oom_score()
+end
+
+--! @brief Returns array of process #U_PROC tasks.
+--! @param update If TRUE process tasks are updated before returned.
+--! @return Array of #U_TASK instances or `nil` if the `#U_PROC` is invalid (see `U_PROC.is_invalid`)
+--! @bug The `update` patameter not implemented.
+--! @public @memberof U_PROC
+function U_PROC:get_tasks(update)
+end
+
+--! @brief Returns array of process current tasks PIDs or `nil` if the process is already dead.
+--! @return Array of numeric PIDs or `nil` if the process is already dead.
+--! @warning This will fail if the process is already dead. In such case nothing (`nil`) will be returned.
+--! @public @memberof U_PROC
+function U_PROC:get_current_task_pids()
+end
+
+--! @brief Clears `#U_PROC.changed` attribute, this process may be skipped by Scheduler until changed again.
+--! Scheduler skips unchanged processes unless performing full run or normal run under special circumstances.
+--! A process is considered changed if
+--!       - recieved RT for the first time (SCHED_RR or SCHED_FIFO)
+--!       - changed euid, egid, sessions, pgrp, sched or rtprio
+--!       - or it was already marked as changed:
+--!           + new process affected by fast (instant) filters
+--!           + new process that has been removed from delay_stack
+--!           + any flag added, removed or timed out (but not changed)
+--!
+--! @see `Scheduler::all()` and `#U_PROC.changed` for details.
+--! @public @memberof U_PROC
+function U_PROC:clear_changed()
+end
+
+--! @brief Returns process cgroup of given `subsystem`.
+--! @param subsys a cgroup subsystem
+--! Returns the value of `U_PROC.cgroup[<subsystem>]`.
+--! @retval <string> The cgroup is returned as the path relative to the root directory where the `subsystem` hierarchy
+--! is mounted.
+--! @retval nil If non-existent `subsystem` given, or if the process is already dead and its cgroups were never been parsed.
+--! @public @memberof U_PROC
+function U_PROC:get_cgroup(subsys)
+end
+
+--! @brief Informs the core process has been added to the `cgroup`.
+--! @param subsys a cgroup subsystem
+--! @param cgroup_path cgroup path relative to the root directory where the `subsystem` hierarchy is mounted.
+--! This sets the value of `U_PROC.cgroup[<subsystem>]`.
+--! This should be called every time a process is moved between cgroups, otherwise the `U_PROC.cgroup` property and
+--! `U_PROC:get_cgroup()` function won't return correct values until the `U_PROC.cgroup_raw` will be updated
+--! (usually once per iteration).
+--! Internally this function is called everytime `CGroup` instance is committed, so you should not be bothered.
+--! @public @memberof U_PROC
+function U_PROC:set_cgroup(subsys, cgroup_path)
+end
+
+-------------------------------------------------------
+
+--! @name process flags manipulation
+--! @{
+
+--! @ingroup lua_FLAGS
+
+--! @brief Returns flags from the process #U_PROC.
+--! @param recursive (optional) TRUE, if inherited flags should be returned too. Defaults to FALSE.
+--! @return table
+--! @public @memberof U_PROC
+function U_PROC:list_flags(recursive)
+end
+
+--! @brief Adds the flag #u_flag to the process #U_PROC.
+--! @note The #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @param flag a #u_flag to add
+--! @public @memberof U_PROC
+function U_PROC:add_flag(flag)
+end
+
+--! @brief Removes a flag #u_flag from a process #U_PROC.
+--! @note The #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @param flag a #u_flag to delete
+--! @public @memberof U_PROC
+function U_PROC:del_flag(flag)
+end
+
+--! @brief Removes flags with the `name` from a process #U_PROC.
+--! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @param name of #u_flags to delete
+--! @public @memberof U_PROC
+function U_PROC:clear_flag_name(name)
+end
+
+--! @brief From a process #U_PROC removes all flags that was created by current lua thread.
+--! Specifically, all flags created with same lua state will be removed.
+--! There is one main lua state and additional lua states for every lua thread created by
+--! ulatency.add_timeout() and ulatency.register_filter().
+--! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @public @memberof U_PROC
+function U_PROC:clear_flag_source()
+end
+
+--! @brief Removes all flags from a process #U_PROC.
+--! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @public @memberof U_PROC
+function U_PROC:clear_flag_all()
+end
+--! @} End of "process flags manipulation"
+
+-------------------------------------------------------
+
+--! @name process scheduling policies and priorities manipulation
+--! @{
+
+--! @ingroup lua_PROC_SCHED
+
+--! @brief Sets scheduling `policy` and `priority` for process #U_PROC.
+--! @param policy a scheduling policy number, you can use one following constants:
+--! - normal policies
+--!   - ulatency.SCHED_OTHER
+--!   - ulatency.SCHED_BATCH
+--!   - ulatency.SCHED_IDLE
+--! - real-time policies
+--!   - ulatency.SCHED_FIFO
+--!   - ulatency.SCHED_RR
+--! @param priority a priority number, its interpretation depends on selected policy.
+--! - On Linux for **real-time** policies `SCHED_FIFO` and `SCHED_RR` are valid numbers
+--!   from the range 1 (lowest) - 99 (highest).
+--! - For other policies must be 0. For `SCHED_OTHER` and `SCHED_BATCH` is used the dynamic
+--!   priority based on process `nice` value
+--! @see `man 2 sched_setscheduler`
+--! @see lua_PROC_SCHED
+--! @public @memberof U_PROC
+function U_PROC:set_rtprio(policy, priority)
+end
+
+--! @brief Sets I/O scheduling class and priority for process #U_PROC.
+--! @param priority a priority number, valid range depends on selected `class`.
+--! - On Linux for **real-time** policies `SCHED_FIFO` and `SCHED_RR` are valid numbers
+--!   from the range 1 (lowest) - 99 (highest).
+--! - For other policies must be 0. For `SCHED_OTHER` and `SCHED_BATCH` is used the dynamic
+--!   priority based on process `nice` value
+--! @param class a scheduling class, you can use one following constants:
+--! - ulatency.IOPRIO_CLASS_BE
+--!   Best-effort scheduling class, which is the default; priority levels range from 0 (highest) to 7 (lowest).
+--! - ulatency.IOPRIO_CLASS_IDLE
+--!   Idle scheduling class; does not have priority levels.
+--! - ulatency.IOPRIO_CLASS_RT
+--!   Real-time I/O class; priority levels range from 0 (highest) to 7 (lowest).
+--! @return TRUE if success, FALSE if failed
+--! @see `man 2 ioprio_set`
+--! @see lua_PROC_SCHED
+--! @public @memberof U_PROC
+function U_PROC:set_ioprio(priority, class)
+end
+
+--! @brief Gets I/O scheduling class and priority of process #U_PROC.
+--! @return priority, class Priority and scheduling class number
+--! @retval 0, 0 If reading of values failed.
+--! @see `U_PROC::set_ioprio()`
+--! @see `man 2 ioprio_get`
+--! @see lua_PROC_SCHED
+--! @public @memberof U_PROC
+function U_PROC:get_ioprio()
+  return priority, class
+end
+--! @} End of "process scheduling policies and priorities manipulation"
+
+
+
+
+--! @name read/write properties
+--! @{
+
+--! @brief custom process data
+--! @details This is lua table shared between all lua scripts. You should use `U_PROC.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @public @memberof U_PROC
+U_PROC.data = {}
+--! @}
+
+--! @name always accessible read-only properties
+--! @{
+
+--! If TRUE, the `#U_PROC` instance is valid, see `U_PROC.is_invalid`.
+--! @public @memberof U_PROC
+U_PROC.is_valid = <boolean>
+--! If TRUE, the `#U_PROC` instance is invalid:
+--! - the process is dead
+--! - correspondent `#u_proc` instance has been already removed from `GHashTable processes` implemented in the core
+--! - filter's exit hooks  `__FILTER::exit()` have been already called on this `#U_PROC` instance.
+--! - it has no children (removed or reparented)
+--! - waiting until lua references drop to zero so the `#u_proc` instance may be freed
+--!
+--! @attention If you have stored references to this process somewhere, remove them, so the `#u_proc` may be freed.
+--! @note `#U_PROC` instances passed to filters, `Scheduler::one()` function and those returned by any core
+--! function are always valid.
+--! @public @memberof U_PROC
+U_PROC.is_invalid = <boolean>
+--! @see `U_PROC::clear_changed()`
+--! @public @memberof U_PROC
+U_PROC.changed = <boolean>
+--! See `U_PROC::set_block_scheduler()`
+--! @public @memberof U_PROC
+U_PROC.block_scheduler = <number>
+--! If the process is in user active list.
+--! @public @memberof U_PROC
+U_PROC.is_active = <boolean>
+--! Position in active list.
+--! @public @memberof U_PROC
+U_PROC.active_pos = <number>
+--! TRUE, if any of process tasks was scheduled in the past with SCHED_FIFO or SCHED_RR policy.
+--! @note Scheduling policies are updated only when the `/proc/#` is parsed again (`update_processes_run()`),
+--! usually every iteration, therefore short lasting RT policy may  not be detected.
+--! @warning `U_PROC::set_rtprio()` does not affect this property directly.
+--! @public @memberof U_PROC
+U_PROC.recieved_rt = <boolean>
+--! TRUE, if @ref U_PROC_BASIC "BASIC process properties" are accessible.
+--! This is always TRUE for processes passed to normal filters, `Scheduler:one()` function and for
+--! processes returned by `ulatency.list_processes()` if called from previously mentioned or from Scheduler:all().
+--! @public @memberof U_PROC
+U_PROC.has_basic_props = <boolean>
+--! @public @memberof U_PROC
+U_PROC.pid = <number>
+--! pid of parent process
+--! @public @memberof U_PROC
+U_PROC.ppid = <number>
+--! task id, the POSIX thread ID
+--! @public @memberof U_PROC
+U_PROC.tid = <number>
+--! @}
+
+
+--! @name Misc
+--! Some of these properties are automatically fill whenever the process is updated, rest of them is filled on request.
+--! Basically they will be `nil` if the process is already dead and have not been filled before.
+
+--! Hash table containing process environment variables; indexed by variable names.
+--! @bug This property is parsed from `/proc/#/environ` whenever accessed and therefore slow.
+--! @warning If the process is dead, this property is always `nil`.
+--! @public @memberof U_PROC
+U_PROC.environ = {} or nil,
+--! Table of command line arguments parsed from `/proc/#/cmdline`.
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.cmdline = {} or nil
+--! Concatenated command line parsed from `/proc/#/cmdline`.
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.cmdline_match = <string> or nil
+--! The basename of first command line argument from `/proc/#/cmdline`.
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.cmdfile = <string> or nil
+--! Path to executable; if symbolic link, the file the link points to (dereferenced only once).
+--! @warning If the process is dead, this property may be `nil`.
+--! @public @memberof U_PROC
+U_PROC.exe = <string> or nil
+--! @brief Hash table of cgroups of the #U_PROC process; index of each item is the subsystem name, value is the cgroup path
+--! relative to the root directory where the subsystem hierarchy is mounted.
+--! @warning Neither hierarchies identifications nor their mount points are available. This assumes that ulatencyd knows
+--! where each subsystem is mounted (e.g. under standard `/sys/fs/cgroup/<subsystem>`) and that every subsystem is
+--! mounted in the standalone hierarchy.
+--!
+--! Example:@code
+--!   { cpuset = '/', cpu = '/usr_1000/grp_14067', memory = '/usr_1000/default', blkio = '/grp_14067', freezer = '/' }
+--! @endcode
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup = {} or nil
+--! @brief Table containing lines from `/proc/#/cgroup`.
+--! This is updated whenever `#u_proc` is updated. E.g on every iteration and when the single process is to be scheduled.
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup_raw = {} or nil
+--! @brief Hash table of process original cgroups. Same structure as for `U_PROC.cgroup`.
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup_origin = {} or nil
+--! @brief Table of process original cgroups. Same structure as for `U_PROC.cgroup_raw`.
+--! @warning May be `nil`, if the process is already dead and BASIC properties have never been parsed
+--! (`U_PROC.has_basic_props` is FALSE).
+--! @public @memberof U_PROC
+U_PROC.cgroup_origin_raw = {} or nil
+--! @}
+
+
+--! @name BASIC read-only properties
+--! @anchor U_PROC_BASIC
+--! These are properties inherited from `u_proc.proc` implemented in C (see `proc_t`).
+--! Properties are accessible since the process basic properties have been parsed (`U_PROC.has_basic_props`).
+--! These is true for every process passed to normal filters, `Scheduler::one()` and for every process returned by
+--! `ulatency.list_processes()` if called from previously mentioned or from `Scheduler::all()`.
+--! @warning These properties may not be accessible for processes:
+--! - passed to the fast filters (though, these cannot be implemented in lua)
+--! - inside timeout functions
+--! - from filter's exit hooks `__FILTER.exit()`
+--! @{
+
+--! @public @memberof U_PROC
+U_PROC.state = <number>
+--! @public @memberof U_PROC
+U_PROC.utime = <number>
+--! @public @memberof U_PROC
+U_PROC.stime = <number>
+--! @public @memberof U_PROC
+U_PROC.cutime = <number>
+--! @public @memberof U_PROC
+U_PROC.cstime = <number>
+--! @public @memberof U_PROC
+U_PROC.start_time = <number>
+
+--! @public @memberof U_PROC
+U_PROC.signal = <string>
+--! @public @memberof U_PROC
+U_PROC.blocked = <string>
+--! @public @memberof U_PROC
+U_PROC.sigignore = <string>
+--! @public @memberof U_PROC
+U_PROC.sigcatch = <string>
+--! @public @memberof U_PROC
+U_PROC._sigpnd = <string>
+
+--! @public @memberof U_PROC
+U_PROC.start_code = <number>
+--! @public @memberof U_PROC
+U_PROC.end_code = <number>
+--! @public @memberof U_PROC
+U_PROC.start_stack = <number>
+--! @public @memberof U_PROC
+U_PROC.kstk_esp = <number>
+--! @public @memberof U_PROC
+U_PROC.kstk_eip = <number>
+--! @public @memberof U_PROC
+U_PROC.wchan = <number>
+
+--! @public @memberof U_PROC
+U_PROC.priority = <number>
+--! @public @memberof U_PROC
+U_PROC.nice = <number>
+--! @public @memberof U_PROC
+U_PROC.rss = <number>
+--! @public @memberof U_PROC
+U_PROC.alarm = <number>
+--! @public @memberof U_PROC
+U_PROC.size = <number>
+--! @public @memberof U_PROC
+U_PROC.resident = <number>
+--! @public @memberof U_PROC
+U_PROC.share = <number>
+--! @public @memberof U_PROC
+U_PROC.trs = <number>
+--! @public @memberof U_PROC
+U_PROC.lrs = <number>
+--! @public @memberof U_PROC
+U_PROC.drs = <number>
+--! @public @memberof U_PROC
+U_PROC.dt = <number>
+
+--! @public @memberof U_PROC
+U_PROC.vm_size = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_lock = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_rss = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_data = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_stack = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_exe = <number>
+--! @public @memberof U_PROC
+U_PROC.vm_lib = <number>
+--! @public @memberof U_PROC
+U_PROC.rtprio = <number>
+--! @public @memberof U_PROC
+U_PROC.sched = <number>
+--! @public @memberof U_PROC
+U_PROC.vsize = <number>
+--! @public @memberof U_PROC
+U_PROC.rss_rlim = <number>
+--! @public @memberof U_PROC
+U_PROC.flags = <number>
+--! @public @memberof U_PROC
+U_PROC.min_flt = <number>
+--! @public @memberof U_PROC
+U_PROC.maj_flt = <number>
+--! @public @memberof U_PROC
+U_PROC.cmin_flt = <number>
+--! @public @memberof U_PROC
+U_PROC.cmaj_flt = <number>
+
+--! @public @memberof U_PROC
+U_PROC.euser = <string>
+--! @public @memberof U_PROC
+U_PROC.ruser = <string>
+--! @public @memberof U_PROC
+U_PROC.suser = <string>
+--! @public @memberof U_PROC
+U_PROC.fuser = <string>
+--! @public @memberof U_PROC
+U_PROC.rgroup = <string>
+--! @public @memberof U_PROC
+U_PROC.egroup = <string>
+--! @public @memberof U_PROC
+U_PROC.sgroup = <string>
+--! @public @memberof U_PROC
+U_PROC.fgroup = <string>
+--! @public @memberof U_PROC
+U_PROC.cmd = <string>
+
+--! @public @memberof U_PROC
+U_PROC.nlwp = <number>
+--! @public @memberof U_PROC
+U_PROC.tgid = <number>
+--! @public @memberof U_PROC
+U_PROC.tgid = <number>
+--! @public @memberof U_PROC
+U_PROC.tty = <number>
+--! @public @memberof U_PROC
+U_PROC.euid = <number>
+--! @public @memberof U_PROC
+U_PROC.egid = <number>
+--! @public @memberof U_PROC
+U_PROC.ruid = <number>
+--! @public @memberof U_PROC
+U_PROC.rgid = <number>
+--! @public @memberof U_PROC
+U_PROC.suid = <number>
+--! @public @memberof U_PROC
+U_PROC.sgid = <number>
+--! @public @memberof U_PROC
+U_PROC.fuid = <number>
+--! @public @memberof U_PROC
+U_PROC.fgid = <number>
+--! @public @memberof U_PROC
+U_PROC.tpgid = <number>
+--! @public @memberof U_PROC
+U_PROC.nsupgid = <number>
+--! @public @memberof U_PROC
+U_PROC.exit_signal = <number>
+--! @public @memberof U_PROC
+U_PROC.processor = <number>
+--! @}

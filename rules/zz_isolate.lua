@@ -24,11 +24,10 @@ Isolate = {
   --! @return `ulatency.filter_rv(ulatency.FILTER_STOP)`
   --! @public @memberof Isolate
   check = function(self, proc)
-    -- we give processes marked with media flags good io prio
     local flg = ulatency.find_flag(proc:list_flags(true), {name="isolate"})
     if flg and flg.threshold and flg.threshold > 0 then
       ulatency.log_info(string.format('isolating process %d (%s), euid: %d, cmdline: %s',
-                            proc.pid, proc.cmdfile or "NONE!", proc.euid or "NONE!", proc.cmdline_match or "NONE!"))
+                            proc.pid, proc.cmdfile or "NONE CMDFILE", proc.euid or "NONE!", proc.cmdline_match or "NONE!"))
       if flg.reason and flg.reason ~= "" then
         CGroup.create_isolation_group(proc, flg.reason, self.RULES[flg.reason] or {}, false, flg.threshold)
       else

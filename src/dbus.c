@@ -488,6 +488,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         flag->inherit = inherit;
 
         u_flag_add(proc, flag);
+        DEC_REF(flag);
 
         ret = dbus_message_new_method_return(m);
         goto finish;

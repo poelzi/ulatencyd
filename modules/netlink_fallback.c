@@ -86,6 +86,34 @@ out:
     return pid;
 }
 
+/**
+ * Parse `tgid` and `ppid` of process/thread with PID `pid`.
+ */
+static gboolean get_pids(pid_t pid, pid_t *tgid, pid_t *ppid) {
+    char       *path;
+    gboolean   rv = FALSE;
+    FILE       *f;
+    int        count;
+
+    *tgid = 0; *ppid = 0;
+    path = g_strdup_printf ("/proc/%u/status", (guint)pid);
+
+    f = fopen(path, "r");
+    if (!f)
+        goto out; // process is already dead
+
+    count = fscanf(f, "%*[^\n]\n%*[^\n]\nTgid: %d\n%*[^\n]\nPPid: %d\n", tgid, ppid);
+    if (count < 2) {
+        nlf_debug("Error parsing Tgid and PPid from %s, parsed %d values.", path, count);
+    }
+    rv = TRUE;
+out:
+    g_free (path);
+    if (f)
+       fclose(f);
+    return rv;
+}
+
 static pid_t old_recent_pid = 0;
 
 static gboolean cb_inotify(GIOChannel *ch, GIOCondition condition, gpointer data) {
@@ -95,6 +123,7 @@ static gboolean cb_inotify(GIOChannel *ch, GIOCondition condition, gpointer data
     GIOStatus stat;
     pid_t recent_pid = 0;
     pid_t pid;
+    pid_t tgid, ppid;
     gboolean ret = TRUE;
 
     if (netlink_proc_listening) {
@@ -118,9 +147,17 @@ static gboolean cb_inotify(GIOChannel *ch, GIOCondition condition, gpointer data
         // fixme: PIDs missed if pid_max have just been overflowed, probably not fixable if we want avoid looping over
         // near all processes (as the number of total processes approaches to pid_max)
         for (pid = old_recent_pid + 1; pid <= recent_pid; pid++) {
-            if (proc_by_pid(pid)) continue;
-            nlf_debug("PID %d detected.", pid);
-            process_new_delay(pid, 0);
+            // we get both processes (thread leaders) and threads
+            if (task_by_tid(pid)) continue;
+            // throw away threads
+            if (get_pids(pid, &tgid, &ppid)) {
+                if (tgid != pid) {
+                    nlf_debug("New thread detected (pid=%d, tgid=%d, ppid=%d), discarding it.", pid, tgid, ppid);
+                    continue;
+                }
+                nlf_debug("New process detected (pid=%d, tgid=%d, ppid=%d)", pid, tgid, ppid);
+                process_new_delay(pid, ppid);
+            }
         }
         old_recent_pid = recent_pid;
     }

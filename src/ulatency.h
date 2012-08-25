@@ -56,7 +56,7 @@
 
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLCGROUP | PROC_FILLSUPGRP | PROC_FILLCGROUP | PROC_LOOSE_TASKS)
+  PROC_FILLWCHAN | PROC_FILLSUPGRP | PROC_LOOSE_TASKS)
 
 #define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
 
@@ -152,7 +152,12 @@ typedef struct {
   int           pid;            //!< duplicate of proc.tgid
   int           ustate;         //!< status bits for process
   proc_t       *proc;           //!< main data storage
-  char        **cgroup_origin;  //!< the original cgroups this process was created in
+  char        **cgroup_origin_raw;  //!< the original cgroups this process was created in
+  GHashTable   *cgroup_origin;  //!< the original cgroups this process was created in, table of paths indexed by subsystem
+  char        **cgroup_raw;     //!< process cgroups
+  //! current cgroups, table of paths indexed by subsystem (update with `process_update_pid()` or manually)
+  //! @note cgroup_raw is in field `proc.cgroup`
+  GHashTable   *cgroup;
   GArray        proc_history;   //!< list of history elements
   int           history_len;    //!< desigered history len
   guint         last_update;    //!< counter for detecting dead processes
@@ -161,7 +166,7 @@ typedef struct {
   GList         *flags;         //!< list of #u_flag
   int           changed;        //!< flags or main parameters of process like uid, gid, sid changed
   int           block_scheduler; //!< indicates that the process should not be touched by the scheduler
-  GPtrArray     *tasks;         //!< pointer array to all process tasks of type #u_task 
+  GPtrArray    *tasks;          //!< array of all process tasks of type #u_task
   int           received_rt;    //!< indicates a process had realtime prio at least once
 
   int           lua_data;       //!< id for per process lua storage
@@ -181,9 +186,35 @@ typedef struct {
 } u_proc;
 
 typedef struct {
-  u_proc *proc;   //!< process this task belongs to
-  proc_t *task;
+  U_HEAD;
+  int     tid;        //!< duplicate of task.tid, but available even if the task was invalidated
+  u_proc *proc;       //!< process this task belongs to (NULL if the task was invalidated)
+  //! PID of process the task is/was attached to. This is duplicate of proc->pid, task->tgid, proc->tgid, proc->tid,
+  //! but it is available even if the task is invalidated.
+  int     proc_pid;
+  proc_t *task;       //!< pointer to #proc_t datastructure (NULL if the task was invalidated)
+  int     lua_data;   //!< id for per task lua storage
 } u_task;
+
+#ifdef DEVELOP_MODE
+
+static inline gboolean U_TASK_IS_INVALID(u_task *T) {
+  if (T->proc) { g_assert(T->task); g_assert(U_PROC_IS_VALID(T->proc)); return FALSE; }
+  else { g_assert(T->task == NULL); return TRUE; }
+}
+
+static inline gboolean U_TASK_IS_VALID(u_task *T) {
+  if (T->proc) { g_assert(T->task); g_assert(U_PROC_IS_VALID(T->proc)); return TRUE; }
+  else { g_assert(T->task == NULL); return FALSE; }
+}
+
+#else
+
+#define U_TASK_IS_INVALID(T) ( T ->proc == NULL )
+#define U_TASK_IS_VALID(T)   ( T ->proc != NULL )
+
+#endif
+
 
 typedef struct _filter {
   U_HEAD;
@@ -376,6 +407,7 @@ enum ENSURE_WHAT {
   CMDLINE,
   EXE,
   TASKS,
+  CGROUP
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);

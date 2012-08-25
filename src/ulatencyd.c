@@ -431,6 +431,7 @@ signal_suspend (int signal)
   flg->value = signal;
   u_trace("added system flag: suspend");
   u_flag_add(NULL, flg);
+  DEC_REF(flg);
   system_flags_changed = 1;
   g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
@@ -447,6 +448,7 @@ signal_quit (int signal)
   flg->value = signal;
   u_trace("added system flag: quit");
   u_flag_add(NULL, flg);
+  DEC_REF(flg);
   system_flags_changed = 1;
   g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
