@@ -1187,10 +1187,10 @@ static int u_proc_index (lua_State *L)
   } else
   // always available basic properties
   if(!strcmp(key, "tid" )) {
-    lua_pushinteger(L, proc->proc.tid);
+    lua_pushinteger(L, proc->proc->tid);
     return 1;
   } else if(!strcmp(key, "ppid" )) {
-    lua_pushinteger(L, proc->proc.ppid);
+    lua_pushinteger(L, proc->proc->ppid);
     return 1;
   } else
   // other properties that don't need basic properties parsed
@@ -1266,7 +1266,7 @@ static int u_proc_index (lua_State *L)
     lua_error(L);
   }
 
-  rv = handle_proc_t (L, &(proc->proc), key);
+  rv = handle_proc_t (L, proc->proc, key);
   if(rv)
     return rv;
 
