@@ -273,6 +273,7 @@ error:
 
   g_free(save_xauth);
   g_free(save_home);
+  g_ptr_array_unref(xauthptr);
 
   return FALSE;
 }
