@@ -386,6 +386,7 @@ static void ck_session_removed(DBusGProxy *proxy, gchar *name, gpointer ignored)
         g_free(sess->dbus_session);
 
         U_session_list = g_list_remove(U_session_list, sess);
+        g_free(sess);
         break;
       }
       cur = g_list_next(cur);
@@ -509,7 +510,6 @@ void consolekit_init() {
         g_error_free(error);
     }
     for (i = 0; i < array->len; i++) {
-        error = NULL;
         ck_seat_added(NULL, g_ptr_array_index(array, i), NULL);
     }
     g_ptr_array_free(array, TRUE);
@@ -520,7 +520,6 @@ void consolekit_init() {
         g_error_free(error);
     }
     for (i = 0; i < array->len; i++) {
-        error = NULL;
         ck_session_added(NULL, g_ptr_array_index(array, i), NULL);
     }
     g_ptr_array_free(array, TRUE);

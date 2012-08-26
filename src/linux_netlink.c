@@ -218,7 +218,6 @@ out:
 int init_netlink(GMainLoop *loop) {
 	GSocket *gsocket = NULL;
 	int socket_fd = 0;
-	GError *error = NULL;
 	GSource *source;
 	struct sockaddr_nl my_nla;
 	struct nlmsghdr *nl_hdr;
@@ -237,8 +236,7 @@ int init_netlink(GMainLoop *loop) {
 	socket_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
 
 	if (socket_fd == -1) {
-		g_warning ("netlink: failed to create socket: %s", error->message);
-		g_error_free (error);
+		g_warning ("netlink: failed to create socket: %s", strerror(errno));
 		return 1;
 	}
 
