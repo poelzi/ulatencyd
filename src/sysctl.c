@@ -139,10 +139,10 @@ int adj_oom_killer(pid_t pid, int adj)
   if (oomfd >= 0) {
     if(write(oomfd, &aval, strlen(&aval[0])) < 1) {} // stupid warning :-)
     close(oomfd);
-    free(path);
+    g_free(path);
     return 0;
   }
-  free(path);
+  g_free(path);
   return -1;
 }
 

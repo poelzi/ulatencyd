@@ -2077,7 +2077,7 @@ int load_modules(char *modules_directory) {
     } else
       g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "skip module %s", module_name);
 
-    free(module_name);
+    g_free(module_name);
   }
   g_strfreev(disabled);
   closedir(dip);
