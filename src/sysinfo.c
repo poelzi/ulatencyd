@@ -496,7 +496,6 @@ void consolekit_init() {
         g_error_free(error);
     }
     for (i = 0; i < array->len; i++) {
-        error = NULL;
         ck_seat_added(NULL, g_ptr_array_index(array, i), NULL);
     }
     g_ptr_array_free(array, TRUE);
@@ -507,7 +506,6 @@ void consolekit_init() {
         g_error_free(error);
     }
     for (i = 0; i < array->len; i++) {
-        error = NULL;
         ck_session_added(NULL, g_ptr_array_index(array, i), NULL);
     }
     g_ptr_array_free(array, TRUE);
