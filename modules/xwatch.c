@@ -101,37 +101,37 @@ xcb_intern_atom_cookie_t intern_string (xcb_connection_t *c, const char *s)
 static char *
 get_localhost()
 {
-  char *buf = 0;
-  size_t buf_len = 0;
+  char *hostname = NULL, *buf = NULL;
+  size_t size = 34; // initial hostname length
   int myerror = 0;
 
   do {
     errno = 0;
 
-    if (buf) {
-      buf_len += buf_len;
-      if ((buf = realloc (buf, buf_len)) == NULL) {
-          g_warning("malloc failed");
-          return NULL;
-      }
-    } else {
-      buf_len = 128;        /* Initial guess */
-      buf = malloc(buf_len);
-      if (!buf) {
-          g_warning("malloc failed");
-          return NULL;
-      }
+    if (buf)
+      size += size;
+
+    if ((buf = realloc (hostname, size)) == NULL) {
+      g_warning("malloc failed");
+      goto error;
     }
-  } while (((myerror = gethostname(buf, buf_len)) == 0 && !memchr (buf, '\0', buf_len))
+    buf[size - 1] = '\0';
+    hostname = buf;
+  } while (((myerror = gethostname(hostname, size)) == 0 && hostname[size - 1])
           || errno == ENAMETOOLONG);
 
   /* gethostname failed, abort. */
   if (myerror) {
     g_warning("can't get hostname");
-    return NULL;
+    goto error;
   }
 
-  return buf;
+  return hostname;
+
+error:
+  if (buf)
+    free(buf);
+  return NULL;
 }
 
 int create_connection(struct x_server *xs) {
