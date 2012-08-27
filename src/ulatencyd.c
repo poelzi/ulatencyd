@@ -44,8 +44,8 @@ DBusGConnection *U_dbus_connection_system;
 #endif
 
 #include <glib.h>
-#include "proc/sysinfo.h"
-#include "proc/readproc.h"
+#include <proc/sysinfo.h>
+#include <proc/readproc.h>
 #ifdef LIBCGROUP
 #include <libcgroup.h>
 #endif

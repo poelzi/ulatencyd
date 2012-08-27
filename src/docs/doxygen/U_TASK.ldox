@@ -207,8 +207,6 @@ U_TASK.fgid = <number>
 --! @public @memberof U_TASK
 U_TASK.tpgid = <number>
 --! @public @memberof U_TASK
-U_TASK.nsupgid = <number>
---! @public @memberof U_TASK
 U_TASK.exit_signal = <number>
 --! @public @memberof U_TASK
 U_TASK.processor = <number>

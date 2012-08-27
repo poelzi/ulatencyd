@@ -23,14 +23,13 @@ IF(DBUS_FOUND AND ENABLE_DBUS)
 ENDIF(DBUS_FOUND AND ENABLE_DBUS)
 
 add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
-               coreutils/readutmp.c coreutils/xalloc-die.c linux_netlink.c
+               linux_netlink.c
                ${EXTRA_C} lua_binding.c tools.c)
 
-target_link_libraries (ulatencyd proc lbc dl ${MY_LUA_LIBRARIES} 
+target_link_libraries (ulatencyd lbc dl ${MY_LUA_LIBRARIES}
                        ${LIBCGROUP_LIBRARIES} ${DBUS_LIBRARIES}
                        ${GLIB2_LIBRARIES} ${GIO_LIBRARIES} ${GTHREAD_LIBRARIES}
-                       ${POLKIT_LIBRARIES})
-
+                       ${POLKIT_LIBRARIES} ${LIBPROC_LIBRARIES})
 
 SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 

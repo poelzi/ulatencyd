@@ -39,30 +39,17 @@ if(POLKIT_FOUND)
   CHECK_LIBRARY_EXISTS(polkit-gobject-1 polkit_authority_get_sync "" POLKIT_HAVE_GET_SYNC)
 endif(POLKIT_FOUND)
 
-# FIXME: libproc should export more symbols
-# find libproc
-#FIND_PATH(LIBPROC_INCLUDE_DIR readproc.h /usr/include/proc /usr/local/include/proc)
+# do not use own libproc copy
+#set(LIBPROC_INCLUDE_DIRS src)
 
-#FIND_LIBRARY(LIBPROC_LIBRARY NAMES proc PATH /usr/lib /usr/local/lib)
+pkg_check_modules(LIBPROC libprocps REQUIRED)
 
-#IF (LIBPROC_INCLUDE_DIR AND LIBPROC_LIBRARY)
-#   SET(LIBPROC_FOUND TRUE)
-#ENDIF (LIBPROC_INCLUDE_DIR AND LIBPROC_LIBRARY)
-
-
-#IF (NOT LIBPROC_FOUND)
-#   MESSAGE(FATAL_ERROR "Could not find libproc")
-#ENDIF (NOT LIBPROC_FOUND)
-
-# use own libproc copy
 SET(CONFIG_PREFIX "/etc" CACHE STRING
       "Config prefix"
       FORCE)
 SET(SYSTEMD_DIR "/lib/systemd/system" CACHE STRING
       "systemd service file directory")
 
-set(LIBPROC_INCLUDE_DIRS src)
-#set(LIBPROC_LIBRARY src/proc/libproc.a)
 if(DEVELOP_MODE)
   message("don't forget to copy conf/org.quamquam.ulatencyd.conf to /etc/dbus-1/system.d and reload dbus")
   SET(CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/conf")
@@ -122,7 +109,6 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 endif("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
 add_subdirectory(src/bc)
-add_subdirectory(src/proc)
 add_subdirectory(src)
 add_subdirectory(modules)
 add_subdirectory(tests)

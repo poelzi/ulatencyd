@@ -107,10 +107,8 @@ static int cgroup_tostring (lua_State *L)
 {
   proc_t *proc = check_proc_t(L, 1);
   //printf("goodbye proc_t (%p)\n", proc);
-  if (proc) {
-    freesupgrp(proc);
-    freeproc_light(proc);
-  }
+  if (proc)
+    freeproc(proc);
   return 0;
 }
 */
