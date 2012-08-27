@@ -1485,7 +1485,9 @@ void u_flag_free(void *ptr) {
   g_assert(flag->ref == 0);
 
   if(flag->name)
-    free(flag->name);
+    g_free(flag->name);
+  if(flag->reason)
+    g_free(flag->reason);
   g_slice_free(u_flag, flag);
 }
 
