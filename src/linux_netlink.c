@@ -211,6 +211,8 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 		}
 	}
 out:
+  if (!ret)
+    g_socket_close(socket, NULL);
 	return ret;
 }
 
