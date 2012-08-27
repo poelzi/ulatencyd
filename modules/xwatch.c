@@ -185,6 +185,7 @@ int create_connection(struct x_server *xs) {
         g_debug("connected to X11 %s", xs->display);
         break;
       }
+      xcb_disconnect (xs->connection);
     }
     i++;
     if(!xauthptr)
@@ -326,8 +327,7 @@ struct x_server *add_connection(const char *name, uid_t uid, const char *display
     cur = g_list_find_custom(server_list, display, match_display);
     if(!cur)
       break;
-    free_x_server(cur->data);
-    server_list = g_list_remove(server_list, cur->data);
+    del_connection(cur->data);
   }
 
   nc = g_malloc0(sizeof(struct x_server));
