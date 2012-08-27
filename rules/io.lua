@@ -92,7 +92,7 @@ BottleNeck = {
   end,
 
   parse_data = function(self)
-    fp = io.open("/proc/diskstats", "r")
+    local fp = io.open("/proc/diskstats", "r")
     if not fp then
       return
     end
@@ -100,6 +100,7 @@ BottleNeck = {
       local chunks = string.split(line, " ")
       self:add_entry(chunks)
     end
+    fp:close()
     self.first_run = false
   end,
 
