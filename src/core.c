@@ -1986,7 +1986,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
           goto skip;
 
         for(j = 0; j < disabled_len; j++) {
-          if(!g_strcasecmp(disabled[j], rule_name))
+          if(!g_ascii_strcasecmp(disabled[j], rule_name))
             goto skip;
         }
 
@@ -2047,7 +2047,7 @@ int load_modules(char *modules_directory) {
     module_name = g_strndup(dit->d_name,strlen(dit->d_name)-3);
 
     for(i = 0; i < disabled_len; i++) {
-      if(!g_strcasecmp(disabled[i], module_name)) {
+      if(!g_ascii_strcasecmp(disabled[i], module_name)) {
         skip = TRUE;
         break;
       }

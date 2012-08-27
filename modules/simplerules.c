@@ -246,7 +246,7 @@ int load_simple_directory(char *path) {
           rule_name = g_strndup(namelist[i]->d_name,strlen(namelist[i]->d_name)-4);
 
           for(j = 0; j < disabled_len; j++) {
-            if(!g_strcasecmp(disabled[j], rule_name))
+            if(!g_ascii_strcasecmp(disabled[j], rule_name))
               goto skip;
           }
 
