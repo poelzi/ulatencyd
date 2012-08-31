@@ -29,3 +29,9 @@ CTestTestfile.cmake
 Testing
 install_manifest.txt
 tests/forkbomb
+
+.buildpath
+.cproject
+.project
+.pydevproject
+.settings/
