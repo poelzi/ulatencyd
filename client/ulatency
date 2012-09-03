@@ -332,7 +332,11 @@ class Session:
             return []
         system = dbus.Interface(self.system, 'org.quamquam.ulatencyd.System')
         try:
-            return list(map(unicode, system.listSystemFlags()))
+            rv = []
+            data = system.listSystemFlags()
+            for flag in data:
+              rv.append(dict((unicode(x),v) for x,v in flag.iteritems()))
+            return rv
         except dbus.exceptions.DBusException as e:
             prnt(e)
             if self.silent:
