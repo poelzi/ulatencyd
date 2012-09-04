@@ -104,6 +104,15 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "      <arg type=\"x\" name=\"threshold\" direction=\"in\" />\n"
 "      <arg type=\"b\" name=\"inherit\" direction=\"in\" />\n"
 "    </method>\n"
+"    <method name=\"addSystemFlag\">\n"
+"      <arg type=\"s\" name=\"name\" direction=\"in\" />\n"
+"      <arg type=\"s\" name=\"reason\" direction=\"in\" />\n"
+"      <arg type=\"t\" name=\"timeout\" direction=\"in\" />\n"
+"      <arg type=\"i\" name=\"priority\" direction=\"in\" />\n"
+"      <arg type=\"x\" name=\"value\" direction=\"in\" />\n"
+"      <arg type=\"x\" name=\"threshold\" direction=\"in\" />\n"
+"      <arg type=\"b\" name=\"run_iteration\" direction=\"in\" />\n"
+"    </method>\n"
 "    <method name=\"listFlags\">\n"
 "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
 "      <arg type=\"b\" name=\"recrusive\" direction=\"in\" />\n"
@@ -489,6 +498,49 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         u_flag_add(proc, flag);
         DEC_REF(flag);
+
+        ret = dbus_message_new_method_return(m);
+        goto finish;
+
+    } else if(dbus_message_is_method_call(m, U_DBUS_SYSTEM_INTERFACE, "addSystemFlag")) {
+        uint64_t timeout;
+        int64_t priority, value, threshold;
+        u_flag *flag;
+        gboolean run_iteration;
+        char *name, *reason;
+
+        if (!dbus_message_get_args(m, &error,
+                                      DBUS_TYPE_STRING,  &name,
+                                      DBUS_TYPE_STRING,  &reason,
+                                      DBUS_TYPE_UINT64,  &timeout,
+                                      DBUS_TYPE_INT32,   &priority,
+                                      DBUS_TYPE_INT64,   &value,
+                                      DBUS_TYPE_INT64,   &threshold,
+                                      DBUS_TYPE_BOOLEAN, &run_iteration,
+                                      DBUS_TYPE_INVALID) ||
+            !dbus_message_iter_init (m, &imsg))
+              PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
+
+        GET_CALLER()
+
+        if(caller != 0) // fixme: query policykit
+            PUSH_ERROR(DBUS_ERROR_ACCESS_DENIED, "access denied")
+
+        flag = u_flag_new((void *)U_DBUS_POINTER, name);
+        flag->reason = reason;
+        flag->timeout = timeout;
+        flag->priority = priority;
+        flag->value = value;
+        flag->threshold = threshold;
+
+        u_flag_add(NULL, flag);
+        DEC_REF(flag);
+        system_flags_changed = 1;
+
+        g_message("DBUS: added system flag: name=\"%s\", reason=\"%s\"", name, reason);
+
+        if (run_iteration)
+            g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
 
         ret = dbus_message_new_method_return(m);
         goto finish;
