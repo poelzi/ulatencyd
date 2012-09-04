@@ -27,7 +27,7 @@ U_TASK = {}
 --! @name read/write properties
 --! @{
 
---! @brief custom process data 
+--! @brief custom task data
 --! @details This is lua table shared between all lua scripts. You should use `U_TASK.data[SOMEUNIQUESTRING]`
 --! to prevent clashes between rules.
 --! @public @memberof U_TASK
