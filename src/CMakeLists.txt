@@ -12,7 +12,8 @@ add_definitions(-DHAVE_INLINE)
 
 
 IF(LIBCGROUPS)
-  list(APPEND EXTRA_C "lua_cgroups.c")
+  list(APPEND EXTRA_C "lua_cgroup.c")
+  list(APPEND LIBCGROUP_LIBRARIES "cgroup")
 ENDIF(LIBCGROUPS)
 
 IF(DBUS_FOUND AND ENABLE_DBUS)
