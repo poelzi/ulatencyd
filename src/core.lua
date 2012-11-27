@@ -76,7 +76,7 @@ function mkdirp(path)
     local parts = path:split("/")
     for i,v in ipairs(parts) do
       name = "/" .. table.concat(parts, "/", 1, i)
-      if posix.access(name, posix.R_OK) ~= 0 then
+      if posix.access(name, "r") ~= 0 then
         if posix.mkdir(name) ~= 0 then
           cg_log("can't create "..name)
           return false
@@ -615,7 +615,7 @@ end
 --! @public @memberof CGroup
 function CGroup:get_tasks()
   local t_file = self:path("tasks")
-  if posix.access(t_file, posix.R_OK) ~= 0 then
+  if posix.access(t_file, "r") ~= 0 then
     return {}
   end
   rv = {}
@@ -629,7 +629,7 @@ end
 function CGroup:has_tasks()
   local rv = false
   local t_file = self:path("tasks")
-  if posix.access(t_file, posix.R_OK) ~= 0 then
+  if posix.access(t_file, "r") ~= 0 then
     return false
   end
   for line in io.lines(t_file) do
