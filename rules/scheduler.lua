@@ -540,6 +540,11 @@ function Scheduler:_one(proc, single)
 
         -- skip foreign cgroups
         local cgr_path = proc:get_cgroup(subsys)
+        if not cgr_path then
+          ulatency.log_warning(string.format("nocgroup for process - subsys: %s, pid: %d, cmdfile: %s, exe: %s",
+            subsys, proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE")) --debug
+          cgr_path = '/'
+        end
         local cgr_name = subsys .. cgr_path
         if not (cgr_path == "/" or CGroup.get_group(cgr_name) or self.SAVED_CGROUPS[cgr_name]) then
           ulatency.log_info(string.format("scheduler subsys %s: skippping %s (pid: %d) because its cgroup %s is foreign",
