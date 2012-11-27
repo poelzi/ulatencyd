@@ -9,8 +9,7 @@
 
 SystemIdle = {
   name = "SystemIdle",
-  --re_basename = "preload",
-  re_basename = "preload",
+  re_basename = "preload|cron|anacron",
   check = function(self, proc)
     local flag = ulatency.new_flag{name="daemon.idle", inherit=true}
     proc:add_flag(flag)
@@ -21,6 +20,7 @@ SystemIdle = {
   end
 }
 
+--[[
 SystemBg = {
   name = "SystemBg",
   re_basename = "cron|anacron",
@@ -33,6 +33,7 @@ SystemBg = {
     return rv
   end
 }
+]]--
 
 ulatency.register_filter(SystemIdle)
-ulatency.register_filter(SystemBg)
+--ulatency.register_filter(SystemBg)
