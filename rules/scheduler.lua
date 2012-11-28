@@ -572,6 +572,9 @@ function Scheduler:_one(proc, single)
     proc:clear_changed()
     --pprint(build_path_parts(proc, res))
   end
+  if single then
+      self:_run_after_hooks()
+  end
   return true
 end
 

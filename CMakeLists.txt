@@ -208,6 +208,16 @@ if(POLKIT_FOUND)
           DESTINATION ${POLKIT_PREFIX}/share/polkit-1/actions)
 endif(POLKIT_FOUND)
 
+#
+# update the applications rule file
+#
+
+install(FILES scripts/cron.daily/99ulatencyd
+        DESTINATION /etc/cron.daily)
+install(FILES scripts/update-user-apps.sh
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ
+                    GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+        DESTINATION lib/ulatencyd)
 
 #install(TARGETS mySharedLib DESTINATION /some/full/path)
 

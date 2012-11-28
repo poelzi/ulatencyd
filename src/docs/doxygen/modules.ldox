@@ -61,6 +61,9 @@
 --!     @defgroup lua_TIMEOUTS Timeout functions
 --!     @ingroup lua_RULES
 
+--!     @defgroup lua_TIMEOUTS_IMPLEMENTED Implemented timeout functions
+--!     @ingroup lua_TIMEOUTS
+
 
 --!   @defgroup lua_SCHEDULER Scheduler
 --!   @ingroup lua_API

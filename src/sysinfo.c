@@ -282,6 +282,20 @@ static void session_idle_hint_changed(DBusGProxy *proxy, gboolean hint, u_sessio
 static void session_active_changed(DBusGProxy *proxy, gboolean active, u_session *sess) {
   g_debug("CK: active changed %s -> %d", sess->name, active);
   sess->active = active;
+  if (active) {
+    // iterate
+    g_message("CK: Active session changed to %s (UID: %d)", sess->name, sess->uid);
+    // TODO: add system flag, but it is probably useless
+    //const void *U_FLAG_SOURCE = (void *)ck_session_changed
+    //u_flag_clear_source(NULL, U_FLAG_SOURCE);
+    //u_flag *flg = u_flag_new(U_FLAG_SOURCE, "session.active.uid");
+    //flg->reason  = "ConsoleKit";
+    //flg->value = sess->uid;
+    //u_flag_add(NULL, flg);
+    //u_trace("added system flag: session.active.uid");
+    system_flags_changed = 1;
+    g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
+  }
 }
 
 static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
