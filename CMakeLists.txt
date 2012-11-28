@@ -12,6 +12,7 @@ option(DEVELOP_DBUS_SESSION "export to session dbus" FALSE)
 option(LIBCGROUPS "add libcgroups support (BROKEN)" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
 option(ENABLE_DBUS "enable dbus" TRUE)
+option(STATIC_LINK_LIBPROCPS "statically link to libprocps" TRUE)
 
 SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
@@ -39,10 +40,19 @@ if(POLKIT_FOUND)
   CHECK_LIBRARY_EXISTS(polkit-gobject-1 polkit_authority_get_sync "" POLKIT_HAVE_GET_SYNC)
 endif(POLKIT_FOUND)
 
-# do not use own libproc copy
-#set(LIBPROC_INCLUDE_DIRS src)
+# libproc (static or dynamic linking)
 
 pkg_check_modules(LIBPROC libprocps REQUIRED)
+if(STATIC_LINK_LIBPROCPS)
+  set(STATIC_LINK_LIBPROCPS_PATH ${LIBPROC_LIBDIR}/libprocps.a CACHE STRING "Full path to libprocps.a for static linking" FORCE)
+  if(NOT EXISTS ${STATIC_LINK_LIBPROCPS_PATH})
+    message(FATAL_ERROR "Static procps library not found: ${STATIC_LINK_LIBPROCPS_PATH}")
+  endif(NOT EXISTS ${STATIC_LINK_LIBPROCPS_PATH})
+  add_library(procps STATIC IMPORTED)
+  set_target_properties( procps PROPERTIES IMPORTED_LOCATION ${STATIC_LINK_LIBPROCPS_PATH} )
+else(STATIC_LINK_LIBPROCPS)
+  set(procps ${LIBPROC_LIBRARIES})
+endif(STATIC_LINK_LIBPROCPS)
 
 SET(CONFIG_PREFIX "/etc" CACHE STRING
       "Config prefix"
