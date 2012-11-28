@@ -22,8 +22,8 @@
 #include "config.h"
 #include "ulatency.h"
 
-#include "proc/procps.h"
-#include "proc/sysinfo.h"
+#include <proc/procps.h>
+#include <proc/sysinfo.h>
 
 #include <string.h>
 #include <stdlib.h>
@@ -131,17 +131,7 @@ void u_task_invalidate(u_task *task) {
     return;
   }
 
-  // free task->task
-  // the task group owner may gave the same pointers, so we shall not free them
-  // when the task is removed
-  if(task->task->nsupgid > 0 &&
-     task->task->supgid &&
-     task->task->supgid != task->proc->proc->supgid) {
-     free(task->task->supgid);
-  }
-  // - cmdline, environ and cgroup point to the task group owner storages, so we will not free them here
-  // - supgrp is not filled for tasks
-  free(task->task);
+  freeproc(task->task);
   task->task = NULL;
 
   DEC_REF(task->proc);
@@ -393,7 +383,6 @@ void u_proc_free(void *ptr) {
 
   g_assert(g_node_n_children(proc->node) == 0);
   g_node_destroy(proc->node);
-  freesupgrp(proc->proc);
   freeproc(proc->proc);
   g_slice_free(u_proc, proc);
 }
@@ -1084,7 +1073,6 @@ int update_processes_run(PROCTAB *proctab, int full) {
       if(proc->tasks->len)
         g_ptr_array_foreach(proc->tasks, (GFunc)u_task_invalidate, NULL);
       // free all changable allocated buffers
-      freesupgrp(proc->proc);
       freeproc(proc->proc);
       proc->proc = p;
     } else {

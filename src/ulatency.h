@@ -26,8 +26,8 @@
 #include <lauxlib.h>
 #include <time.h>
 #include <stdint.h>
-#include "proc/procps.h"
-#include "proc/readproc.h"
+#include <proc/procps.h>
+#include <proc/readproc.h>
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
@@ -54,9 +54,11 @@
 
 #define VERSION 0.5.0
 
+//FIXME enable PROC_FILLSUPGRP once adapted to the new libprocps
+
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN | PROC_FILLSUPGRP | PROC_LOOSE_TASKS)
+  PROC_FILLWCHAN /*| PROC_FILLSUPGRP*/ | PROC_LOOSE_TASKS)
 
 #define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
 

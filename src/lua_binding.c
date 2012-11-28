@@ -1107,7 +1107,6 @@ static int handle_proc_t (lua_State *L, proc_t *proc, const char *key) {
   PUSH_INT(fuid)
   PUSH_INT(fgid)
   PUSH_INT(tpgid)
-  PUSH_INT(nsupgid)
 // 	*supgid,	// status        supplementary gid's
   PUSH_INT(exit_signal)
   PUSH_INT(processor)
@@ -1271,15 +1270,16 @@ static int u_proc_index (lua_State *L)
   if(rv)
     return rv;
 
-//     	**supgrp, // status        supplementary groups
-  if(!strcmp(key, "groups")) {
-      if(proc->proc->supgrp) {
-          l_vstr_to_table(L, proc->proc->supgrp, proc->proc->nsupgid);
-          return 1;
-      } else {
-          return 0;
-      }
-  }
+//     	*supgrp, // supp grp names as comma delimited str, derived from supgid
+// FIXME update to new libprocps (nsupgid does not exists etc.)
+//  if(!strcmp(key, "groups")) {
+//      if(proc->proc->supgrp) {
+//          l_vstr_to_table(L, proc->proc->supgrp, proc->proc->nsupgid);
+//          return 1;
+//      } else {
+//          return 0;
+//      }
+//  }
 
 //     struct proc_t
 // 	*ring,		// n/a             thread group ring

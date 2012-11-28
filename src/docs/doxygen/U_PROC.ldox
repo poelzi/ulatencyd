@@ -531,8 +531,6 @@ U_PROC.fgid = <number>
 --! @public @memberof U_PROC
 U_PROC.tpgid = <number>
 --! @public @memberof U_PROC
-U_PROC.nsupgid = <number>
---! @public @memberof U_PROC
 U_PROC.exit_signal = <number>
 --! @public @memberof U_PROC
 U_PROC.processor = <number>
