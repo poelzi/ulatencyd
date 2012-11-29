@@ -116,7 +116,7 @@ ENDIF(LUA_JIT AND LUAJIT_FOUND)
 
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-  set(ADD_COMPILE_FLAGS "-g -pg -Wall")
+  set(ADD_COMPILE_FLAGS "-g -pg -Wall -Wformat -Werror=format-security")
 endif("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
 add_subdirectory(src/bc)
