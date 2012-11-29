@@ -38,6 +38,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <linux/sched.h>
+#include <errno.h>
 
 #ifdef ENABLE_DBUS
 #include <dbus/dbus-glib.h>
@@ -1972,8 +1973,8 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
 
   n = scandir(path, &namelist, 0, versionsort);
   if (n < 0) {
-     g_strfreev(disabled);
      perror("scandir");
+     g_log(G_LOG_DOMAIN, fatal ? G_LOG_LEVEL_ERROR : G_LOG_LEVEL_WARNING, strerror(errno));
   } else {
      for(i = 0; i < n; i++) {
 
