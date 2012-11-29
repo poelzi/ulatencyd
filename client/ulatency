@@ -19,6 +19,7 @@ import subprocess
 from optparse import OptionParser
 from signal import signal, SIGINT, SIG_DFL
 from functools import partial
+from time import sleep
 
 
 signal(SIGINT, SIG_DFL)
@@ -625,6 +626,26 @@ class Tree(object):
                 pass
 
         def clear(root):
+            try:
+                freezer = open(os.path.join(root, "freezer.state"), "r+", 0)
+                if freezer.read().strip() == "FROZEN":
+                    thawed = False
+                    prnt("thawing %s" %root)
+                    for retry in xrange(20):
+                        freezer.write("THAWED\n")
+                        freezer.seek(0)
+                        if freezer.read().strip() != "THAWED":
+                            sleep(0.5)
+                            prnt("thawing %s: retry %d" %root %range+1)
+                        else:
+                            thawed = True
+                            break
+                    if not thawed:
+                        prnt("could not thaw %s" %root)
+                freezer.close()
+            except IOError:
+                pass
+
             prnt("clear %s" %root)
             try:
                 fp = open(os.path.join(root, "tasks"), "r")
