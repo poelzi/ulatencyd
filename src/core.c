@@ -1960,6 +1960,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
   char **disabled;
   char *rule_name = NULL;
   struct stat sb;
+  int errsv;
 
   disabled = g_key_file_get_string_list(config_data, CONFIG_CORE,
                                         "disabled_rules", &disabled_len, NULL);
@@ -1973,8 +1974,10 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
 
   n = scandir(path, &namelist, 0, versionsort);
   if (n < 0) {
+     errsv = errno;
      perror("scandir");
-     g_log(G_LOG_DOMAIN, fatal ? G_LOG_LEVEL_ERROR : G_LOG_LEVEL_WARNING, strerror(errno));
+     g_log(G_LOG_DOMAIN, fatal ? G_LOG_LEVEL_ERROR : G_LOG_LEVEL_WARNING,
+         "cannot load rule directory '%s': %s", path, strerror(errsv));
   } else {
      for(i = 0; i < n; i++) {
 
