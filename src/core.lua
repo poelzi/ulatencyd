@@ -414,6 +414,29 @@ function ulatency.set_sysctl(name, value)
   local path = "/proc/sys/" .. string.gsub(name, "%.", "/")
   return sysfs_write(path, value)
 end
+
+do
+  local _saved_sysctl = {}
+
+  --! @brief save old sysctl value and set the new one
+  --! @public @memberof ulatency
+  function ulatency.save_sysctl(name, new_value)
+    local path = "/proc/sys/" .. string.gsub(name, "%.", "/")
+    if not _saved_sysctl[name] then
+      _saved_sysctl[name] = ulatency.get_sysctl(name)
+    end
+    return sysfs_write(path, new_value)
+  end
+
+  --! @brief restore saved sysctl value
+  --! @public @memberof ulatency
+  function ulatency.restore_sysctl(name)
+    local path = "/proc/sys/" .. string.gsub(name, "%.", "/")
+    if not _saved_sysctl[name] then return end
+    return sysfs_write(path, _saved_sysctl[name])
+  end
+end
+
 --! @} End of "reading / writing to /proc/sys"
 
 -- CGroups interface
@@ -477,7 +500,7 @@ end
 -- disable the autogrouping
 if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
   ulatency.log_info("disable sched_autogroup in linux kernel")
-  ulatency.set_sysctl("kernel.sched_autogroup_enabled", "0")
+  ulatency.save_sysctl("kernel.sched_autogroup_enabled", "0")
 end
 
 ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))

@@ -444,7 +444,7 @@ function Scheduler:_quit(flag)
       -- cleanup cgroups
       ulatency.log_info("scheduler: cleaning up")
       if self:load_config("cleanup") then
-      self.PROC_BLOCK_THRESHOLD = 2   --cleanup cgroups with blocked processes
+        self.PROC_BLOCK_THRESHOLD = 2   --cleanup cgroups with blocked processes
         ulatency.set_flags_changed(1)
         self:all() -- cleanup round with "cleanup" scheduler config
       else
@@ -453,6 +453,13 @@ function Scheduler:_quit(flag)
     end
   end
   self:save_cgroups()
+  if flag.name == "quit" then
+    -- restore the autogrouping
+    if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
+      ulatency.log_info("restoring sched_autogroup in linux kernel")
+      ulatency.restore_sysctl("kernel.sched_autogroup_enabled")
+    end
+  end
   ulatency.die(flag.threshold or flag.name == "suspend" and 1 or 0)
 end
 
