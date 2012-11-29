@@ -224,11 +224,13 @@ u_task* u_proc_add_task(u_proc *proc, proc_t *t) {
 
   task->tid = t->tid;
   task->proc_pid = proc->pid;
-  //g_assert(t->tgid == proc->pid); //this will fail if the proc is not thread leader, this should not happen
+
+  //the proc should be thread leader
   if (t->tgid != proc->pid) {
     g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-          "u_proc_add_task: task tgid (%d) does not match the process pid (%d)",
-          t->tgid, proc->pid);
+          "u_proc_add_task: task (%d: %s) tgid (%d) does not match the process (%d: %s) pid, "
+          "this indicates a bug in the code: the thread (task %d) was incorrectly handled as the process (thread leader)",
+          t->tid, t->cmd, t->tgid, proc->pid, proc->proc->cmd, proc->pid);
   }
 
   task->task = t;
