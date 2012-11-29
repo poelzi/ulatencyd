@@ -181,12 +181,12 @@ int netlink_fallback_init() {
 
     fd=inotify_init1(IN_NONBLOCK);
     if (fd == -1) {
-        g_warning("inotify instance couldn't be initialized: (%d): %s", errno, strerror(errno));
+        g_warning("inotify instance couldn't be initialized: (%d): %s", errno, g_strerror(errno));
         return 1;
     }
     wd=inotify_add_watch(fd, "/etc/ld.so.cache", IN_OPEN);
     if (wd == -1) {
-        g_warning("inotify watch couldn't be added: (%d): %s", errno, strerror(errno));
+        g_warning("inotify watch couldn't be added: (%d): %s", errno, g_strerror(errno));
         close(fd);
         return 1;
     }

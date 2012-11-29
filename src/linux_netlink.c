@@ -248,7 +248,7 @@ int init_netlink(GMainLoop *loop) {
 	socket_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
 
 	if (socket_fd == -1) {
-		g_warning ("netlink: failed to create socket: %s", strerror(errno));
+		g_warning ("netlink: failed to create socket: %s", g_strerror(errno));
 		return 1;
 	}
 
@@ -258,7 +258,7 @@ int init_netlink(GMainLoop *loop) {
 	my_nla.nl_pad = 0;
 
 	if (bind(socket_fd, (struct sockaddr *)&my_nla, sizeof(my_nla)) < 0) {
-		g_warning("netlink: binding sk_nl error: %s\n", strerror(errno));
+		g_warning("netlink: binding sk_nl error: %s\n", g_strerror(errno));
 		g_warning("netlink: realtime monitoring disabled. compile kernel with PROC_EVENTS enabled");
 		goto out;
 	}
@@ -297,7 +297,7 @@ int init_netlink(GMainLoop *loop) {
 		nl_hdr->nlmsg_len, (int) sizeof(struct cn_msg));
 	if (send(socket_fd, nl_hdr, nl_hdr->nlmsg_len, 0) != nl_hdr->nlmsg_len) {
 		g_warning("netlink: failed to send proc connector mcast ctl op!: %s\n",
-			strerror(errno));
+			g_strerror(errno));
 	}
 	g_debug("sent\n");
 

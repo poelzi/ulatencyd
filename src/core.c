@@ -1977,7 +1977,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
      errsv = errno;
      perror("scandir");
      g_log(G_LOG_DOMAIN, fatal ? G_LOG_LEVEL_ERROR : G_LOG_LEVEL_WARNING,
-         "cannot load rule directory '%s': %s", path, strerror(errsv));
+         "cannot load rule directory '%s': %s", path, g_strerror(errsv));
   } else {
      for(i = 0; i < n; i++) {
 
@@ -2036,7 +2036,7 @@ int load_modules(char *modules_directory) {
   if ((dip = opendir(modules_directory)) == NULL)
   {
     perror("opendir");
-    g_warning("Couldn't load modules (directory '%s': %s)", modules_directory, strerror(errno));
+    g_warning("Couldn't load modules (directory '%s': %s)", modules_directory, g_strerror(errno));
     return 0;
   }
 
