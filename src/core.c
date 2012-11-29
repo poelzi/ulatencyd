@@ -2033,6 +2033,7 @@ int load_modules(char *modules_directory) {
   if ((dip = opendir(modules_directory)) == NULL)
   {
     perror("opendir");
+    g_warning("Couldn't load modules (directory '%s': %s)", modules_directory, strerror(errno));
     return 0;
   }
 
