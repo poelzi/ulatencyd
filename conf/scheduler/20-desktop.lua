@@ -155,7 +155,7 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                                                max_rss)
                   ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
-                  cgroup:set_value("memory.memsw.limit_in_bytes", total_limit, max_rss)
+                  cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                   cgroup:commit()
                 end
       },
@@ -182,7 +182,7 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                                                max_rss)
                   ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
-                  cgroup:set_value("memory.memsw.limit_in_bytes", total_limit, max_rss)
+                  cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                   cgroup:commit()
                 end
       },
