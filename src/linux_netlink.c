@@ -78,24 +78,31 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		break;
 	// quite seldom events on old processes changing important parameters
 	case PROC_EVENT_UID:
+	  // skip threads
+	  if(ev->event_data.id.process_tgid != ev->event_data.id.process_pid)
+      break;
 		u_trace("UID Event: PID = %d, tGID = %d, rUID = %d,"
 				" eUID = %d", ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.ruid,
 				ev->event_data.id.e.euid);
-		//process_update_pid(ev->event_data.id.process_pid);
-		process_new(ev->event_data.id.process_pid, FALSE);
+    process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_GID:
+	  // skip threads
+	  if(ev->event_data.id.process_tgid != ev->event_data.id.process_pid)
+      break;
 		u_trace("GID Event: PID = %d, tGID = %d, rGID = %d,"
 				" eGID = %d", ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.rgid,
 				ev->event_data.id.e.egid);
-		//process_update_pid(ev->event_data.id.process_pid);
-		process_new(ev->event_data.id.process_pid, FALSE);
+    process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_EXIT:
+    // skip threads
+    if(ev->event_data.exit.process_tgid != ev->event_data.exit.process_pid)
+      break;
 		u_trace("EXIT Event: PID = %d", ev->event_data.exit.process_pid);
 		//g_ptr_array_foreach(stack, remove_pid_from_stack, &pid);
 		// if the pid was found in the new stack, pid is set to 0 to indicate
@@ -103,19 +110,22 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		process_remove_by_pid(ev->event_data.exit.process_pid);
 		break;
 	case PROC_EVENT_EXEC:
+	  // skip threads
+	  if(ev->event_data.exec.process_tgid != ev->event_data.exec.process_pid)
+      break;
 		u_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
-		process_new_delay(ev->event_data.exec.process_tgid, 0);
+    process_new_delay(ev->event_data.exec.process_tgid, 0);
 		break;
 	case PROC_EVENT_FORK:
+    // we skip new threads for now
+    // FIXME need filter block to get those events
+    if(ev->event_data.fork.parent_tgid != ev->event_data.fork.child_pid)
+      break;
 		u_trace("FORK Event: PARENT = %d PID = %d tGID = %d",
 			ev->event_data.fork.parent_tgid, ev->event_data.fork.child_pid, ev->event_data.fork.child_tgid);
 
-		// we skip new threads for now
-		// FIXME need filter block to get those events
-		if(ev->event_data.fork.parent_tgid != ev->event_data.fork.child_pid)
-			break;
 		// parent does not mean the parent of the new proc, but the parent of
 		// the forking process. so we lookup the parent of the forking process
 		// first

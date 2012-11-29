@@ -1272,6 +1272,7 @@ static int run_new_pid(gpointer ign) {
  * This is the prefered way to notifiy the core of new processes as it allows to
  * save cpu time for processes that die very quickly.
  * Passing a parent helps to skip reading basic data from /proc
+ * @attention Do not pass threads.
  *
  * @return boolean. TRUE if process could be created.
  */
@@ -1384,6 +1385,7 @@ int process_update_pid(pid_t pid) {
  * @arg noupdate skip if process already exists
  *
  * Indicates a new process and runs the rules and scheduler on it.
+ * @attention Do not pass threads.
  *
  * @return boolean. Sucess
  */
