@@ -507,6 +507,7 @@ gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
   if (!proc->cgroup_raw || force_update) {
 
     g_strfreev(proc->cgroup_raw);
+    proc->cgroup_raw=NULL;
 
     path = g_strdup_printf ("/proc/%u/cgroup", (guint)proc->pid);
 
