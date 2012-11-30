@@ -560,7 +560,7 @@ int main (int argc, char *argv[])
       exit (0);
     }
 
-    umask (0);
+    umask (022);
 
     sid = setsid();
 
