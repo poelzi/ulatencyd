@@ -26,8 +26,8 @@ signal(SIGINT, SIG_DFL)
 
 VERSION = '0.2'
 DEFAULT_TREE = "cpu"
-CGROUP_PATHS = {}
-CGROUP_SUBSYS = []
+CGROUP_MOUNTS = {}
+PRIVATE_CGROUP_NAMES = []
 GROUP_VALUES = ["cpu.shares",
                 "cpuset.cpus", "cpuset.cpu_exclusive",
                 "memory.limit_in_bytes", "memory.memsw.limit_in_bytes",
@@ -53,7 +53,7 @@ for line in fp:
     if line[0] == "#":
         continue
     chunks = line.split()
-    CGROUP_SUBSYS.append(chunks[0])
+    PRIVATE_CGROUP_NAMES.append("name=ulatencyd."+chunks[0])
 
 fp = open("/proc/mounts", "r")
 for line in fp:
@@ -61,10 +61,9 @@ for line in fp:
     if chunks[2] == "cgroup":
         opts = chunks[3].split(",")
         for opt in opts:
-            if opt in CGROUP_SUBSYS:
-                CGROUP_PATHS[opt] = chunks[1]
-
-
+            if opt in PRIVATE_CGROUP_NAMES:
+                subsys = opt.split(".",1)[1]
+                CGROUP_MOUNTS[subsys] = [ chunks[0], chunks[1] ]
 
 class drug():
     def __init__(self, **kwargs):
@@ -496,11 +495,16 @@ class Tree(object):
         return tree
 
     def get_path(self):
-        path = CGROUP_PATHS.get(self.tree, None)
+        path = CGROUP_MOUNTS.get(self.tree, None)[0]
         if not path or not os.path.exists(path):
             return None
         return path
 
+    def get_private_path(self):
+        path = CGROUP_MOUNTS.get(self.tree, None)[1]
+        if not path or not os.path.exists(path):
+            return None
+        return path
 
     def update(self):
         path = self.get_path()
@@ -608,12 +612,14 @@ class Tree(object):
         """clears a cgroup mountpoint so it can be removed"""
 
         path = self.get_path()
+        priv_path = self.get_private_path()
         if not path:
             prnt("subsystem not mounted")
             return
 
         try:
             rootfp = open(os.path.join(path, "tasks"), "w")
+
         except IOError:
             prnt("need to run as root")
             sys.exit(1)
@@ -654,18 +660,24 @@ class Tree(object):
             except IOError:
                 pass
 
-        for root, dirs, files in os.walk(path, topdown=False):
-            if root == path:
+        for priv_root, dirs, files in os.walk(priv_path, topdown=False):
+            if priv_root == priv_path:
                 continue
-            for retry in xrange(5):
-                clear(root)
-                try:
-                    os.rmdir(root)
-                    break
-                except OSError:
-                    pass
-            else:
-                prnt("could not clear %s" %root)
+            root=path+priv_root[len(priv_path):]
+            if os.path.isdir(root):
+                for retry in xrange(5):
+                    clear(root)
+                    try:
+                        os.rmdir(root)
+                        break
+                    except OSError:
+                        pass
+                else:
+                    prnt("could not clear %s" %root)
+            try:
+                os.rmdir(priv_root)
+            except OSError:
+                prnt("could not clear %s" %priv_root)
         prnt("cleared %s" %path)
 
 class Gui:
@@ -742,7 +754,7 @@ class QtGui(Gui):
         def connect(con):
             return lambda: self.switch_tree(con)
         tree_group = QActionGroup(tree_menu)
-        for subsys in CGROUP_PATHS:
+        for subsys in CGROUP_MOUNTS:
             prnt(subsys)
             self.config_tree[subsys] = c = tree_menu.addAction(subsys)
             c.setCheckable(True)
@@ -1114,8 +1126,8 @@ def main():
         return
 
     if args[0] == 'mounts':
-        for v,i in CGROUP_PATHS.iteritems():
-            prnt("%s %s" %(v.ljust(10, " "), i))
+        for v,i in CGROUP_MOUNTS.iteritems():
+            prnt("%s %s  private: %s" %(v.ljust(10, " "), i[0].ljust(32, " "), i[1]))
         return
 
     if args[0] == 'clear':
@@ -1123,7 +1135,7 @@ def main():
             prnt("not enough arguments")
             sys.exit(1)
         if args[1] == "ALL":
-            for tree in CGROUP_PATHS.iterkeys():
+            for tree in CGROUP_MOUNTS.iterkeys():
                 ct = Tree(tree=tree)
                 ct.clear()
         else:
