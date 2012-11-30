@@ -542,7 +542,7 @@ local function mount_cgroup(subsys, private)
       if private then
         ulatency.log_error("can't mount private cgroup: "..mount_path)
       else
-        ulatency.log_error("can't mount: "..mount_path)
+        ulatency.log_warning("can't mount: "..mount_path)
       end
     else
       __CGROUP_LOADED[subsys] = true
