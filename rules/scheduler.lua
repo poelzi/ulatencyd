@@ -453,12 +453,10 @@ function Scheduler:_quit(flag)
     end
   end
   self:save_cgroups()
-  if flag.name == "quit" then
-    -- restore the autogrouping
-    if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
-      ulatency.log_info("restoring sched_autogroup in linux kernel")
-      ulatency.restore_sysctl("kernel.sched_autogroup_enabled")
-    end
+  -- restore the autogrouping
+  if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
+    ulatency.log_info("restoring sched_autogroup in linux kernel")
+    ulatency.restore_sysctl("kernel.sched_autogroup_enabled")
   end
   ulatency.die(flag.threshold or flag.name == "suspend" and 1 or 0)
 end
