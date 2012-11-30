@@ -271,6 +271,7 @@ function Scheduler:_init()
     Scheduler:cgroups_cleanup()
   end
   ulatency.add_timeout(cgroups_cleanup, 120000) --FIXME: or run this every scheduler:all() ?
+  cgroups_cleanup_full()
 end
 
 --! @private @memberof Scheduler
@@ -609,6 +610,44 @@ local function _cgroups_cleanup()
   for _,v in ipairs(remove) do
     if groups[v[2]]:remove() then
       groups[v[2]] = nil
+    end
+  end
+end
+
+-- full cleanup (need to be executed only once on daemon start)
+-- called from Scheduler:_init()
+function cgroups_cleanup_full()
+  ulatency.log_debug("cleaning all cgroups")
+  for _, subsys in ipairs(ulatency.get_cgroup_subsystems()) do
+    local priv_root = CGROUP_PRIVATE_ROOT..subsys..'/'
+    local root = CGROUP_ROOT..subsys..'/'
+    if posix.access(priv_root) == 0 then
+
+      local function rmdir_cgroups(priv_dir, dir)
+        for f in posix.files(priv_dir) do
+          if f ~= '.' and f ~= '..' then
+            local stat=posix.stat(priv_dir..f)
+            if stat and stat.type == 'directory' then
+              rmdir_cgroups(priv_dir..f..'/', dir..f..'/')
+            end
+          end
+        end
+
+        local cleared = true
+        if posix.access(dir) == 0 then
+          cleared = posix.rmdir(dir)
+        end
+
+        if cleared then
+          if (posix.rmdir(priv_dir)) then
+            ulatency.log_debug("removed unused cgroup: "..dir)
+          end
+        end
+
+      end
+
+      rmdir_cgroups(priv_root, root)
+
     end
   end
 end
