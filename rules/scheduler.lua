@@ -491,6 +491,10 @@ function Scheduler:_one(proc, single)
             subsys, proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE")) --debug
           cgr_path = '/'
         end
+        if CGroup.is_foreign(subsys, cgr_path) then
+          ulatency.log_info(string.format("scheduler subsys %s: skippping %s (pid: %d) because its cgroup %s is foreign",
+            subsys, proc.cmdfile or "unknown", proc.pid, subsys..cgr_path))
+        else
 
           local mappings = run_list(proc, map)
           --pprint(mappings)
@@ -512,7 +516,7 @@ function Scheduler:_one(proc, single)
           else
             ulatency.log_debug("no group found for: "..tostring(proc).." subsystem:"..tostring(subsys))
           end
-
+        end
       end
     end
     proc:clear_changed()

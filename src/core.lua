@@ -470,6 +470,7 @@ end
 if string.sub(CGROUP_ROOT, -1) ~= "/" then
   CGROUP_ROOT = CGROUP_ROOT .. "/"
 end
+CGROUP_PRIVATE_ROOT = CGROUP_ROOT .. "ulatencyd/"
 
 -- test if a cgroups is mounted
 local function is_mounted(mnt_pnt)
@@ -496,6 +497,11 @@ if not is_mounted(CGROUP_ROOT) then
     ulatency.log_error("can't mount: "..CGROUP_ROOT)
   end
 end
+if posix.access(CGROUP_PRIVATE_ROOT) ~= 0 then
+  if not mkdirp(CGROUP_PRIVATE_ROOT) then
+    ulatency.log_error("can't create directory for ulatencyd private cgroup hierarchies: "..CGROUP_PRIVATE_ROOT)
+  end
+end
 
 -- disable the autogrouping
 if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
@@ -505,26 +511,53 @@ end
 
 ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
 
+-- mount cgroup hierarchies
 local __found_one_group = false
-for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
-  if ulatency.has_cgroup_subsystem(subsys) then
-    local path = CGROUP_ROOT..subsys
-    if is_mounted(path) then
-      ulatency.log_info("mount point "..path.." is already mounted")
+
+local function mount_cgroup(subsys, private)
+  local rv = false
+  local subsys_path = CGROUP_ROOT..subsys
+  local private_path = CGROUP_PRIVATE_ROOT..subsys
+  local mount_path = private and private_path or subsys_path
+  if is_mounted(mount_path) then
+    ulatency.log_info("mount point "..mount_path.." is already mounted")
+    if not private then
       __CGROUP_LOADED[subsys] = true
       __found_one_group = true
-    else
-      mkdirp(path)
-      local prog = "/bin/mount -n -t cgroup -o "..subsys.." none "..path.."/"
-      ulatency.log_info("mount cgroups: "..prog)
-      fd = io.popen(prog, "r")
-      print(fd:read("*a"))
-      if not is_mounted(path) then
-        ulatency.log_error("can't mount: "..path)
+    end
+    rv = true
+  else
+    mkdirp(mount_path)
+    local options = private and  "none,name=ulatencyd."..subsys or subsys
+    -- we mount private hierarchies with the fake device (first column in /proc/mounts)
+    -- corresponding to the directory where hierarchy with the real cgroup subsystem controller
+    -- is mounted. This way the userspace scripts (e.g. ulatency) are able to map
+    -- our private hierarchy to the real one.
+    local device = private and subsys_path or "none"
+    local prog = "/bin/mount -n -t cgroup -o "..options.." "..device.." "..mount_path.."/"
+    ulatency.log_info("mount cgroups: "..prog)
+    fd = io.popen(prog, "r")
+    print(fd:read("*a"))
+    if not is_mounted(mount_path) then
+      if private then
+        ulatency.log_error("can't mount private cgroup: "..mount_path)
       else
-        __CGROUP_LOADED[subsys] = true
-        __found_one_group = true
+        ulatency.log_error("can't mount: "..mount_path)
       end
+    else
+      __CGROUP_LOADED[subsys] = true
+      __found_one_group = true
+      rv = true
+    end
+  end
+  return rv
+end
+
+for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
+  if ulatency.has_cgroup_subsystem(subsys) then
+    local path = CGROUP_ROOT..subsys;
+    if mount_cgroup(subsys, false) then
+      mount_cgroup(subsys, true)
     end
     local fp = io.open(path.."/release_agent", "r")
     local ragent = fp:read("*a")
@@ -592,12 +625,36 @@ function CGroup.get_group(name)
   return nil
 end
 
+--! @brief Returns true, if the cgroup was created outside ulatencyd..
+--! @param subsys A cgroup subsystem.
+--! @param hierarchy_path Path under cgroup hierarchy
+--! @return boolean
+--! @public @memberof CGroup
+function CGroup.is_foreign(subsys, hierarchy_path)
+  local cgr_name = subsys .. hierarchy_path
+  if hierarchy_path == "/" or CGroup.get_group(cgr_name) then
+    return false
+  end
+  local priv_cgr_path = CGROUP_ROOT .. subsys .. "/".. hierarchy_path
+  local stat=posix.stat(priv_cgr_path)
+  return not (stat and stat.type == 'directory')
+end
+
 --! @public @memberof CGroup
 function CGroup:path(file)
   if file then
     return CGROUP_ROOT .. self.tree .. "/".. self.name .. "/" .. tostring(file)
   else
     return CGROUP_ROOT .. self.tree .. "/" .. self.name
+  end
+end
+
+--! @public @memberof CGroup
+function CGroup:private_path(file)
+  if file then
+    return CGROUP_PRIVATE_ROOT .. self.tree .. "/".. self.name .. "/" .. tostring(file)
+  else
+    return CGROUP_PRIVATE_ROOT .. self.tree .. "/" .. self.name
   end
 end
 
@@ -726,13 +783,13 @@ function CGroup:can_be_removed()
   return true
 end
 
---! @public @memberof CGroup
-function CGroup:remove()
-  ulatency.log_debug(string.format("CGroup:remove('%s')", self:path()))
-  if posix.access(self:path()) ~= 0 then
-    return true --does not exist
+local function _rmdir(path)
+  if posix.access(path) ~= 0 then
+    --does not exist, still must be removed from ulatencyd hierarchy,
+    --so return true here
+    return true
   end
-  local rv,error=posix.rmdir(self:path())
+  local rv,error=posix.rmdir(path)
   if not rv then
     ulatency.log_debug(error)
   end
@@ -740,8 +797,20 @@ function CGroup:remove()
 end
 
 --! @public @memberof CGroup
+
+function CGroup:remove()
+  ulatency.log_debug(string.format("CGroup:remove('%s')", self:path()))
+  local rv = _rmdir(self:path())
+  if rv then
+    _rmdir(self:private_path())
+  end
+  return rv
+end
+
+--! @public @memberof CGroup
 function CGroup:commit()
   mkdirp(self:path())
+  mkdirp(self:private_path())
   local uncommited = rawget(self, "uncommited")
   for k, v in pairs(uncommited) do
     local par = string.sub(k, 1, 1)
