@@ -403,12 +403,6 @@ static int do_dbus_init() {
 }
 #endif
 
-static void
-signal_reload (int signal)
-{
-  g_warning("FIXME: reload config");
-}
-
 int fallback_quit(gpointer exit_code)
 {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "fallback quit");
@@ -419,48 +413,85 @@ int fallback_quit(gpointer exit_code)
   return 0;
 }
 
-static void
-signal_suspend (int signal)
+
+/* LINUX SIGNALS */
+
+static int signal_reload (gpointer signal)
 {
+  g_warning("FIXME: reload config");
+  return 0;
+}
+
+static int signal_suspend (gpointer signal) {
   // we have to make sure cgroup_unload_cgroups is called
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "suspending...");
 
   // add suspend flag and iterate
   u_flag *flg = u_flag_new((void *)signal_suspend, "suspend");
   flg->reason  = "signal";
-  flg->value = signal;
+  flg->value = GPOINTER_TO_INT(signal);
   u_trace("added system flag: suspend");
   u_flag_add(NULL, flg);
   DEC_REF(flg);
   system_flags_changed = 1;
   g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
+  return 0;
 }
 
-static void
-signal_quit (int signal)
-{
+static int signal_quit(gpointer signal) {
   // we have to make sure cgroup_unload_cgroups is called
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "quitting with cgroups cleanup...");
 
-  u_flag *flg = u_flag_new((void *)signal_suspend, "quit");
+  u_flag *flg = u_flag_new((void *)signal_quit, "quit");
   flg->reason  = "signal";
-  flg->value = signal;
+  flg->value = GPOINTER_TO_INT(signal);
   u_trace("added system flag: quit");
   u_flag_add(NULL, flg);
   DEC_REF(flg);
   system_flags_changed = 1;
   g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
+  return 0;
 }
 
-
-static void
-signal_logrotate (int signal)
+static int signal_logrotate (gpointer signal)
 {
   close_logfile();
   open_logfile(log_file);
+  return 0;
 }
+
+static void signal_handler(int sig) {
+  sigset_t set;
+
+  sigemptyset(&set);
+
+  switch(sig) {
+  case SIGABRT:
+  case SIGINT:
+    sigaddset (&set, SIGABRT);
+    sigaddset (&set, SIGINT);
+    sigprocmask(SIG_BLOCK, &set, NULL);
+    signal(SIGABRT, SIG_IGN);
+    signal(SIGINT, SIG_IGN);
+    g_timeout_add(0, signal_suspend, GUINT_TO_POINTER(sig));
+    break;
+  case SIGTERM:
+    sigaddset (&set, SIGTERM);
+    sigprocmask(SIG_BLOCK, &set, NULL);
+    signal(SIGTERM, SIG_IGN);
+    g_timeout_add(0, signal_quit, GUINT_TO_POINTER(sig));
+    break;
+  case SIGUSR1:
+    g_timeout_add(0, signal_reload, GUINT_TO_POINTER(sig));
+    break;
+  case SIGUSR2:
+    g_timeout_add(0, signal_logrotate, GUINT_TO_POINTER(sig));
+    break;
+  }
+}
+
 
 int timeout_long(gpointer data) {
 
@@ -572,20 +603,17 @@ int main (int argc, char *argv[])
 
   atexit(cleanup);
 
-  if (signal (SIGABRT, signal_suspend) == SIG_IGN)
+  if (signal (SIGABRT, signal_handler) == SIG_IGN) //suspend
     signal (SIGABRT, SIG_IGN);
-  if (signal (SIGINT, signal_suspend) == SIG_IGN)
+  if (signal (SIGINT, signal_handler) == SIG_IGN) // suspend
     signal (SIGINT, SIG_IGN);
-  if (signal (SIGTERM, signal_quit) == SIG_IGN)
+  if (signal (SIGTERM, signal_handler) == SIG_IGN) // quit
     signal (SIGTERM, SIG_IGN);
-  if (signal (SIGUSR1, signal_reload) == SIG_IGN)
+  if (signal (SIGUSR1, signal_handler) == SIG_IGN) // reload config
     signal (SIGUSR1, SIG_IGN);
-  if (signal (SIGUSR2, signal_logrotate) == SIG_IGN)
+  if (signal (SIGUSR2, signal_handler) == SIG_IGN) // logrotate
     signal (SIGUSR2, SIG_IGN);
 
-
-
-  //signal (SIGABRT, cleanup_on_abort);
   core_init();
   // set the cgroups root path
   lua_getfield(lua_main_state, LUA_GLOBALSINDEX, "CGROUP_ROOT"); /* function to be called */
