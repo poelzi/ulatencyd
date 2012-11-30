@@ -255,76 +255,18 @@ Scheduler = {
   ITERATION = 1, --!< Scheduler iteration (range 1 - `full_run` or 15). @protected @memberof Scheduler
   INITIALIZED = false, --!< Set by `Scheduler::_init()` on first `Scheduler::all()` execution. @protected @memberof Scheduler
   PROC_BLOCK_THRESHOLD = 1, --!< `U_PROC.block_scheduler` threshold. @protected @memberof Scheduler
-  --! Paths of cgroups left behind previous ulatencyd instance.
-  --! Cgroups paths are table keys with format `<subsystem>/path`, e.g `"memory/usr_1000/default"`, value is always TRUE.
-  --! @see Scheduler::load_cgroups()
-  --! @protected @memberof Scheduler
-  SAVED_CGROUPS = {},
   _after_hooks = {} --!< Registered `after` callbacks, see `Scheduler::register_after_hook()`. @private @memberof Scheduler
 }
-
---! @brief Loads cgroups saved (created and not removed) by previous ulatencyd instance.
---! @detail Fills the `Scheduler.SAVED_CGROUPS` used as a hash table (cgroups paths are table keys).
---! @protected @memberof Scheduler
-function Scheduler:load_cgroups()
-  ulatency.log_info("scheduler: initialising - loading list of cgroups saved by previous ulatencyd instance")
-  local cgroups_file = ulatency.get_config("scheduler", "cgroups_state") or "/var/run/ulatencyd/cgroups"
-  self.SAVED_CGROUPS = {}
-  local fp = io.open(cgroups_file)
-  if not fp then
-    ulatency.log_info("scheduler: initialising - list of saved cgroups does not exist: "..cgroups_file)
-    return false
-  end
-  for cgr_path in fp:lines() do
-    self.SAVED_CGROUPS[cgr_path] = true
-  end
-  fp:close()
-  return true
-end
-
---! @brief Saves cgroup list so it can be reuse by another future ulatencyd instance.
---! Stores list of cgroups so they can be recognised by eventual future daemon instance as beign created by ulatencyd.
---! @protected @memberof Scheduler
-function Scheduler:save_cgroups()
-  local success = true
-  ulatency.log_info("scheduler: saving cgroups")
-  self:cgroups_cleanup(true)
-  local cgroups_file = ulatency.get_config("scheduler", "cgroups_state") or "/var/run/ulatencyd/cgroups"
-  local parts = cgroups_file:split("/")
-  local dir = table.concat(parts, "/", 1, #parts-1)
-  if not mkdirp(dir) then
-    success = false
-  else
-    local fp = io.open(cgroups_file, "w")
-    if fp then
-      for i,_ in pairs(CGroup.get_groups()) do
-        fp:write(i..'\n')
-      end
-      fp:close()
-    else
-      if par ~= '?' then
-        ulatency.log_warning("can't write into :"..tostring(path))
-        success = false
-      end
-    end
-  end
-  if not success then
-    ulatency.log_error("State was not saved.")
-  end
-  return success
-end
 
 --! @brief Initialize scheduler internals.
 --! Invoked when Scheduler:all() is executed for first time.
 --! - load mappings
---! - load cgroups left behind previous ulatencyd isntance (`Scheduler::load_cgroups()`)
 --! - register timeout function for periodically cleaning cgroups (see `Scheduler::cgroups_cleanup()`)
 --! @private @memberof Scheduler
 function Scheduler:_init()
   if not self.MAPPING then
     self:load_config()
   end
-  self:load_cgroups()
   local function cgroups_cleanup()
     Scheduler:cgroups_cleanup()
   end
@@ -424,7 +366,6 @@ end
 --! -# Destroys created cgroups if the name of passed flag is "quit", that is,
 --!    the @link __SYSTEM_FLAG_QUIT`quit`@endlink system flag is passed.
 --!   -# Tries to load `cleanup` mappings and runs `Scheduler:all()` one more time.
---! -# Saves cgroups (`Scheduler::save_cgroups()`).
 --! -# Quits the daemon via without dispatching remaining main loop events (`ulatency.die()`).
 --!
 --! @param u_flag flag System flag that caused the shutdown.
@@ -452,7 +393,7 @@ function Scheduler:_quit(flag)
       end
     end
   end
-  self:save_cgroups()
+  self:cgroups_cleanup(true)
   -- restore the autogrouping
   if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
     ulatency.log_info("restoring sched_autogroup in linux kernel")
@@ -550,11 +491,6 @@ function Scheduler:_one(proc, single)
             subsys, proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE")) --debug
           cgr_path = '/'
         end
-        local cgr_name = subsys .. cgr_path
-        if not (cgr_path == "/" or CGroup.get_group(cgr_name) or self.SAVED_CGROUPS[cgr_name]) then
-          ulatency.log_info(string.format("scheduler subsys %s: skippping %s (pid: %d) because its cgroup %s is foreign",
-            subsys, proc.cmdfile or "unknown", proc.pid, cgr_name))
-        else
 
           local mappings = run_list(proc, map)
           --pprint(mappings)
@@ -576,7 +512,7 @@ function Scheduler:_one(proc, single)
           else
             ulatency.log_debug("no group found for: "..tostring(proc).." subsystem:"..tostring(subsys))
           end
-        end
+
       end
     end
     proc:clear_changed()
