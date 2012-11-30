@@ -596,12 +596,14 @@ local function _cgroups_cleanup()
   for i,r_grp in ipairs(to_remove) do
     local needed = false
     for _, p_grp in ipairs(to_preserve) do
-      if string.sub(p_grp .. "/", 1, #r_grp) == r_grp then
-        to_remove[i] = nil
+      if #r_grp+1 < #p_grp and string.sub(p_grp, 1, #r_grp+1) == r_grp .. '/' then
+        needed = true
         break
       end
     end
-    remove[#remove+1] = { #r_grp:split("/"), r_grp }
+    if not needed then
+      remove[#remove+1] = { #r_grp:split("/"), r_grp }
+    end
   end
   table.sort(remove, function(a,b) return a[1] > b[1] end)
   for _,v in ipairs(remove) do
