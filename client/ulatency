@@ -674,6 +674,9 @@ class Tree(object):
                         pass
                 else:
                     prnt("could not clear %s" %root)
+                    # cgroup could not be removed,
+                    # do not dare to remove the corresponding private cgroup
+                    continue
             try:
                 os.rmdir(priv_root)
             except OSError:
