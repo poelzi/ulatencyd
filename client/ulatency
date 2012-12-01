@@ -683,6 +683,31 @@ class Tree(object):
                 prnt("could not clear %s" %priv_root)
         prnt("cleared %s" %path)
 
+    def clear_empty(self):
+        """clears empty cgroups from cgroup mountpoint"""
+
+        path = self.get_path()
+        priv_path = self.get_private_path()
+        if not path:
+            prnt("subsystem not mounted")
+            return
+        for priv_root, dirs, files in os.walk(priv_path, topdown=False):
+            if priv_root == priv_path:
+                continue
+            root=path+priv_root[len(priv_path):]
+            if os.path.isdir(root):
+                try:
+                    os.rmdir(root)
+                except OSError:
+                    # cgroup could not be removed,
+                    # do not dare to remove the corresponding private cgroup
+                    continue
+            try:
+                os.rmdir(priv_root)
+            except OSError:
+                prnt("could not clear %s" %priv_root)
+        prnt("cleared %s" %path)
+
 class Gui:
 
     def __init__(self):
@@ -1025,6 +1050,7 @@ EPILOG="""commands:
   sysflags                   list system flags
   mounts                     lists all mounted cgroups
   clear cgroup|ALL           clears a cgroup
+  clear-empty                clear empty cgroups
   run [options]  -- [COMMAND]  run task under different scheduler config
   run-CONFIG [COMMAND]       run task under scheduler CONFIG
 """
@@ -1144,6 +1170,12 @@ def main():
         else:
             ct = Tree(tree=args[1])
             ct.clear()
+        return
+
+    if args[0] == 'clear-empty':
+        for tree in CGROUP_MOUNTS.iterkeys():
+            ct = Tree(tree=tree)
+            ct.clear_empty()
         return
 
     if args[0] == 'flags':
