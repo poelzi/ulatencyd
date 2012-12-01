@@ -609,7 +609,7 @@ class Tree(object):
         rec(self.generate(path), u(""), self.boxes[self.utf].last)
 
     def clear(self):
-        """clears a cgroup mountpoint so it can be removed"""
+        """removes ulatencyd cgroups from a cgroup mountpoint"""
 
         path = self.get_path()
         priv_path = self.get_private_path()
@@ -684,7 +684,7 @@ class Tree(object):
         prnt("cleared %s" %path)
 
     def clear_empty(self):
-        """clears empty cgroups from cgroup mountpoint"""
+        """clears empty cgroups used by ulatencyd from all cgroup mountpoints"""
 
         path = self.get_path()
         priv_path = self.get_private_path()
@@ -1048,9 +1048,9 @@ EPILOG="""commands:
   set [key value]            set daemon value
   flags [process]            list flags of a process or all
   sysflags                   list system flags
-  mounts                     lists all mounted cgroups
-  clear cgroup|ALL           clears a cgroup
-  clear-empty                clear empty cgroups
+  mounts                     list all mounted cgroups
+  clear cgroup|ALL           remove cgroups used by ulatencyd from a cgroup mountpoint
+  clear-empty                clear empty cgroups used by ulatencyd from all cgroup mountpoints
   run [options]  -- [COMMAND]  run task under different scheduler config
   run-CONFIG [COMMAND]       run task under scheduler CONFIG
 """
