@@ -1,4 +1,26 @@
 #!/bin/sh
 
-dbus-send --type=method_call --system --dest=org.quamquam.ulatencyd /org/quamquam/ulatencyd/System org.quamquam.ulatencyd.System.cgroupsCleanup boolean:false
+dbus-send --print-reply --type=method_call --system --dest=org.quamquam.ulatencyd \
+/org/quamquam/ulatencyd/System org.quamquam.ulatencyd.System.cgroupsCleanup boolean:false \
+2>/dev/null 1>&2
 
+[ "$?" = 0 ] && exit
+
+
+# ulatencyd is not running
+
+set -e
+
+SLEEP_SECONDS=120
+
+CMD="/usr/bin/ulatency"
+CMD_ARGS="clear-empty"
+
+[ -e $CMD ] || exit 0
+
+/bin/pidof -o $$ -x "$0" >/dev/null && exit 0 || true
+
+sleep $SLEEP_SECONDS
+
+ionice -c 3 7 -p $$ > /dev/null 2>&1 || true
+nice -n 19 $CMD $CMD_ARGS >/dev/null 2>&1
