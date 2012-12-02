@@ -542,7 +542,7 @@ local function mount_cgroup(subsys, private)
       if private then
         ulatency.log_error("can't mount private cgroup: "..mount_path)
       else
-        ulatency.log_warning("can't mount: "..mount_path)
+        ulatency.log_warning("can't mount: "..mount_path..", disabling subsystem.")
       end
     else
       __CGROUP_LOADED[subsys] = true
@@ -555,21 +555,21 @@ end
 
 for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
   if ulatency.has_cgroup_subsystem(subsys) then
-    local path = CGROUP_ROOT..subsys;
     if mount_cgroup(subsys, false) then
       mount_cgroup(subsys, true)
+      local path = CGROUP_ROOT..subsys;
+      local fp = io.open(path.."/release_agent", "r")
+      local ragent = fp:read("*a")
+      fp:close()
+      -- we only write a release agent if not already one. update if it looks like
+      -- a ulatencyd release agent
+      if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.sh' then
+        sysfs_write(path.."/release_agent", ulatency.release_agent)
+      end
+      sysfs_write(path.."/notify_on_release", "1")
     end
-    local fp = io.open(path.."/release_agent", "r")
-    local ragent = fp:read("*a")
-    fp:close()
-    -- we only write a release agent if not already one. update if it looks like
-    -- a ulatencyd release agent
-    if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.sh' then
-      sysfs_write(path.."/release_agent", ulatency.release_agent)
-    end
-    sysfs_write(path.."/notify_on_release", "1")
   else
-    ulatency.log_info("no cgroups subsystem "..subsys.." found. disable group")
+    ulatency.log_info("no cgroups subsystem "..subsys.." found, disabling subsystem.")
   end
 end
 
