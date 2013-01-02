@@ -116,7 +116,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		u_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
-    process_new_delay(ev->event_data.exec.process_tgid, 0);
+    //process_new_delay(ev->event_data.exec.process_tgid, 0);
 		break;
 	case PROC_EVENT_FORK:
     // we skip new threads for now
@@ -132,7 +132,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 
 		u_proc *rparent = proc_by_pid(ev->event_data.fork.parent_tgid);
 		if(rparent) {
-			u_proc_ensure(rparent, BASIC, FALSE);
+			u_proc_ensure(rparent, BASIC, NOUPDATE);
 			process_new_delay(ev->event_data.fork.child_tgid, rparent->proc->ppid); //ev->event_data.fork.parent_pid);
 		} else
 			process_new_delay(ev->event_data.fork.child_tgid, 0);
@@ -278,7 +278,7 @@ int init_netlink(GMainLoop *loop) {
 
 	/* test if PROC_CN_MCAST_LISTEN will success */
 	netlink_proc_listening = FALSE;
-	g_socket_set_timeout(gsocket, 5);
+	g_socket_set_timeout(gsocket, 10);
 
 	/* fill the netlink header */
 	nl_hdr->nlmsg_len = SEND_MESSAGE_LEN;

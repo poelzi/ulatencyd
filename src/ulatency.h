@@ -148,6 +148,15 @@ struct filter_block {
   int flags;
 };
 
+typedef struct {
+  gboolean basic;
+  gboolean environment;
+  gboolean cmdline;
+  gboolean exe;
+  gboolean tasks;
+  gboolean cgroup;
+} u_proc_ensured;
+
 
 typedef struct {
   U_HEAD;
@@ -157,7 +166,7 @@ typedef struct {
   char        **cgroup_origin_raw;  //!< the original cgroups this process was created in
   GHashTable   *cgroup_origin;  //!< the original cgroups this process was created in, table of paths indexed by subsystem
   char        **cgroup_raw;     //!< process cgroups
-  //! current cgroups, table of paths indexed by subsystem (update with `process_update_pid()` or manually)
+  //! current cgroups, table of paths indexed by subsystem, update with u_proc_ensure(.., CGROUP)
   //! @note cgroup_raw is in field `proc.cgroup`
   GHashTable   *cgroup;
   GArray        proc_history;   //!< list of history elements
@@ -185,6 +194,8 @@ typedef struct {
   pid_t         fake_pgrp_old;
   pid_t         fake_session;   //!< fake value of session
   pid_t         fake_session_old;
+
+  u_proc_ensured ensured;       //!< properties ensured since current iteration start
 } u_proc;
 
 typedef struct {
@@ -413,7 +424,13 @@ enum ENSURE_WHAT {
   CGROUP
 };
 
-int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update);
+enum ENSURE_UPDATE {
+  NOUPDATE = 0,
+  UPDATE_NOW = 1,
+  UPDATE_ONCE = 2
+};
+
+int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update);
 GList *u_proc_list_flags (u_proc *proc, gboolean recrusive);
 GArray *u_proc_get_current_task_pids(u_proc *proc);
 

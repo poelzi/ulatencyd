@@ -289,7 +289,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
 //    printf("add proc %d to %s\n", proc->pid, proc->exe);
     gboolean match = FALSE;
     if(rule->glob_cmd) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline_match) { 
+        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdline_match) {
            match = g_pattern_match_string(rule->glob_cmd, proc->cmdline_match);
            simple_debug("match pid:%d cmdline glob:'%s' cmdline:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
            if(match)
@@ -297,7 +297,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->glob_basename) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) { 
+        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdfile) {
            match = g_pattern_match_string(rule->glob_basename, proc->cmdfile);
            simple_debug("match pid:%d basename glob:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdfile, match)
            if(match)
@@ -305,7 +305,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->glob_exe) {
-        if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) { 
+        if(u_proc_ensure(proc, EXE, NOUPDATE) && proc->exe) {
            match = g_pattern_match_string(rule->glob_exe, proc->exe);
            simple_debug("match pid:%d exe glob:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->exe, match)
            if(match)
@@ -313,7 +313,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->re_exe) {
-        if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) { 
+        if(u_proc_ensure(proc, EXE, NOUPDATE) && proc->exe) {
            match = g_regex_match(rule->re_exe, proc->exe, 0, NULL);
            simple_debug("match pid:%d cmdline re:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
            if(match)
@@ -321,7 +321,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->re_cmd) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline) {
+        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdline) {
            match = g_regex_match(rule->re_cmd, proc->cmdline_match, 0, NULL);
            simple_debug("match pid:%d cmdline re:'%s' cmdline:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
            if(match)
@@ -329,7 +329,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->re_basename) {
-        if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) {
+        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdfile) {
            match = g_regex_match(rule->re_basename, proc->cmdfile, 0, NULL);
            simple_debug("match pid:%d cmdline re:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
            if(match)
