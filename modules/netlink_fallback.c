@@ -174,6 +174,13 @@ int netlink_fallback_init() {
 
     netlink_fallback_id = get_plugin_id();
 
+    GError *error = NULL;
+    gboolean el = g_key_file_get_boolean(config_data, "core", "netlink", &error);
+    if(!el && !error)
+      g_message("netlink support disabled, disabling netlink_fallback too.");
+    if(error)
+      g_error_free(error), error = NULL;
+
     int fd, wd;
     GIOChannel *ch;
 
