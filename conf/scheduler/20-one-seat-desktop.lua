@@ -19,16 +19,16 @@
       spawn processes may get even frozen!
 ]]--
 
-SCHEDULER_MAPPING_SINGLE_USER_DESKTOP = {
+SCHEDULER_MAPPING_ONE_SEAT_DESKTOP = {
   info = {
-    description = "a scheduler for single user desktop, inactive sessions are forced idle priority" ..
+    description = "a scheduler for one seat desktop, inactive sessions are forced idle priority" ..
                   "or even frozen. EXPERIMENTAL"
   }
 }
 
 
 -- cpu & memory configuration
-SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["cpu"] =
+SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
 {
   {
     name = "rt_tasks",
@@ -177,7 +177,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["cpu"] =
   },
 }
 
-SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["memory"] =
+SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
 {
   {
     name = "system_essential",
@@ -396,7 +396,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["memory"] =
 
 
 -- io configuration. blkio does not support hirarchies
-SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["blkio"] =
+SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
 {
   --! catch user.idle labeled processes, they should have lowest priority
   {
@@ -563,7 +563,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["blkio"] =
 }
 
 -- TODO: freeze and thaw only once for whole shceduler run
-SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["freezer"] =
+SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
 {
   {
     name = "user",
