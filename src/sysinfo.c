@@ -210,7 +210,7 @@ GPtrArray* search_user_env(uid_t uid, const char *name, int update) {
         if(proc->proc->euid != uid)
             continue;
 
-        u_proc_ensure(proc, ENVIRONMENT, update);
+        u_proc_ensure(proc, ENVIRONMENT, update ? UPDATE_NOW : UPDATE_ONCE);
 
         if(!proc->environ)
             continue;

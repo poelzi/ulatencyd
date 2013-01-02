@@ -686,7 +686,7 @@ static int u_proc_get_tasks (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int update = lua_toboolean(L, 2);
 
-  if (!u_proc_ensure(proc, TASKS, update))
+  if (!u_proc_ensure(proc, TASKS, update ? UPDATE_NOW : UPDATE_ONCE))
     return 0;
 
   lua_newtable(L);
@@ -959,7 +959,7 @@ static int u_proc_get_cgroup (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   subsys = luaL_checkstring (L, 2);
 
-  if(!u_proc_ensure(proc, CGROUP, FALSE))
+  if(!u_proc_ensure(proc, CGROUP, UPDATE_ONCE))
       return 0;
 
   cgroup = g_hash_table_lookup(proc->cgroup, subsys);
@@ -978,7 +978,7 @@ static int u_proc_set_cgroup (lua_State *L) {
   subsys = luaL_checkstring (L, 2);
   cgroup = luaL_checkstring (L, 3);
 
-  if(!u_proc_ensure(proc, CGROUP, FALSE))
+  if(!u_proc_ensure(proc, CGROUP, UPDATE_ONCE))
       // process is already dead - but we create proc->cgroup, just for sure
       proc->cgroup = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
@@ -1182,7 +1182,7 @@ static int u_proc_index (lua_State *L)
     lua_pushboolean(L, proc->received_rt);
     return 1;
   } else if(!strcmp(key, "has_basic_props" )) {
-    lua_pushboolean(L, u_proc_ensure(proc, BASIC, FALSE));
+    lua_pushboolean(L, u_proc_ensure(proc, BASIC, NOUPDATE));
     return 1;
   } else
   // always available basic properties
@@ -1196,35 +1196,35 @@ static int u_proc_index (lua_State *L)
   // other properties that don't need basic properties parsed
   if(!strcmp(key, "environ" )) {
     // lazy read
-    u_proc_ensure(proc, ENVIRONMENT, TRUE);
+    u_proc_ensure(proc, ENVIRONMENT, UPDATE_ONCE);
     if(proc->environ) {
       l_hash_to_table(L, proc->environ);
       return 1;
     }
     return 0;
   } else if(!strcmp(key, "cmdline" )) {
-    if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline) {
+    if(u_proc_ensure(proc, CMDLINE, UPDATE_ONCE) && proc->cmdline) {
       l_ptrarray_to_table(L, proc->cmdline);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cmdline_match" )) {
-    if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdline_match) {
+    if(u_proc_ensure(proc, CMDLINE, UPDATE_ONCE) && proc->cmdline_match) {
       lua_pushstring(L, proc->cmdline_match);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cmdfile" )) {
-    if(u_proc_ensure(proc, CMDLINE, FALSE) && proc->cmdfile) {
+    if(u_proc_ensure(proc, CMDLINE, UPDATE_ONCE) && proc->cmdfile) {
       lua_pushstring(L, proc->cmdfile);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "exe" )) {
-    if(u_proc_ensure(proc, EXE, FALSE) && proc->exe) {
+    if(u_proc_ensure(proc, EXE, UPDATE_ONCE) && proc->exe) {
       lua_pushstring(L, proc->exe);
       return 1;
     } else {
@@ -1232,28 +1232,28 @@ static int u_proc_index (lua_State *L)
     }
   } else
   if(!strcmp(key, "cgroup" )) {
-    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup) {
       l_hash_to_table(L, proc->cgroup);
       return 1;
     } else {
       return 0;
     }
   } else if (!strcmp(key, "cgroup_raw" )) {
-    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup_raw) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup_raw) {
       l_vstr_to_table(L, proc->proc->cgroup, -1);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cgroup_origin" )) {
-    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup_origin) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup_origin) {
       l_hash_to_table(L, proc->cgroup);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cgroup_origin_raw" )) {
-    if(u_proc_ensure(proc, CGROUP, FALSE) && proc->cgroup_origin_raw) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup_origin_raw) {
       l_vstr_to_table(L, proc->cgroup_origin_raw, -1);
       return 1;
     } else {
@@ -1261,7 +1261,7 @@ static int u_proc_index (lua_State *L)
     }
   }
 
-  if(!u_proc_ensure(proc, BASIC, FALSE)) {
+  if(!u_proc_ensure(proc, BASIC, NOUPDATE)) {
     lua_pushfstring (L, "u_proc<pid %d> basic data not available ", proc->pid);
     lua_error(L);
   }
@@ -1962,13 +1962,13 @@ int l_filter_check(u_proc *proc, u_filter *flt) {
   struct lua_filter *lft = (struct lua_filter *)flt->data;
 
   if(lft->regexp_basename) {
-    u_proc_ensure(proc, CMDLINE, FALSE);
+    u_proc_ensure(proc, CMDLINE, UPDATE_ONCE);
     if(proc->cmdfile &&
        g_regex_match(lft->regexp_basename, proc->cmdfile, 0, NULL))
       return TRUE;
   }
   if(lft->regexp_cmdline) {
-    u_proc_ensure(proc, CMDLINE, FALSE);
+    u_proc_ensure(proc, CMDLINE, UPDATE_ONCE);
     if(proc->cmdline_match && 
        g_regex_match(lft->regexp_cmdline, proc->cmdline_match, 0, NULL))
         return TRUE;

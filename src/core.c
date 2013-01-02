@@ -568,40 +568,50 @@ gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
  * @arg update force update
  *
  * Ensures a set of varibles is filled. 
- * If update is true, the variable are updated even if they already exist.
+ * If update is true, the variables are updated even if they already exist.
  *
  * @return @success
  */
-int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
+int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update) {
+
   if(what == BASIC) {
     // make sure process has basic values parsed
-    if(U_PROC_HAS_STATE(proc,UPROC_BASIC) && !update)
+    if (   (update == NOUPDATE && U_PROC_HAS_STATE(proc, UPROC_BASIC))
+        || (update == UPDATE_ONCE && proc->ensured.basic)
+    ) {
       return TRUE;
-    else
-      return U_PROC_HAS_STATE(proc, UPROC_DEAD) ? FALSE : process_update_pid(proc->pid);
+    } else if (U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+      return FALSE;
+    } else {
+      return (proc->ensured.basic = process_update_pid(proc->pid));
+    }
 
   } else if(what == TASKS) {
       // FIXME
       return (U_PROC_IS_VALID(proc) ? TRUE : FALSE);
+
   } else if(what == ENVIRONMENT) {
-      if(update && proc->environ) {
+      if(((update == UPDATE_ONCE && !proc->ensured.environment) || update == UPDATE_NOW) && proc->environ) {
           g_hash_table_unref(proc->environ);
           proc->environ = NULL;
       }
-      if(!proc->environ)
+      if(!proc->environ) {
           proc->environ = U_PROC_HAS_STATE(proc, UPROC_DEAD) ? NULL : u_read_env_hash (proc->pid);
-      return (proc->environ != NULL);
+      }
+      return (proc->ensured.environment = (proc->environ != NULL));
+
   } else if(what == CGROUP) {
-      if(update && proc->cgroup) {
+      if(((update == UPDATE_ONCE && !proc->ensured.cgroup) || update == UPDATE_NOW) && proc->cgroup) {
           g_hash_table_unref(proc->cgroup);
           proc->cgroup = NULL;
       }
       if(!proc->cgroup && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
           u_proc_parse_cgroup(proc, update);
       }
-      return (proc->cgroup != NULL);
+      return (proc->ensured.cgroup = (proc->cgroup != NULL));
+
   } else if(what == CMDLINE) {
-      if(update && proc->cmdline) {
+      if(((update == UPDATE_ONCE && !proc->ensured.cmdline) || update == UPDATE_NOW) && proc->cmdline) {
           g_ptr_array_unref(proc->cmdline);
           proc->cmdline = NULL;
           if (U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
@@ -609,7 +619,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
             proc->cmdline_match = NULL;
             g_free(proc->cmdfile);
             proc->cmdfile = NULL;
-            return FALSE;
+            return (proc->ensured.cmdline = FALSE);
           }
       }
       if(!proc->cmdline && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
@@ -631,7 +641,7 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
               proc->cmdline_match = g_string_free(match, FALSE);
               // empty command line, for kernel threads for example
               if(!proc->cmdline->len)
-                return FALSE;
+                return (proc->ensured.cmdline = FALSE);
               if(proc->cmdfile) {
                 g_free(proc->cmdfile);
                 proc->cmdfile = NULL;
@@ -645,17 +655,18 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
                     proc->cmdfile = g_strdup(tmp2+1);
                   }
               }
-              return TRUE;
+              return (proc->ensured.cmdline = TRUE);
           } else {
-              return FALSE;
+            return (proc->ensured.cmdline = FALSE);
           }
       }
-      return (proc->cmdline != NULL);
-  } else if(what == EXE) {
+      return (proc->ensured.cmdline = (proc->cmdline != NULL));
+
+  } else if (what == EXE) {
       char buf[PATH_MAX+1];
       ssize_t out;
       char *path;
-      if(update && proc->exe) {
+      if(((update == UPDATE_ONCE && !proc->ensured.exe) || update == UPDATE_NOW) && proc->exe) {
           g_free(proc->exe);
           proc->exe = NULL;
       }
@@ -671,10 +682,9 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, int update) {
                 out -= 10;
             }
             proc->exe = g_strndup((char *)&buf, out);
-            return TRUE;
         }
       }
-      return (proc->exe != NULL);
+      return (proc->ensured.exe = (proc->exe != NULL));
   }
   return FALSE;
 }
@@ -1089,6 +1099,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
       // free all changable allocated buffers
       freeproc(proc->proc);
       proc->proc = p;
+      memset(&proc->ensured, 0, sizeof(u_proc_ensured));
     } else {
       new_proc = TRUE;
       proc = u_proc_new(p);
@@ -1124,12 +1135,11 @@ int update_processes_run(PROCTAB *proctab, int full) {
     if(rrt != proc->received_rt)
       proc->changed = 1;
 
-    u_proc_ensure(proc, CGROUP, TRUE);
-
     U_PROC_UNSET_STATE(proc, UPROC_NEW);
     U_PROC_SET_STATE(proc, UPROC_ALIVE);
     if((proctab->flags & OPENPROC_FLAGS) == OPENPROC_FLAGS) {
         U_PROC_SET_STATE(proc, UPROC_BASIC);
+        proc->ensured.basic = TRUE;
     } else
         U_PROC_UNSET_STATE(proc, UPROC_BASIC);
 
@@ -1338,9 +1348,9 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     // force update on basic data, they will be invalid anyway
     int old_changed = proc->changed;
 
-    u_proc_ensure(proc, CMDLINE, TRUE);
-    u_proc_ensure(proc, BASIC, TRUE); //runs process_update_pid()
-    u_proc_ensure(proc, EXE, TRUE);
+    u_proc_ensure(proc, CMDLINE, UPDATE_NOW);
+    u_proc_ensure(proc, BASIC, UPDATE_NOW); //runs process_update_pid()
+    u_proc_ensure(proc, EXE, UPDATE_NOW);
 
     // if a process is in the new stack, his changed settings will be true
     // for sure, but we only want to schedule him, if the instant filters
@@ -1472,7 +1482,7 @@ int process_run_one(u_proc *proc, int update, int instant) {
     process_update_pid(proc->pid);
 
   // we must ensure BASIC properties are set and not schedule already dead processes
-  if (!u_proc_ensure(proc, BASIC, FALSE) || U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
+  if (!u_proc_ensure(proc, BASIC, NOUPDATE) || U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
     // process is dead
     process_remove(proc);
     return FALSE;
@@ -1480,6 +1490,7 @@ int process_run_one(u_proc *proc, int update, int instant) {
 
   if (instant)
     filter_for_proc(proc, filter_fast_list);
+
   filter_for_proc(proc, filter_list);
   scheduler_run_one(proc);
   return TRUE;
