@@ -196,6 +196,17 @@ static void log_file_handler (const gchar    *log_domain,
 
   gstring = g_string_new (NULL);
 
+  GDateTime *datetime = g_date_time_new_now_local();
+  gchar *s_datetime;
+  s_datetime = g_date_time_format(datetime, "%Y-%m-%d %H:%M:%S");
+  g_string_append (gstring, s_datetime);
+  g_date_time_unref(datetime);
+  g_free(s_datetime);
+
+  g_string_append_printf(gstring, ".%03d", (gint) (g_get_real_time() % G_USEC_PER_SEC) / 1000);
+
+  g_string_append_c (gstring, ' ');
+
   if (log_domain) {
     g_string_append (gstring, log_domain);
     g_string_append_c (gstring, '-');
