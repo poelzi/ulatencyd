@@ -785,12 +785,13 @@ static int remove_parent_caller_stack(GArray *array, pid_t pid) {
  * returns the parent of process
  * @arg parent_pid #pid_t of parent
  * @arg child #u_proc of child
+ * @arg child_noupdate If TRUE, don't try to update the child (called from update_processes_run)
  *
  * INTERNAL: lookup the parent #u_proc of a child. Prints warning when missing.
  *
  * @return #u_proc of parent
  */
-static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
+static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child, gboolean child_noupdate) {
     pid_t update_pid;
     static GArray *updates = NULL;
     if(!updates)
@@ -800,14 +801,16 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child) {
     // collected so the parent does not exist, or the parent just died. we try updating
     // the process first and try again.
     if(!parent) {
-        g_debug("parent missing: %d, force update", parent_pid);
-        if(!find_parent_caller_stack(updates, child->pid)) {
+        if(!child_noupdate && !find_parent_caller_stack(updates, child->pid)) {
+            // try update the child first, maybe was reparented
+            g_debug("child %d parent (%d) missing: force child update", child->pid, parent_pid);
             update_pid = child->pid;
             g_array_append_val(updates, update_pid);
             process_update_pid(update_pid);
             remove_parent_caller_stack(updates, update_pid);
         } else if(!find_parent_caller_stack(updates, child->proc->ppid)) {
-            // we try to get the parent as last resort
+            // child updated but the parent is still missing, try update parent
+            g_debug("child %d parent (%d) missing: force update parent", child->pid, parent_pid);
             update_pid = child->proc->ppid;
             g_array_append_val(updates, update_pid);
             process_update_pid(update_pid);
@@ -866,7 +869,7 @@ static void rebuild_tree() {
     g_assert(proc->proc->ppid != proc->pid);
     if(proc->proc->ppid) {
       // get a parent, hopfully the real one
-      parent = parent_proc_by_pid(proc->proc->ppid, proc);
+      parent = parent_proc_by_pid(proc->proc->ppid, proc, FALSE);
 
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
 
@@ -1059,6 +1062,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   int i;
   GList *updated = NULL;
   pid_t *pids = NULL;
+  gboolean new_proc = FALSE;
   
   if(full)
     run++;
@@ -1074,6 +1078,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
   while((p = readproc(proctab, NULL))){
     proc = proc_by_pid(p->tid);
     if(proc) {
+      new_proc = FALSE;
       // detect change of important parameters that will cause a reschedule
       proc->changed = proc->changed | detect_changed(proc->proc, p);
       // we need to clear the task array first to detect which dynamic mallocs
@@ -1085,6 +1090,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
       freeproc(proc->proc);
       proc->proc = p;
     } else {
+      new_proc = TRUE;
       proc = u_proc_new(p);
       g_hash_table_insert(processes, GUINT_TO_POINTER(proc->pid), proc);
     }
@@ -1103,14 +1109,16 @@ int update_processes_run(PROCTAB *proctab, int full) {
       proc->received_rt |= (t->sched == SCHED_FIFO || t->sched == SCHED_RR);
     }
     // remove invalid (not readded) tasks
-    for(i = 0; i < proc->tasks->len;) {
-        task = g_ptr_array_index(proc->tasks, i);
-        if(U_TASK_IS_INVALID(task)) {
-            u_trace("remove task %d", task->tid);
-            g_ptr_array_remove_index_fast(proc->tasks, i);
-        } else {
-          i++;
-        }
+    if (! new_proc) {
+      for(i = 0; i < proc->tasks->len;) {
+          task = g_ptr_array_index(proc->tasks, i);
+          if(U_TASK_IS_INVALID(task)) {
+              u_trace("remove task %d", task->tid);
+              g_ptr_array_remove_index_fast(proc->tasks, i);
+          } else {
+            i++;
+          }
+      }
     }
 
     if(rrt != proc->received_rt)
@@ -1125,7 +1133,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
     } else
         U_PROC_UNSET_STATE(proc, UPROC_BASIC);
 
-    u_flag_clear_timeout(proc, timeout);
+    if (! new_proc) u_flag_clear_timeout(proc, timeout);
     updated = g_list_append(updated, proc);
 
     rv++;
@@ -1146,6 +1154,13 @@ int update_processes_run(PROCTAB *proctab, int full) {
           g_node_append(parent->node, proc->node);
         }
         process_workarrounds(proc, parent);
+      } else if (new_proc) {
+        parent = parent_proc_by_pid(proc->proc->ppid, proc, TRUE);
+        U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
+        g_assert(parent != proc);
+        g_assert(parent && parent->node);
+        g_node_unlink(proc->node);
+        g_node_append(parent->node, proc->node);
       } else {
         full_update = TRUE;
       }
@@ -1294,10 +1309,11 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       proc->proc->ppid = parent;
       U_PROC_SET_STATE(proc, UPROC_HAS_PARENT);
       // put it into the lists
-      proc_parent = parent_proc_by_pid(parent, proc);
+      proc_parent = parent_proc_by_pid(parent, proc, FALSE);
       g_node_append(proc_parent->node, proc->node);
       g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
     } else {
+      /* mostly PROC_EVENT_EXEC netlink event */
       if(!process_update_pid(pid))
         return FALSE;  // already dead
       proc = proc_by_pid(pid);
