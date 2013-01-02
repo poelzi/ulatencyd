@@ -635,7 +635,7 @@ function CGroup.is_foreign(subsys, hierarchy_path)
   if hierarchy_path == "/" or CGroup.get_group(cgr_name) then
     return false
   end
-  local priv_cgr_path = CGROUP_ROOT .. subsys .. "/".. hierarchy_path
+  local priv_cgr_path = CGROUP_PRIVATE_ROOT .. subsys .. "/".. hierarchy_path
   local stat=posix.stat(priv_cgr_path)
   return not (stat and stat.type == 'directory')
 end
