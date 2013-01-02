@@ -182,7 +182,7 @@ SCHEDULER_MAPPING_SINGLE_USER_DESKTOP["memory"] =
   {
     name = "system_essential",
     cgroups_name = "sys_essential",
-    param = { ["memory.swappiness"] = "0" },
+    param = { ["memory.swappiness"] = "0", ["memory.move_charge_at_immigrate"] = "3" },
     label = { "system.essential" }
   },
   {
