@@ -319,10 +319,11 @@ extern GList *U_session_list;
 struct user_active {
   uid_t uid;
   guint max_processes;
-  guint active_agent;    // tracker of the active list
+  guint active_agent;   // tracker of the active list
   // FIXME: last change time
   time_t last_change;   // time when the last change happend
   GList *actives;       // list of user_active_process
+  gboolean enabled;     // if false, ignore this user active list - useful if the user is not active (or frozen)
 };
 
 
@@ -506,6 +507,8 @@ void set_active_pid(unsigned int uid, unsigned int pid);
 struct user_active* get_userlist(guint uid, gboolean create);
 int is_active_pid(u_proc *proc);
 int get_active_pos(u_proc *proc);
+void enable_active_list(guint uid, gboolean enable);
+void clear_active_list(guint uid);
 
 // sysinfo.c
 GHashTable * u_read_env_hash (pid_t pid);

@@ -359,6 +359,8 @@ pid_t read_pid(struct x_server *conn, int *err) {
                       0,
                       1);
 
+  // warning: on some systems this won't return if some GUI application is
+  // in frozen cgroup under the freezer subsystem
   xcb_get_property_reply_t *rep =
     xcb_get_property_reply (conn->connection,
                           naw,
@@ -512,8 +514,10 @@ static gboolean update_all_server(gpointer data) {
     if(ua->active_agent == USER_ACTIVE_AGENT_NONE)
         ua->active_agent = xwatch_id;
 
-    // test if another agent is doing the active pid
-    if(ua->active_agent != xwatch_id) {
+    if(
+        ua->active_agent != xwatch_id || // test if another agent is doing the active pid
+        ua->enabled == FALSE             // test if the user's session is inactive and should be skipped
+    ){
         cur = g_list_next(cur);
         continue;
     }

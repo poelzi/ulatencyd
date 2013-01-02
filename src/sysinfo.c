@@ -282,6 +282,23 @@ static void session_idle_hint_changed(DBusGProxy *proxy, gboolean hint, u_sessio
 static void session_active_changed(DBusGProxy *proxy, gboolean active, u_session *sess) {
   g_debug("CK: active changed %s -> %d", sess->name, active);
   sess->active = active;
+  // Disable (and clear) or enable list of this user active processes.
+  // xwatch will not update X servers of disabled (inactive) users. This is needed
+  // to avoid freezes while requesting active atom from Xorg where some application
+  // is frozen.
+  GList *cur = U_session_list;
+  u_session *s;
+  int act = 0;
+  while(cur) {
+      s = cur->data;
+      if(s->uid == sess->uid) {
+          if(s->active)
+              act = 1;
+      }
+      cur = g_list_next(cur);
+  }
+  enable_active_list(sess->uid, act);
+
   if (active) {
     // iterate
     g_message("CK: Active session changed to %s (UID: %d)", sess->name, sess->uid);
@@ -370,6 +387,7 @@ static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
       error = NULL;
     }
 
+    session_active_changed(NULL, sess->active, sess);
 }
 
 static void ck_session_removed(DBusGProxy *proxy, gchar *name, gpointer ignored) {

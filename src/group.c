@@ -58,6 +58,7 @@ struct user_active* get_userlist(guint uid, gboolean create) {
     }
     ua->last_change = time(NULL);
     ua->actives = NULL; //g_list_alloc();
+    ua->enabled = FALSE; // skip the user until his session becomes active
     active_users = g_list_append(active_users, ua);
     return ua;
   }
@@ -72,6 +73,35 @@ static gint cmp_last_change(gconstpointer a,gconstpointer b) {
   const struct user_active_process *u1 = a;
   const struct user_active_process *u2 = b;
   return (u2->last_change - u1->last_change);
+}
+
+void clear_active_list(guint uid)
+{
+  struct user_active *ua = get_userlist(uid, TRUE);
+  struct user_active_process *up;
+  u_proc *proc;
+
+  ua->actives = g_list_sort(ua->actives, cmp_last_change);
+
+  while(g_list_length(ua->actives) > 0) {
+      up = g_list_last(ua->actives)->data;
+      proc = proc_by_pid(up->pid);
+      ua->actives = g_list_remove(ua->actives, up);
+      g_free(up);
+      if(proc) {
+        proc->changed = 1;
+        process_run_one(proc, FALSE, FALSE);
+      }
+  }
+}
+
+void enable_active_list(guint uid, gboolean enable)
+{
+  struct user_active *ua = get_userlist(uid, TRUE);
+  ua->enabled = enable;
+  if (! enable) {
+      clear_active_list(uid);
+  }
 }
 
 void set_active_pid(guint uid, guint pid) 
