@@ -221,6 +221,12 @@ function ulatency.quit(flag, instant)
 end
 
 --! @public @memberof ulatency
+--! @brief Check `/proc` subsystem and return TRUE if process/task with `pid` exists.
+function ulatency.is_pid_alive(pid)
+  return posix.access('/proc/'..pid) == 0
+end
+
+--! @public @memberof ulatency
 function ulatency.list_processes_group(key)
   procs = ulatency.list_processes()
   rv = {}
@@ -841,7 +847,9 @@ function CGroup:commit()
       for i, pid in ipairs(pids) do
         local ok, err, err_code = fp:write(tostring(pid)..'\n')
         if not ok then
-          sysfs_write_error(t_file, tostring(pid), err, err_code)
+          if not ulatency.is_pid_alive(pid) then --suppres warning if the task is already dead
+            sysfs_write_error(t_file, tostring(pid), err, err_code)
+          end
         else
           local proc = ulatency.get_pid(pid)
           if proc then
