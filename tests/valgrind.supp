@@ -1,0 +1,18 @@
+{
+   <new gtype>
+   Memcheck:Leak
+   fun:malloc
+   fun:g_malloc
+   fun:g_strdup
+   fun:g_boxed_copy
+   fun:g_value_set_boxed
+   fun:demarshal_object_path
+   fun:demarshal_collection
+   fun:_dbus_gvalue_demarshal
+   fun:dbus_g_proxy_end_call_internal
+   fun:dbus_g_proxy_call
+   fun:consolekit_init
+   fun:u_dbus_setup
+   fun:core_init
+   fun:main
+}
