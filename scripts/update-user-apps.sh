@@ -5,6 +5,15 @@
 
 # BUGS: doess not handle whitespaces in paths to .desktop files
 
+DEPENDECIES_SATISFIED=1
+
+which file >/dev/null || { echo "The 'file' command not found." >&2 && DEPENDECIES_SATISFIED=0; }
+which debtags >/dev/null || { echo "The 'debtags' command not found." >&2 && DEPENDECIES_SATISFIED=0; }
+if [ $DEPENDECIES_SATISFIED = 0 ]; then
+	echo "$0: Dependecies not satisfied, aborting." >&2
+	exit 1
+fi
+
 timeout=60	# flag timeout
 
 flag_params="instant=1 inherit=1 timeout=$timeout"
