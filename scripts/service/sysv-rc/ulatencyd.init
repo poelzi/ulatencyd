@@ -1,0 +1,176 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          ulatencyd
+# Required-Start:    $remote_fs dbus
+# Required-Stop:     $remote_fs dbus
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Daemon to minimize latency on a linux system using cgroups
+# Description:       Ulatency is a daemon that controls how the Linux
+#                    kernel will spend it's resources on the running
+#                    processes. It uses dynamic cgroups to give the kernel
+#                    hints and limitations on processes.
+### END INIT INFO
+
+# Author: Alessandro Ghedini <al3xbio@gmail.com>
+
+# PATH should only include /usr/* if it runs after the mountnfs.sh script
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC=ulatencyd
+NAME=ulatencyd
+DAEMON=/usr/sbin/ulatencyd
+DAEMON_ARGS="-d -f /var/log/ulatencyd"
+SCRIPTNAME=/etc/init.d/$NAME
+
+# Exit if the package is not installed
+[ -x $DAEMON ] || exit 0
+
+# Read configuration variable file if it is present
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Define LSB log_* functions.
+# Depend on lsb-base (>= 3.0-6) to ensure that this file is present.
+. /lib/lsb/init-functions
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+	# Return
+	#   0 if daemon has been started
+	#   1 if daemon was already running
+	#   2 if daemon could not be started
+	start-stop-daemon --start --quiet --exec $DAEMON --test > /dev/null \
+		|| return 1
+	start-stop-daemon --start --quiet --exec $DAEMON -- \
+		$DAEMON_ARGS \
+		|| return 2
+}
+
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+	# Return
+	#   0 if daemon has been stopped
+	#   1 if daemon was already stopped
+	#   2 if daemon could not be stopped
+	#   other if a failure occurred
+	start-stop-daemon --stop --quiet --retry=TERM/60 --exec $DAEMON
+	RETVAL="$?"
+	if [ "$RETVAL" = 2 ]; then
+		start-stop-daemon --stop --quiet --oknodo --signal=KILL --exec $DAEMON
+		/usr/bin/ulatency clear ALL 1>/dev/null 2>&1
+		RETVAL="$?"
+	fi
+
+	return "$RETVAL"
+}
+
+# Tell ulatencyd to close all open log files
+#
+do_rotate() {
+        start-stop-daemon --stop --signal USR2 --quiet --exec $DAEMON
+}
+
+# Force ulatencyd to reload config files and rules
+# Currently the daemon is restarted without clearing cgroups.
+#
+do_force_reload() {
+	# Return
+	#   0 if daemon has been reloaded
+	#   1 if daemon has been started because was not running
+	#   2 if daemon has been killed, cgroups cleared and daemon restarted
+	#   3 if daemon has been stopped or killed, but could not be restarted (cgroups have been cleared)
+	#   4 if daemon could not be killed
+	#   other if a failure occurred
+	start-stop-daemon --stop --quiet --retry=ABRT/60 --exec $DAEMON
+	RETVAL="$?"
+	if [ "$RETVAL" = 2 ]; then
+		start-stop-daemon --stop --quiet --signal=KILL --exec $DAEMON
+		case "$?" in
+			0) /usr/bin/ulatency clear ALL 1>/dev/null 2>&1;;
+			1) RETVAL=0;; # good timing! :)
+			*) return 4;; # daemon cannot not be killed?
+		esac
+	fi
+
+	do_start
+	RETVAL_START="$?"
+	if [ "$RETVAL_START" = 2 ]; then
+		if [ "$RETVAL" -ne 2 ]; then
+			/usr/bin/ulatency clear ALL 1>/dev/null 2>&1
+		fi
+		RETVAL=3
+	fi
+
+	return "$RETVAL"
+}
+
+case "$1" in
+  start)
+    [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC " "$NAME"
+    do_start
+    case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+  ;;
+  stop)
+	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
+	do_stop
+	case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+	;;
+  status)
+       status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+       ;;
+  rotate)
+        [ "$VERBOSE" != no ] && log_daemon_msg "Closing open log files" "$NAME"
+        do_rotate
+        [ "$VERBOSE" != no ] && log_end_msg $?
+        ;;
+  force-reload)
+	log_daemon_msg "Reloading $DESC" "$NAME"
+	do_force_reload
+	case "$?" in
+		0) log_success_msg "restarted" ;;
+		1) log_success_msg "was not running, started";;
+		2) log_success_msg "$NAME killed and restarted" ;;
+		3) log_failure_msg "$NAME stopped/killed but couldn't be restarted" ;;
+		*) log_end_msg 1 ;; # Other error
+	esac
+	;;
+  restart)
+	log_daemon_msg "Restarting $DESC" "$NAME"
+	do_stop
+	sleep 0.2
+	case "$?" in
+	  0|1)
+		do_start
+		case "$?" in
+			0) log_end_msg 0 ;;
+			1) log_end_msg 1 ;; # Old process is still running
+			*) log_end_msg 1 ;; # Failed to start
+		esac
+		;;
+	  *)
+	  	# Failed to stop
+		log_end_msg 1
+		;;
+	esac
+	;;
+  *)
+	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+	exit 3
+	;;
+esac
+
+:
