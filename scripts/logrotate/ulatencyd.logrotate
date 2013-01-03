@@ -1,0 +1,11 @@
+/var/log/ulatencyd {
+	rotate 7
+	daily
+	missingok
+	notifempty
+	delaycompress
+	compress
+	postrotate
+		invoke-rc.d ulatencyd rotate > /dev/null
+	endscript
+}
