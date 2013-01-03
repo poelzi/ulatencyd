@@ -8,6 +8,7 @@
 
 --[[
     BUGS
+    - Needs console-kit
     - If multiple users are logged in, you must quit ulatencyd daemon before shutting the system down. Otherwise
       other users applications may remain frozen and will not get chance to properly shutdown.
       Possible solution:  We need to be informed by session manager.
@@ -21,10 +22,27 @@
 
 SCHEDULER_MAPPING_ONE_SEAT_DESKTOP = {
   info = {
-    description = "Advanced scheduler for one seat desktop, inactive sessions are forced idle priority" ..
-                  "or even frozen. You may try to enable the `freezer` cgroup subsystem in cgroups.conf. EXPERIMENTAL!"
+    description = "Advanced scheduler for one seat desktop, processes under inactive sessions "..
+    "are scheduled with idle priority or even frozen. You may try to enable the `freezer` cgroup subsystem "..
+    "in cgroups.conf. EXPERIMENTAL!"
   }
 }
+
+--[[ 
+Features:
+  - responding to active session change
+  - inactive session processes have idle priority, swappiness 100, soft
+  memory limit 0 etc.
+  - useless processes (flagged with inactive_user.useless, user.media, user.ui,
+  user.games, user.idle, daemon.idle) may be frozen, though freezer
+  subsystem is disabled by default (see cgroups.conf).
+  - boost for starting applications (flagged application.starting), see
+  scripts/update-user-apps.sh, scripts/cron.daily/99ulatencyd, generated
+  conf/simple.d/applications.conf
+  - if starting app is the top most active process at same time, it is
+  iosched with real-time policy
+  - sets memory.move_charge_at_immigrate = 3 for system essential cgroup
+--]]
 
 
 -- cpu & memory configuration
