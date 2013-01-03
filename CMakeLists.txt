@@ -190,7 +190,7 @@ install(PROGRAMS ${client}
         DESTINATION bin)
 
 if(NOT "${SYSTEMD_DIR}" STREQUAL "")
-  install(FILES conf/ulatencyd.service
+  install(FILES scripts/service/systemd/ulatencyd.service
           DESTINATION ${SYSTEMD_DIR})
 endif (NOT "${SYSTEMD_DIR}" STREQUAL "")
 
