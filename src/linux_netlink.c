@@ -191,7 +191,7 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 		if (error != NULL) {
 			g_warning ("netlink: failed to get data: %s", error->message);
 			if (error->code == G_IO_ERROR_TIMED_OUT) {
-			    g_warning("netlink: realtime monitoring disabled. compile kernel with PROC_EVENTS enabled");
+			    g_warning("netlink: realtime monitoring disabled. Compile kernel with PROC_EVENTS enabled.");
 			    ret = FALSE;
 			}
 			g_error_free (error);
