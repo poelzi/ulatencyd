@@ -21,8 +21,8 @@
 
 SCHEDULER_MAPPING_ONE_SEAT_DESKTOP = {
   info = {
-    description = "a scheduler for one seat desktop, inactive sessions are forced idle priority" ..
-                  "or even frozen. EXPERIMENTAL"
+    description = "Advanced scheduler for one seat desktop, inactive sessions are forced idle priority" ..
+                  "or even frozen. You may try to enable the `freezer` cgroup subsystem in cgroups.conf. EXPERIMENTAL!"
   }
 }
 
