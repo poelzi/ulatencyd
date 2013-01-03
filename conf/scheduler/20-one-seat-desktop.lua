@@ -463,8 +463,8 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     adjust = function(cgroup, proc)
                 if ulatency.match_flag({"application.starting"}, proc) then
                   ulatency.log_info(
-                    string.format("[%d] Boosting to Real-Time IO policy for starting active application: %s [%d]",
-                      os.time(), (proc.cmdfile or "(no cmdline)"), proc.pid
+                    string.format("Boosting starting active application to Real-Time IO policy: %s [%d]",
+                      (proc.cmdfile or "(no cmdline)"), proc.pid
                     )
                   )
                   save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
@@ -496,8 +496,8 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     adjust = function(cgroup, proc)
                 --if proc.is_valid and proc.changed then
                   ulatency.log_info(
-                    string.format("[%d] Boosting IO priority for starting application: %s [%d]",
-                      os.time(), (proc.cmdfile or "(no cmdline)"), proc.pid
+                    string.format("Boosting starting application IO priority: %s [%d]",
+                      (proc.cmdfile or "(no cmdline)"), proc.pid
                     )
                   )
                 --end
