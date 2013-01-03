@@ -587,6 +587,9 @@ int main (int argc, char *argv[])
     open_logfile(log_file);
   }
 
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "");
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "================= starting ulatencyd =================");
+
   main_context = g_main_context_default();
   main_loop = g_main_loop_new(main_context, FALSE);
 
@@ -653,7 +656,7 @@ int main (int argc, char *argv[])
 
   g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
 
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "ulatencyd started successfull");
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "=== ulatencyd started successfully ===");
   g_main_loop_run(main_loop);
   return 0;
 }
