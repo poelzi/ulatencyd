@@ -821,7 +821,7 @@ static int u_proc_set_block_scheduler (lua_State *L) {
   if(!U_PROC_IS_VALID(proc))
     return 0;
 
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "block_scheduler set to: %d by %s", value, "(FIXME)");
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "block_scheduler set to: %d by %s", value, "(FIXME)");
   proc->block_scheduler = value;
   
   return 0;
