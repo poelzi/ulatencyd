@@ -578,17 +578,25 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
         label = { "inactive_user.useless", "user.media", "user.ui", "user.games", "user.idle", "daemon.idle" },
         adjust = function(cgroup, proc)
                 if ulatency.get_uid_stats(proc.euid) or ulatency.match_flag({"quit","suspend"}) then
+                  if cgroup:get_value("freezer.state") == 'FROZEN' then
+                    Scheduler:register_after_hook('thaw group ' .. cgroup.name, function()
+                        ulatency.log_info('thawing group ' .. cgroup.name)
+                      end
+                    )
+                  end
                   cgroup:set_value("freezer.state", 'THAWED')
                 else
                   Scheduler:register_after_hook('freeze group ' .. cgroup.name, function()
-                      ulatency.log_info('freezing group ' .. cgroup.name)
-                      cgroup:set_value("freezer.state", 'FROZEN')
-                      cgroup:commit()
+                      if cgroup:get_value("freezer.state") == 'THAWED' then
+                        ulatency.log_info('freezing group ' .. cgroup.name)
+                        cgroup:set_value("freezer.state", 'FROZEN')
+                        cgroup:commit()
+                      end
                     end
                   )
                 end
                 return false -- do not run again
-              end
+            end,
       },
     },
   },
