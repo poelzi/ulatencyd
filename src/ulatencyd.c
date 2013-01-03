@@ -522,11 +522,6 @@ int timeout_long(gpointer data) {
   }
 #endif
 
-  if(run == 0 && config_cgroup_root) {
-    g_debug("cleanup cgroup directory: %s", config_cgroup_root);
-    // FIXME: why causes this hung tasks in the kernel ????
-    //recursive_rmdir(config_cgroup_root, 2);
-  }
   run = (run + 1)%10;
 
 
