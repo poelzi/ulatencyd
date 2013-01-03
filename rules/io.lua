@@ -80,13 +80,13 @@ BottleNeck = {
     if self.last_set[dev] == value then
       return
     end
-    ulatency.log_info("IO: set slice idling on dev "..dev.." to "..tostring(value))
     self.last_set[dev] = value
     local path = ulatency.mountpoints["sysfs"] .. "/block/" .. dev .. "/queue/iosched/slice_idle"
     local fp = io.open(path, "w")
     if not fp then
       return
     end
+    ulatency.log_info("IO: set slice idling on dev "..dev.." to "..tostring(value))
     fp:write(tostring(value))
     fp:close()
   end,
