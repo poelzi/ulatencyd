@@ -311,7 +311,12 @@ static void session_active_changed(DBusGProxy *proxy, gboolean active, u_session
     //u_flag_add(NULL, flg);
     //u_trace("added system flag: session.active.uid");
     system_flags_changed = 1;
-    g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
+    // iteration must be run before xwatch poll, hopefully G_PRIORITY_HIGH is sufficient,
+    // otherwise we would have to temporary disable xwatch polling to avoid freezes on
+    // some systems
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, iterate, GUINT_TO_POINTER(0), NULL);
+  } else {
+    g_message("CK: Session %s (UID: %d) became inactive", sess->name, sess->uid);
   }
 }
 

@@ -101,6 +101,9 @@ void enable_active_list(guint uid, gboolean enable)
   ua->enabled = enable;
   if (! enable) {
       clear_active_list(uid);
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Stop monitoring and clear active PIDs list for UID %u", uid);
+  } else {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Start monitoring active PIDs list for UID %u", uid);
   }
 }
 
