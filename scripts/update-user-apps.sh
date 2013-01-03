@@ -51,7 +51,7 @@ while read file; do
 	trim file
 	[ -z "$file" ] && continue
 	[ -x "$file" ] || continue; 
-	real="$(chase "$file")"; 
+	real="$(readlink -e "$file")"; 
 	[ "$?" != 0 ] && continue; 
 	[ -z "$real" ] && continue;
 	[ -x "$real" ] || continue; 
@@ -112,7 +112,7 @@ echo -n "$DESKTOP_DIRS" | xargs -d: -n1 -I '{}' find "{}" -type f -name '*.deskt
 				[ "$DEBUG" = "yes" ] && echo "IGNORED (exec file not found): exec: '$exec'" >>$DEBUG_LOG
 				continue
 			fi
-			chased_exec="$(chase "$real_exec" 2>/dev/null)"
+			chased_exec="$(readlink -e "$real_exec" 2>/dev/null)"
 			if [ -z "$chased_exec" ]; then
 				[ "$DEBUG" = "yes" ] && echo "IGNORED (exec is broken symbolic link?): real exec: '$real_exec' exec: '$exec'" >>$DEBUG_LOG
 				continue
