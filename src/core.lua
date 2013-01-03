@@ -38,6 +38,14 @@ function string:split(sep)
         return fields
 end
 
+--! @brief remove trailing whitespace from string.
+--! http://en.wikipedia.org/wiki/Trim_(8programming)
+function string:rtrim()
+  local n = #self
+  while n > 0 and self:find("^%s", n) do n = n - 1 end
+  return self:sub(1, n)
+end
+
 --! @brief copies tables
 --! @param t table
 --! @return new table with shallow copy
@@ -682,7 +690,7 @@ function CGroup:get_value(key, raw)
   local path = self:path(key)
   if posix.access(path) == 0 then
     local fp = io.open(path, "r")
-    return fp:read("*a")
+    return fp:read("*a"):rtrim()
   end
 end
 
