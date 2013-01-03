@@ -1,0 +1,15 @@
+gdb --args src/ulatencyd -vvvv -f /var/log/ulatencyd
+set environment DEBUG gc-friendly
+set environment G_SLICE debug-blocks
+— or --
+set environment G_DEBUG gc-friendly
+set environment G_SLICE always-malloc
+set environment MALLOC_CHECK_ 2
+
+
+=== valgrind ====
+
+G_DEBUG=gc-friendly G_SLICE=debug-blocks  valgrind --leak-check=yes --show-possibly-lost=no --trace-children=yes --track-origins=yes src/ulatencyd -vvvv -f /var/log/ulatencyd
+
+G_DEBUG=gc-friendly G_SLICE=always-malloc MALLOC_CHECK_=2 valgrind --leak-check=yes --show-possibly-lost=no --trace-children=yes --track-origins=yes src/ulatencyd -vvvv -f /var/log/ulatencyd
+
