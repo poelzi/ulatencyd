@@ -116,7 +116,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		u_trace("EXEC Event: PID = %d, tGID = %d",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
-    //process_new_delay(ev->event_data.exec.process_tgid, 0);
+    process_new_delay(ev->event_data.exec.process_tgid, 0);
 		break;
 	case PROC_EVENT_FORK:
     // we skip new threads for now
