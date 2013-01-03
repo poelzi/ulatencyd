@@ -182,7 +182,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
   {
     name = "system_essential",
     cgroups_name = "sys_essential",
-    param = { ["memory.swappiness"] = "0", ["memory.move_charge_at_immigrate"] = "3" },
+    param = { ["?memory.swappiness"] = "0", ["memory.move_charge_at_immigrate"] = "3" },
     label = { "system.essential" }
   },
   {
@@ -192,7 +192,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
               -- FIXME: proc.euid is probably not always the best choice.
               return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
             end,
-    param = { ["memory.soft_limit_in_bytes"] = "1", ["memory.swappiness"] = "100", ["memory.use_hierarchy"] = "1" },
+    param = { ["memory.soft_limit_in_bytes"] = "1", ["?memory.swappiness"] = "100", ["?memory.use_hierarchy"] = "1" },
     children = {
       {
         name = "useless",
@@ -254,7 +254,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         name = "poison",
         label = { "user.poison" },
         cgroups_name = "psn_${pid}",
-        param = { ["memory.swappiness"] = "100" },
+        param = { ["?memory.swappiness"] = "100" },
         adjust_new = function(cgroup, proc)
                   cgroup:add_task(proc.pid)
                   cgroup:commit()
@@ -280,7 +280,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       {
         name = "poison_group",
         cgroups_name = "pgr_${pgrp}",
-        param = { ["memory.swappiness"] = "100" },
+        param = { ["?memory.swappiness"] = "100" },
         check = function(proc)
                   local rv = ulatency.find_flag(ulatency.list_flags(), {name = "user.poison.group",
                                                                     value = proc.pgrp})
@@ -306,22 +306,22 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       },
       {
         name = "bg_high",
-        param = { ["memory.swappiness"] = "20" },
+        param = { ["?memory.swappiness"] = "20" },
         label = { "user.bg_high" },
       },
       {
         name = "media",
-        param = { ["memory.swappiness"] = "40" },
+        param = { ["?memory.swappiness"] = "40" },
         label = { "user.media" },
       },
       {
         name = "ui",
-        param = { ["memory.swappiness"] = "10" },
+        param = { ["?memory.swappiness"] = "10" },
         label = { "user.ui" }
       },
       {
         name = "active",
-        param = { ["memory.swappiness"] = "20" },
+        param = { ["?memory.swappiness"] = "20" },
         check = function(proc)
                 if not proc.is_active then return false end
                 for j, flag in pairs(ulatency.list_flags()) do
@@ -334,18 +334,18 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       },
       {
         name = "idle",
-        param = { ["memory.swappiness"] = "100" },
+        param = { ["?memory.swappiness"] = "100" },
         label = { "user.idle", "daemon.idle" },
       },
       {
         name = "group_pressure",
         sysflags = {"pressure", "emergency"},
-        param = {["memory.swappiness"] = "100" },
+        param = {["?memory.swappiness"] = "100" },
         cgroups_name = "default_pressure",
       },
       {
         name = "group",
-        param = {["memory.swappiness"] = "60" },
+        param = {["?memory.swappiness"] = "60" },
         cgroups_name = "default",
         check = function(proc)
                   return true
@@ -357,13 +357,13 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     name = "system",
     cgroups_name = "sys_idle",
     label = { "daemon.idle" },
-    param = { ["memory.swappiness"] = "100" },
+    param = { ["?memory.swappiness"] = "100" },
   },
   {
     name = "system",
     cgroups_name = "sys_bg",
     label = { "daemon.bg" },
-    param = { ["memory.swappiness"] = "100" },
+    param = { ["?memory.swappiness"] = "100" },
   },
   {
     name = "system",
@@ -372,7 +372,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
               -- don't put kernel threads into a cgroup
               return (proc.pgrp > 0)
             end,
-    param = { ["memory.swappiness"] = "80" },
+    param = { ["?memory.swappiness"] = "80" },
   },
   {
     name = "kernel",
