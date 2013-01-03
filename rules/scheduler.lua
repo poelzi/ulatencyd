@@ -181,12 +181,12 @@ local function create_group(proc, prefix, mapping, subsys)
   else
     path = name
   end
-  
+
   local rv = CGroup.get_group(subsys .."/".. path)
   if rv then
     return rv
   end
-  
+
   rv = CGroup.new(path, mapping.param, subsys)
   if mapping.adjusts then
     for k,v in ipairs(mapping.adjusts) do
@@ -210,25 +210,25 @@ local function map_to_group(proc, parts, subsys)
   local chain = build_path_parts(proc, parts)
   local path = subsys .."/".. table.concat(chain, "/")
   local cgr = CGroup.get_group(path)
-  if cgr then
-    local skip = _CStat[cgr].skip_adjusts
-    local adjust = cgr.adjust
-    if (#skip ~= #adjust) then
-      for i,v in ipairs(adjust) do
-        if not skip[i] and v(cgr, proc) == false then
-          skip[i] = true
-        end
-      end
+
+  if not cgr then
+    local prefix = ""
+    for i, parrule in ipairs(parts) do
+      cgr = create_group(proc, prefix, parrule, subsys)
+      prefix = cgr.name
     end
-    return cgr
   end
 
-  local prefix = ""
-  for i, parrule in ipairs(parts) do
-    cgr = create_group(proc, prefix, parrule, subsys)
-    prefix = cgr.name
+  local skip = _CStat[cgr].skip_adjusts
+  local adjust = cgr.adjust
+  if (#skip ~= #adjust) then
+    for i,v in ipairs(adjust) do
+      if not skip[i] and v(cgr, proc) == false then
+        skip[i] = true
+      end
+    end
   end
-  --print("final prefix", prefix)
+
   return cgr
 end
 
