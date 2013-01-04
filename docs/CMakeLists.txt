@@ -1,3 +1,6 @@
+####################################
+##         Manual pages           ##
+
 FILE(GLOB man1 RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "*.1")
 
@@ -9,6 +12,8 @@ install(FILES ${man1}
 install(FILES ${man8}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/man/man8)
 
+####################################
+## Convert wiki pages to TXT/HTML ##
 
 FILE(GLOB docfiles RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "wiki/*.md")
@@ -47,46 +52,39 @@ endmacro(CONVDOC)
 
 CONVDOC(.html html html)
 CONVDOC("" plain txt)
-# Setup a target to drive the conversion
+
 ADD_CUSTOM_TARGET(docs-html DEPENDS ${htmlFiles})
 ADD_CUSTOM_TARGET(docs-txt DEPENDS ${txtFiles})
 
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/doc/ulatencyd
+        OPTIONAL)
 
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/txt
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/doc/ulatencyd
+        OPTIONAL)
+
+
+####################################
+##   API Doxygen documentation    ##
+
+# Doxygen outputs relative to directory where it was started, create doxygen.conf
+# from template where INPUT directories are preprended with ${CMAKE_SOURCE_DIR}
+configure_file(doxygen.conf.tmpl ${CMAKE_CURRENT_BINARY_DIR}/doxygen.conf @ONLY)
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/api
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/api
     )
 add_custom_target(docs-api
-                  doxygen ${CMAKE_SOURCE_DIR}/docs/doxygen.conf
-                  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                  doxygen ${CMAKE_CURRENT_BINARY_DIR}/doxygen.conf
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/api)
 
-install(DIRECTORY api
-        DESTINATION doc/ulatencyd
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/doc/ulatencyd
         OPTIONAL)
 
-install(DIRECTORY html
-        DESTINATION doc/ulatencyd
-        OPTIONAL)
 
-install(DIRECTORY txt
-        DESTINATION doc/ulatencyd
-        OPTIONAL)
-
+####################################
+##          docs target           ##
 add_custom_target(docs)
 add_dependencies(docs docs-txt docs-html docs-api)
-
-
-# macro(CONVDOC GLOB SUFFIX TARGET_FORMAT)
-#   file(GLOB DOCS RELATIVE wiki ${GLOB})
-#   message(${DOCS})
-#   file(MAKE_DIRECTORY ${TARGET_FORMAT})
-#   foreach(cfile in DOCS)
-#     message(string(REPLACE ".md" "${SUFFIX}"))
-#     #set(ofile, string(REPLACE ".md" "${SUFFIX}"))
-#     #execute_process(pandoc -o ${TARGET_FORMAT}/${ofile} -t {TARGET_FORMAT} -f markdown ${cfile})
-#   endforeach(cfile in DOCS)
-# endmacro(CONVDOC)
-#
-#
-# add_custom_target(docs-html
-#                   COMMAND )
