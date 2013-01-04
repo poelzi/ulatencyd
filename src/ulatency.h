@@ -52,7 +52,7 @@
                                __VA_ARGS__)
 
 
-#define VERSION 0.5.0+exp0.6.0-alpha2
+#define VERSION 0.5.0+exp0.6.0-pre1
 
 //FIXME enable PROC_FILLSUPGRP once adapted to the new libprocps
 

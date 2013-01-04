@@ -1,5 +1,16 @@
-0.5.0+exp0.6.0-alpha2 / 2012-01-03
+0.5.0+exp0.6.0-pre1 / 2012-01-04
 ==================
+
+  This is fork of original https://github.com/poelzi/ulatencyd, which seems
+  to be inactive for last 6 month. This fork introduce many bugfixes and new
+  features and I want to release it as 0.5.0+exp0.6.0 version once release bugs
+  get fixed.
+
+[ Open release bugs ]
+
+  * one_seat_desktop scheduler mappings:
+    - thaw frozen applications whenever X session manager is going to shutdown/save
+    related session
 
 [ Summary ]
 
