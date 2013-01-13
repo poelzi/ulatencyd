@@ -269,6 +269,34 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
             end,
     children = {
       {
+      {
+        name = "bg_high",
+        param = { ["?memory.swappiness"] = "20" },
+        label = { "user.bg_high" },
+      },
+      {
+        name = "ui",
+        param = { ["?memory.swappiness"] = "10" },
+        label = { "user.ui" }
+      },
+      {
+        name = "active",
+        param = { ["?memory.swappiness"] = "20" },
+        check = function(proc)
+                if not proc.is_active then return false end
+                for j, flag in pairs(ulatency.list_flags()) do
+                  if flag.name == "pressure" or flag.name == "emergency" then
+                  return proc.active_pos == 1
+                end
+              end
+              return true
+            end
+      },
+      {
+        name = "media",
+        param = { ["?memory.swappiness"] = "40" },
+        label = { "user.media" },
+      },
         name = "poison",
         label = { "user.poison" },
         cgroups_name = "psn_${pid}",
@@ -321,34 +349,6 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
                   cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                 end
-      },
-      {
-        name = "bg_high",
-        param = { ["?memory.swappiness"] = "20" },
-        label = { "user.bg_high" },
-      },
-      {
-        name = "ui",
-        param = { ["?memory.swappiness"] = "10" },
-        label = { "user.ui" }
-      },
-      {
-        name = "active",
-        param = { ["?memory.swappiness"] = "20" },
-        check = function(proc)
-                if not proc.is_active then return false end
-                for j, flag in pairs(ulatency.list_flags()) do
-                  if flag.name == "pressure" or flag.name == "emergency" then
-                  return proc.active_pos == 1
-                end
-              end
-              return true
-            end
-      },
-      {
-        name = "media",
-        param = { ["?memory.swappiness"] = "40" },
-        label = { "user.media" },
       },
       {
         name = "idle",
