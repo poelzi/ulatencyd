@@ -328,11 +328,6 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         label = { "user.bg_high" },
       },
       {
-        name = "media",
-        param = { ["?memory.swappiness"] = "40" },
-        label = { "user.media" },
-      },
-      {
         name = "ui",
         param = { ["?memory.swappiness"] = "10" },
         label = { "user.ui" }
@@ -349,6 +344,11 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
               end
               return true
             end
+      },
+      {
+        name = "media",
+        param = { ["?memory.swappiness"] = "40" },
+        label = { "user.media" },
       },
       {
         name = "idle",
