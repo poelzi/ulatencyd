@@ -100,6 +100,11 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     param = { ["cpu.shares"]="1"},
   },
   {
+    name = "sys_media",
+    param = { ["cpu.shares"]="2500", ["?cpu.rt_runtime_us"] = "1"},
+    label = { "daemon.media" },
+  },
+  {
     name = "system",
     cgroups_name = "sys_bg",
     label = { "daemon.bg" },
@@ -243,6 +248,11 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
             end
   },
   {
+    name = "sys_media",
+    param = { ["?memory.swappiness"] = "40" },
+    label = { "daemon.media" },
+  },
+  {
     name = "system",
     cgroups_name = "sys_daemon",
     check = function(proc)
@@ -312,6 +322,14 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
              end,
   },
   {
+    name = "sys_media",
+    param = { ["blkio.weight"]="300" },
+    label = { "daemon.media"},
+    adjust = function(cgroup, proc)
+                save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
+             end,
+  },
+  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
@@ -375,6 +393,14 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
             end,
     adjust = function(cgroup, proc)
                 restore_io_prio(proc)
+             end,
+  },
+  {
+    name = "sys_media",
+    param = { ["bfqio.weight"]="300" },
+    label = { "daemon.media"},
+    adjust = function(cgroup, proc)
+                save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
              end,
   },
   {

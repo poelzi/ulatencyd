@@ -166,6 +166,11 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     param = { ["cpu.shares"]="600"},
   },
   {
+    name = "sys_media",
+    param = { ["cpu.shares"]="2500", ["?cpu.rt_runtime_us"] = "1"},
+    label = { "daemon.media" },
+  },
+  {
     name = "system",
     cgroups_name = "sys_daemon",
     check = function(proc)
@@ -384,6 +389,11 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     param = { ["?memory.swappiness"] = "100" },
   },
   {
+    name = "sys_media",
+    param = { ["?memory.swappiness"] = "40" },
+    label = { "daemon.media" },
+  },
+  {
     name = "system",
     cgroups_name = "sys_daemon",
     check = function(proc)
@@ -511,6 +521,14 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
                   end
                 end
                 --]]
+             end,
+  },
+  {
+    name = "sys_media",
+    param = { ["blkio.weight"]="300" },
+    label = { "daemon.media"},
+    adjust = function(cgroup, proc)
+                save_io_prio(proc, 1, ulatency.IOPRIO_CLASS_RT)
              end,
   },
   {
