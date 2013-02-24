@@ -35,6 +35,7 @@ Build Requirements:
   libdbus-glib-1-dev
   liblua5.1-0-dev | libluajit-5.1-dev
   liblua5.1-posix1 (sometimes called luaposix)
+  libprocps-dev
 
 Cgroups release agent (optional):
   dbus-send
