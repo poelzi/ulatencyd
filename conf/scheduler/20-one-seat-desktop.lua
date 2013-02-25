@@ -70,6 +70,13 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     cgroups_name = "idle_usr_${euid}",
     label = { "xdg_session" },
     check = function(proc)
+              if proc.euid < 1000 or proc.euid >= 60000 then
+                -- workaround: we don't want su'ed / sudo'ed processes to be idle
+                -- This is needed until we switch from EUID based to XDG based sessions entirely,
+                -- mostly the ulatency.get_uid_stats must be replaced with function that will
+                -- check XDG session, not EUID of the process.
+                return false
+              end
               return not ulatency.get_uid_stats(proc.euid)
             end,
     param = { ["cpu.shares"]="1",  ["?cpu.rt_runtime_us"] = "100" }
