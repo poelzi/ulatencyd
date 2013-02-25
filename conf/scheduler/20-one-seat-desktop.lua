@@ -167,7 +167,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
   },
   {
     name = "system_media",
-    param = { ["cpu.shares"]="2500", ["?cpu.rt_runtime_us"] = "1"},
+    param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "1"},
     label = { "daemon.media" },
   },
   {
