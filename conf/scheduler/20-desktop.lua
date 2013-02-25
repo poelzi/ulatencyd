@@ -94,24 +94,24 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     },
   },
   {
-    name = "system",
+    name = "system_idle",
     cgroups_name = "sys_idle",
     label = { "daemon.idle" },
     param = { ["cpu.shares"]="1"},
   },
   {
-    name = "sys_media",
+    name = "system_media",
     param = { ["cpu.shares"]="2500", ["?cpu.rt_runtime_us"] = "1"},
     label = { "daemon.media" },
   },
   {
-    name = "system",
+    name = "system_bg",
     cgroups_name = "sys_bg",
     label = { "daemon.bg" },
     param = { ["cpu.shares"]="600"},
   },
   {
-    name = "system",
+    name = "system_daemon",
     cgroups_name = "sys_daemon",
     check = function(proc)
               -- don't put kernel threads into a cgroup
@@ -228,13 +228,13 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
     },
   },
   {
-    name = "system",
+    name = "system_idle",
     cgroups_name = "sys_idle",
     label = { "daemon.idle" },
     param = { ["?memory.swappiness"] = "100" },
   },
   {
-    name = "system",
+    name = "system_bg",
     cgroups_name = "sys_bg",
     label = { "daemon.bg" },
     param = { ["?memory.swappiness"] = "100" },
@@ -248,12 +248,12 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
             end
   },
   {
-    name = "sys_media",
+    name = "system_media",
     param = { ["?memory.swappiness"] = "40" },
     label = { "daemon.media" },
   },
   {
-    name = "system",
+    name = "system_daemon",
     cgroups_name = "sys_daemon",
     check = function(proc)
     		  return true
@@ -322,7 +322,7 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
              end,
   },
   {
-    name = "sys_media",
+    name = "system_media",
     param = { ["blkio.weight"]="300" },
     label = { "daemon.media"},
     adjust = function(cgroup, proc)
@@ -396,7 +396,7 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
              end,
   },
   {
-    name = "sys_media",
+    name = "system_media",
     param = { ["bfqio.weight"]="300" },
     label = { "daemon.media"},
     adjust = function(cgroup, proc)
