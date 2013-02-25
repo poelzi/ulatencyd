@@ -304,7 +304,7 @@ end
 function ulatency.match_flag(needles, where)
   local lst
   if type(where) == "userdata" then       -- "where" is proc, get its flags
-    lst = where:list_flags()
+    lst = where:list_flags(true)
   else
     lst = where or ulatency.list_flags()  -- "where" is already flags list or if nil, get system flag
   end
