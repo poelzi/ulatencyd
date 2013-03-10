@@ -137,7 +137,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
       {
         name = "idle",
         param = { ["cpu.shares"]="200"},
-        label = { "user.idle", "daemon.idle" },
+        label = { "user.idle"  },
       },
       {
         name = "poison_group",
@@ -232,7 +232,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     children = {
       {
         name = "useless",
-        label = { "inactive_user.useless", "user.media", "user.ui", "user.games", "user.idle", "daemon.idle" },
+        label = { "inactive_user.useless", "user.media", "user.ui", "user.games", "user.idle" },
       },
       {
         name = "poison",
@@ -369,7 +369,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       {
         name = "idle",
         param = { ["?memory.swappiness"] = "100" },
-        label = { "user.idle", "daemon.idle" },
+        label = { "user.idle" },
       },
       {
         name = "group_pressure",
@@ -442,6 +442,13 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     name = "idle",
     param = { ["blkio.weight"]="10" },
     label = { "daemon.idle", "user.idle" },
+    check = function(proc)
+              if ulatency.match_flag({"xdg_sessions"}) then
+                return ulatency.match_flag({"user.idle"})
+              else
+                return ulatency.match_flag({"daemon.idle"})
+              end
+            end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_IDLE)
              end,

@@ -293,6 +293,13 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
     name = "idle",
     param = { ["blkio.weight"]="10" },
     label = { "daemon.idle", "user.idle" },
+    check = function(proc)
+              if ulatency.match_flag({"xdg_sessions"}) then
+                return ulatency.match_flag({"user.idle"})
+              else
+                return ulatency.match_flag({"daemon.idle"})
+              end
+            end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 5, ulatency.IOPRIO_CLASS_IDLE)
              end,
