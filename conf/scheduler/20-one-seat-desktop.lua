@@ -219,6 +219,13 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     cgroups_name = "idle_usr_${euid}",
     label = { "xdg_session" },
     check = function(proc)
+              if proc.euid < 1000 or proc.euid >= 60000 then
+                -- workaround: we don't want su'ed / sudo'ed processes to be idle
+                -- This is needed until we switch from EUID based to XDG based sessions entirely,
+                -- mostly the ulatency.get_uid_stats must be replaced with function that will
+                -- check XDG session, not EUID of the process.
+                return false
+              end
               return not ulatency.get_uid_stats(proc.euid)
             end,
     param = { ["memory.soft_limit_in_bytes"] = "1", ["?memory.swappiness"] = "100", ["?memory.use_hierarchy"] = "1" },
@@ -440,11 +447,19 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
              end,
   },
 
+  --! processes of inactive sessions
   {
     name = "idle_user",
     cgroups_name = "idle_usr_${euid}",
     label = { "xdg_session" },
     check = function(proc)
+                if proc.euid < 1000 or proc.euid >= 60000 then
+                  -- workaround: we don't want su'ed / sudo'ed processes to be idle
+                  -- This is needed until we switch from EUID based to XDG based sessions entirely,
+                  -- mostly the ulatency.get_uid_stats must be replaced with function that will
+                  -- check XDG session, not EUID of the process.
+                  return false
+                end
                 return not ulatency.get_uid_stats(proc.euid)
               end,
     param = { ["blkio.weight"]="10" },
