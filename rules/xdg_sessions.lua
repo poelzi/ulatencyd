@@ -2,6 +2,17 @@
 --! Determine if the process is member of a XDG session and tag with xdg_session label if it is.
 --! @ingroup lua_FLAGGING_FILTERS
 
+local function clear_flag_prefix(prefixes, proc)
+    for _, flag in ipairs(proc:list_flags()) do
+      for _, prefix in ipairs(prefixes) do
+        if string.find(flag["name"], "^"..prefix.."\.") then
+          proc:del_flag(flag)
+          break
+        end
+      end
+    end
+end
+
 --! @class XDG_sessions
 --! @brief This filter tags processes that are members of XDG session with xdg_session label.
 --! @details Currently only processes with EUID outside the range 1000 and 60000
@@ -27,6 +38,12 @@ XDG_sessions = {
           proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>"))
         return ulatency.filter_rv(0, 600)
       end
+    end
+
+    if has_session then
+      clear_flag_prefix({'system','daemon'}, proc)
+    else
+      clear_flag_prefix({'user'}, proc)
     end
 
     --[[ ulatency.FILTER_SKIP_CHILD is broken
