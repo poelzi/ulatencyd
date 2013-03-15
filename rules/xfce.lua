@@ -38,11 +38,11 @@ XfceCore = {
 -- gnome-panel or x-session-manager
 
 
-XfceFix = RunnerFix.new("XfceFix", {"x-session-manager", "xfce4-session"})
+XfceFix = RunnerFix.new("XfceFix", {"x-session-manager", "xfce4-session", "xfce4-panel"})
 
 -- on start we have to fix all processes that have descented from session manager/panel
 local function cleanup_xfce_mess()
-  cleanup_desktop_mess({"x-session-manager", "xfce4-session"})
+  cleanup_desktop_mess({"x-session-manager", "xfce4-session", "xfce4-panel"})
   return false
 end
 
