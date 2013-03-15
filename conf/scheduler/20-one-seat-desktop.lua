@@ -34,7 +34,7 @@ Features:
   - inactive session processes have idle priority, swappiness 100, soft
   memory limit 0 etc.
   - useless processes (flagged with inactive_user.useless, user.media, user.ui,
-  user.games, user.idle, daemon.idle) may be frozen, though freezer
+  user.game, user.idle, daemon.idle) may be frozen, though freezer
   subsystem is disabled by default (see cgroups.conf).
   - boost for starting applications (flagged application.starting), see
   scripts/update-user-apps.sh, scripts/cron.daily/99ulatencyd, generated
@@ -232,7 +232,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     children = {
       {
         name = "useless",
-        label = { "inactive_user.useless", "user.media", "user.ui", "user.games", "user.idle" },
+        label = { "inactive_user.useless", "user.media", "user.ui", "user.game", "user.idle" },
       },
       {
         name = "poison",
@@ -631,7 +631,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
     children = {
       {
         name = "inactive_user.useless",
-        label = { "inactive_user.useless", "user.media", "user.ui", "user.games", "user.idle", "daemon.idle" },
+        label = { "inactive_user.useless", "user.media", "user.ui", "user.game", "user.idle", "daemon.idle" },
         adjust = function(cgroup, proc)
                 if ulatency.get_uid_stats(proc.euid) or ulatency.match_flag({"quit","suspend"}) then
                   if cgroup:get_value("freezer.state") == 'FROZEN' then
