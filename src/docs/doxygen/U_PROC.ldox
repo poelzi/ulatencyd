@@ -463,6 +463,8 @@ U_PROC.vm_data = <number>
 --! @public @memberof U_PROC
 U_PROC.vm_stack = <number>
 --! @public @memberof U_PROC
+U_PROC.vm_swap = <number>
+--! @public @memberof U_PROC
 U_PROC.vm_exe = <number>
 --! @public @memberof U_PROC
 U_PROC.vm_lib = <number>

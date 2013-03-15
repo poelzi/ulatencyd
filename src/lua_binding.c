@@ -1070,6 +1070,7 @@ static int handle_proc_t (lua_State *L, proc_t *proc, const char *key) {
   PUSH_INT(vm_rss)
   PUSH_INT(vm_data)
   PUSH_INT(vm_stack)
+  PUSH_INT(vm_swap)
   PUSH_INT(vm_exe)
   PUSH_INT(vm_lib)
   PUSH_INT(rtprio)
