@@ -10,7 +10,7 @@ XfceUI = {
   name = "XfceUI",
   re_basename = "xfwm4|xfce4-panel|xfdesktop",
   check = function(self, proc)
-    local flag = ulatency.new_flag({name="user.ui", inherit=true})
+    local flag = ulatency.new_flag({name="user.ui"})
     proc:add_flag(flag)
     proc:set_oom_score(-300)
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)
