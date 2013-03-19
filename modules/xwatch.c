@@ -532,7 +532,7 @@ static gboolean update_all_server(gpointer data) {
 
     if(pid && error == 0) {
       //printf ("current uid: %d pid: %d\n", xs->uid, pid);
-      set_active_pid(xs->uid, pid);
+      set_active_pid(xs->uid, pid, 0);
     }
 
     cur = g_list_next(cur);

@@ -107,39 +107,66 @@ void enable_active_list(guint uid, gboolean enable)
   }
 }
 
-void set_active_pid(guint uid, guint pid) 
+void set_active_pid(guint uid, guint pid, time_t timestamp)
 {
   u_proc *proc;
   struct user_active_process *up;
+  gboolean order_changed = FALSE;
+  gint pos = -1;
   struct user_active *ua = get_userlist(uid, TRUE);
   GList* ups = g_list_find_custom(ua->actives, &pid, cmp_pid);
+  GList* next;
 
+  if (timestamp == 0) timestamp = time(NULL);
+
+  // add/update the pid in the active list
   if(!ups) {
     up = g_malloc(sizeof(struct user_active_process));
     up->pid = pid;
-    ua->actives = g_list_prepend(ua->actives, up);
-    proc = proc_by_pid(pid);
-    if(proc) {
-      proc->changed = 1;
-      process_run_one(proc, FALSE, FALSE);
+    up->last_change = timestamp;
+    ua->actives = g_list_insert_sorted(ua->actives, up, cmp_last_change);
+    ups = g_list_find(ua->actives, up);
+    pos = g_list_position(ua->actives, ups);
+    if (pos >= ua->max_processes) {
+      // too late
+      ua->actives = g_list_delete_link(ua->actives, ups);
+      g_free(up);
+      return;
     }
+    order_changed = TRUE;
   } else {
     up = ups->data;
+    if (up->last_change >= timestamp) {
+      // strayed bullet
+      return;
+    }
+    up->last_change = timestamp;
+    gint old_pos = g_list_position(ua->actives, ups);
+    ua->actives = g_list_sort(ua->actives, cmp_last_change);
+    pos = g_list_position(ua->actives, ups);
+    if (pos != old_pos)
+      order_changed = TRUE;
   }
-  // remove the entries to much
-  up->last_change = time(NULL);
 
-  ua->actives = g_list_sort(ua->actives, cmp_last_change);
-
-  while(g_list_length(ua->actives) > ua->max_processes) {
-      up = g_list_last(ua->actives)->data;
+  // reschedule affected processes
+  if (order_changed) {
+    while (ups) {
+      next = g_list_next(ups);
+      up = ups->data;
       proc = proc_by_pid(up->pid);
-      ua->actives = g_list_remove(ua->actives, up);
-      g_free(up);
+      if (pos >= ua->max_processes) {
+        g_free(ups->data);
+        ua->actives = g_list_delete_link(ua->actives, ups);
+      } else {
+        pos++;
+      }
+
       if(proc) {
         proc->changed = 1;
         process_run_one(proc, FALSE, FALSE);
       }
+      ups = next;
+    }
   }
 
 }

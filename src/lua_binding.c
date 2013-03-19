@@ -361,10 +361,13 @@ static int l_get_number_of_processes(lua_State *L) {
 }
 
 static int l_set_active_pid(lua_State *L) {
+  time_t timestamp = 0;
   lua_Integer uid = luaL_checkinteger (L, 1);
   lua_Integer pid = luaL_checkinteger (L, 2);
+  if (lua_isnumber(L, 3))
+    timestamp = lua_tointeger(L, 3);
 
-  set_active_pid((guint)uid, (guint)pid);
+  set_active_pid((guint)uid, (guint)pid, timestamp);
 
   return 0;
 }

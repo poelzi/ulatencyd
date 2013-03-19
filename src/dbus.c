@@ -57,10 +57,12 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "  <interface name=\"" U_DBUS_USER_INTERFACE "\">\n"
 "    <method name=\"setActive\">\n"
 "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
+"      <arg type=\"t\" name=\"timestamp\" direction=\"in\" />\n"
 "    </method>\n"
 "    <method name=\"setActiveWithUser\">\n"
 "      <arg type=\"t\" name=\"uid\" direction=\"in\" />\n"
 "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
+"      <arg type=\"t\" name=\"timestamp\" direction=\"in\" />\n"
 "    </method>\n"
 "    <method name=\"setActiveControl\">\n"
 "      <arg type=\"b\" name=\"enabled\" direction=\"in\" />\n"
@@ -173,8 +175,10 @@ static DBusHandlerResult dbus_user_handler(DBusConnection *c, DBusMessage *m, vo
        (is2 = dbus_message_is_method_call(m, U_DBUS_USER_INTERFACE, "setActiveWithUser"))) {
         uid_t uid;
         pid_t pid;
+        time_t timestamp;
         uint64_t tmpu;
         uint64_t tmpp;
+        uint64_t tmpt;
 
         GET_CALLER()
 
@@ -182,25 +186,28 @@ static DBusHandlerResult dbus_user_handler(DBusConnection *c, DBusMessage *m, vo
           if(!dbus_message_get_args(m, &error,
                                     DBUS_TYPE_UINT64, &tmpu,
                                     DBUS_TYPE_UINT64, &tmpp,
+                                    DBUS_TYPE_UINT64, &tmpt,
                                     DBUS_TYPE_INVALID))
                 PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
           uid = (uid_t)tmpu;
         } else {
           if(!dbus_message_get_args(m, &error,
                                     DBUS_TYPE_UINT64, &tmpp,
+                                    DBUS_TYPE_UINT64, &tmpt,
                                     DBUS_TYPE_INVALID))
                 PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
 
           uid = (pid_t)caller;
         }
         pid = (pid_t)tmpp;
+        timestamp = (time_t)tmpt;
 
         if(caller != 0 && caller != uid) {
           ret = dbus_message_new_error(m, DBUS_ERROR_ACCESS_DENIED, "not allowed to set aktive pids of foreign users");
 
           goto finish;
         }
-        set_active_pid(uid, pid);
+        set_active_pid(uid, pid, tmpt);
         ret = dbus_message_new_method_return(m);
 
         goto finish;

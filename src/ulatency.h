@@ -520,7 +520,7 @@ int adj_oom_killer(pid_t pid, int adj);
 int get_oom_killer(pid_t pid);
 
 // group.c
-void set_active_pid(unsigned int uid, unsigned int pid);
+void set_active_pid(guint uid, guint pid, time_t timestamp);
 struct user_active* get_userlist(guint uid, gboolean create);
 int is_active_pid(u_proc *proc);
 int get_active_pos(u_proc *proc);

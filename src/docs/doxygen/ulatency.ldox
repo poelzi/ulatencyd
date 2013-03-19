@@ -381,8 +381,10 @@ end
 --!
 --! @param uid UID of the user.
 --! @param pid PID of the process to add.
+--! @param (optional) timestamp (as the number of seconds since the Epoch) of last process activity.
+--! If not set current time will be used.
 --! @public @memberof ulatency
-function ulatency.set_active_pid(uid, pid)
+function ulatency.set_active_pid(uid, pid, timestamp)
 end
 
 --! Returns array of #__ACTIVE_UIDS structures for every user with the active list.
