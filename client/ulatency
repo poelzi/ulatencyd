@@ -31,7 +31,7 @@ PRIVATE_CGROUP_NAMES = []
 GROUP_VALUES = ["cpu.shares",
                 "cpuset.cpus", "cpuset.cpu_exclusive",
                 "memory.limit_in_bytes", "memory.memsw.limit_in_bytes",
-                "memory.swappiness"]
+                "memory.swappiness", "blkio.weight", "freezer.state"]
 GROUP_VALUES_HIDE = ["", "0", "2147483647", "9223372036854775807"]
 
 CONFIG_SINGLE_TASK = "single_task"
