@@ -29,9 +29,7 @@ change the process group of it's children
 RunnerFix = {}
 
 function RunnerFix:check(proc)
-  -- remove old blacklist items
-  if in_list(proc.cmdfile, self.bad_starters) and
-     proc.pgrp == proc.pid then   -- matches bad_starters themselves
+  if in_list(proc.cmdfile, self.bad_starters) then
     -- we save two blacklists, the pgrp blacklist and the pid blacklist
     -- so we can lookup very fast if we should change a pgrp
     self.blacklist_pgrp[proc.pgrp] = proc.pid
@@ -42,10 +40,8 @@ function RunnerFix:check(proc)
     -- dettach direct children of bad_startes to separate process groups
     if in_list(parent.cmdfile, self.bad_starters) then
       proc:set_pgid(proc.pid)
-    -- dettach bad_starters from init to separate process groups
-    elseif ( parent.pid == 1 and self.blacklist_pgrp[proc.pgrp] ) or 
-           ( in_list(parent.cmdfile, self.bad_starters) and self.blacklist_pgrp[proc.pgrp] ) -- WTF? This never matches, condition is same as previous IF condition.
-      then
+    -- dettach processes reparented to init
+    elseif parent.pid == 1 and self.blacklist_pgrp[proc.pgrp] then
       proc:set_pgid(proc.pid)
     end
   end
