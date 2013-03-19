@@ -68,8 +68,16 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
   {
     name = "idle_user",
     cgroups_name = "idle_usr_${euid}",
+    label = { "xdg_session" },
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+              if proc.euid < 1000 or proc.euid >= 60000 then
+                -- workaround: we don't want su'ed / sudo'ed processes to be idle
+                -- This is needed until we switch from EUID based to XDG based sessions entirely,
+                -- mostly the ulatency.get_uid_stats must be replaced with function that will
+                -- check XDG session, not EUID of the process.
+                return false
+              end
+              return not ulatency.get_uid_stats(proc.euid)
             end,
     param = { ["cpu.shares"]="1",  ["?cpu.rt_runtime_us"] = "100" }
   },
@@ -77,9 +85,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
   {
     name = "user",
     cgroups_name = "usr_${euid}",
-    check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 )
-            end,
+    label = { "xdg_session" },
     param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
       {
@@ -131,7 +137,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
       {
         name = "idle",
         param = { ["cpu.shares"]="200"},
-        label = { "user.idle", "daemon.idle" },
+        label = { "user.idle"  },
       },
       {
         name = "poison_group",
@@ -211,9 +217,16 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
   {
     name = "idle_user",
     cgroups_name = "idle_usr_${euid}",
+    label = { "xdg_session" },
     check = function(proc)
-              -- FIXME: proc.euid is probably not always the best choice.
-              return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+              if proc.euid < 1000 or proc.euid >= 60000 then
+                -- workaround: we don't want su'ed / sudo'ed processes to be idle
+                -- This is needed until we switch from EUID based to XDG based sessions entirely,
+                -- mostly the ulatency.get_uid_stats must be replaced with function that will
+                -- check XDG session, not EUID of the process.
+                return false
+              end
+              return not ulatency.get_uid_stats(proc.euid)
             end,
     param = { ["memory.soft_limit_in_bytes"] = "1", ["?memory.swappiness"] = "100", ["?memory.use_hierarchy"] = "1" },
     children = {
@@ -269,9 +282,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
   {
     name = "user",
     cgroups_name = "usr_${euid}",
-    check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 )
-            end,
+    label = { "xdg_session" },
     children = {
       {
       {
@@ -358,7 +369,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       {
         name = "idle",
         param = { ["?memory.swappiness"] = "100" },
-        label = { "user.idle", "daemon.idle" },
+        label = { "user.idle" },
       },
       {
         name = "group_pressure",
@@ -436,11 +447,20 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
              end,
   },
 
+  --! processes of inactive sessions
   {
     name = "idle_user",
     cgroups_name = "idle_usr_${euid}",
+    label = { "xdg_session" },
     check = function(proc)
-                return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+                if proc.euid < 1000 or proc.euid >= 60000 then
+                  -- workaround: we don't want su'ed / sudo'ed processes to be idle
+                  -- This is needed until we switch from EUID based to XDG based sessions entirely,
+                  -- mostly the ulatency.get_uid_stats must be replaced with function that will
+                  -- check XDG session, not EUID of the process.
+                  return false
+                end
+                return not ulatency.get_uid_stats(proc.euid)
               end,
     param = { ["blkio.weight"]="10" },
     adjust = function(cgroup, proc)
@@ -555,9 +575,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     name = "group",
     param = { ["blkio.weight"]="300" },
     cgroups_name = "usr_grp_${pgrp}",
-    check = function(proc)
-                return proc.euid > 999 and proc.euid < 60000
-              end,
+    label = { "xdg_session" },
     adjust = function(cgroup, proc)
                 restore_io_prio(proc)
               end,
@@ -604,7 +622,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
   {
     name = "user",
     cgroups_name = "usr_${euid}",
+    label = { "xdg_session" },
     check = function(proc)
+                --never freeze other than normal user's sessions
                 return ( proc.euid > 999 and proc.euid < 60000 )
               end,
     param = { ["freezer.state"] = "THAWED" },
