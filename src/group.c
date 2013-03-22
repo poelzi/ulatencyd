@@ -116,6 +116,7 @@ void set_active_pid(guint uid, guint pid, time_t timestamp)
   struct user_active *ua = get_userlist(uid, TRUE);
   GList* ups = g_list_find_custom(ua->actives, &pid, cmp_pid);
   GList* next;
+  u_flag *flg;
 
   if (timestamp == 0) timestamp = time(NULL);
 
@@ -153,20 +154,26 @@ void set_active_pid(guint uid, guint pid, time_t timestamp)
     while (ups) {
       next = g_list_next(ups);
       up = ups->data;
-      proc = proc_by_pid(up->pid);
       if (pos >= ua->max_processes) {
         g_free(ups->data);
         ua->actives = g_list_delete_link(ua->actives, ups);
       } else {
         pos++;
       }
-
-      if(proc) {
-        proc->changed = 1;
-        process_run_one(proc, FALSE, FALSE);
+      proc = proc_by_pid(up->pid);
+      if (proc) {
+        u_flag_clear_source(proc, (void *)set_active_pid, TRUE);
+        if (ups) {
+          flg = u_flag_new((void *)set_active_pid, "active");
+          flg->priority = pos;
+          flg->inherit = 1;
+          u_flag_add(proc, flg, TRUE);
+          DEC_REF(flg);
+        }
       }
       ups = next;
     }
+    g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //FIXME: schedule only changed processes
   }
 
 }
