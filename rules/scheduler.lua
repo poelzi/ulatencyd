@@ -129,7 +129,7 @@ end
 local function run_list(proc, lst)
   local rv = {}
   for key, rule in ipairs(lst) do
-    match = check(proc, rule)
+    local match = check(proc, rule)
     if match then
       rv[#rv+1] = match
       if match.children then
@@ -139,9 +139,14 @@ local function run_list(proc, lst)
           for i,sub in ipairs(best_subs) do
             rv[#rv+1] = sub
           end
+        else
+          if match.placeholder then
+            match = nil
+          end
         end
       end
-      break
+      if match then break end
+      rv = {}
     end
   end
   return rv
