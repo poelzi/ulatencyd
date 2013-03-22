@@ -351,10 +351,12 @@ void simple_add_flag(u_filter *filter, u_proc *proc, struct simple_rule *rule) {
     nf->value       = t->value;
     nf->threshold   = t->threshold;
     nf->inherit     = t->inherit;
+    if(t->urgent)
+        nf->urgent = t->urgent;
 
     u_trace("add flag %s to %d", nf->name, proc->pid); 
 
-    u_flag_add(proc, nf);
+    u_flag_add(proc, nf, -1);
     DEC_REF(nf);
 }
 

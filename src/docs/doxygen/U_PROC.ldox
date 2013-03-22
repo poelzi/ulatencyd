@@ -163,39 +163,49 @@ function U_PROC:list_flags(recursive)
 end
 
 --! @brief Adds the flag #u_flag to the process #U_PROC.
---! @note The #U_PROC is marked as changed, see `#U_PROC.changed`.
 --! @param flag a #u_flag to add
+--! @param (optional) set_proc_changed (boolean) If TRUE and a flag is removed,
+--! the `U_PROC.changed` will be set. If FALSE, the `#U_PROC.changed` won't be set.
+--! Default behaviour is determined by `u_flag.urgent`.
 --! @public @memberof U_PROC
-function U_PROC:add_flag(flag)
+function U_PROC:add_flag(flag, set_proc_changed)
 end
 
 --! @brief Removes a flag #u_flag from a process #U_PROC.
---! @note The #U_PROC is marked as changed, see `#U_PROC.changed`.
 --! @param flag a #u_flag to delete
+--! @param (optional) set_proc_changed (boolean) If TRUE and a flag is removed,
+--! the `U_PROC.changed` will be set. If FALSE, the `#U_PROC.changed` won't be set.
+--! Default behaviour is determined by `u_flag.urgent`.
 --! @public @memberof U_PROC
-function U_PROC:del_flag(flag)
+function U_PROC:del_flag(flag, set_proc_changed)
 end
 
 --! @brief Removes flags with the `name` from a process #U_PROC.
---! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
 --! @param name of #u_flags to delete
+--! @param (optional) set_proc_changed (boolean) If TRUE and a flag is removed,
+--! the `U_PROC.changed` will be set. If FALSE, the `#U_PROC.changed` won't be set.
+--! Default behaviour is determined by `u_flag.urgent`.
 --! @public @memberof U_PROC
-function U_PROC:clear_flag_name(name)
+function U_PROC:clear_flag_name(name, set_proc_changed)
 end
 
 --! @brief From a process #U_PROC removes all flags that was created by current lua thread.
 --! Specifically, all flags created with same lua state will be removed.
 --! There is one main lua state and additional lua states for every lua thread created by
 --! ulatency.add_timeout() and ulatency.register_filter().
---! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @param (optional) set_proc_changed (boolean) If TRUE and a flag is removed,
+--! the `U_PROC.changed` will be set. If FALSE, the `#U_PROC.changed` won't be set.
+--! Default behaviour is determined by `u_flag.urgent`.
 --! @public @memberof U_PROC
-function U_PROC:clear_flag_source()
+function U_PROC:clear_flag_source(set_proc_changed)
 end
 
 --! @brief Removes all flags from a process #U_PROC.
---! @note If a flag is removed, the #U_PROC is marked as changed, see `#U_PROC.changed`.
+--! @param (optional) set_proc_changed (boolean) If TRUE and a flag is removed,
+--! the `U_PROC.changed` will be set. If FALSE, the `#U_PROC.changed` won't be set.
+--! Default behaviour is determined by `u_flag.urgent`.
 --! @public @memberof U_PROC
-function U_PROC:clear_flag_all()
+function U_PROC:clear_flag_all(set_proc_changed)
 end
 --! @} End of "process flags manipulation"
 

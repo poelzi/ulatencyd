@@ -256,7 +256,7 @@ typedef struct _filter {
   NONE = 0,
   REPLACE_SOURCE,
   ADD,
-} FLAG_BEHAVIOUR;
+} FLAG_TIMEOUT_BEHAVIOUR;
 */
 typedef struct _FLAG {
   U_HEAD;
@@ -270,19 +270,20 @@ typedef struct _FLAG {
   int64_t        value;         //!< custom data: value
   int64_t        threshold;     //!< custom data: threshold
   uint32_t       inherit : 1;      //!< will apply to all children
+  uint32_t       urgent: 1;     //!< adding/removing the flag will tag the holder (u_proc or system flags) as changed
 } u_flag;
 
 
 u_flag *u_flag_new(u_filter *source, const char *name);
 void u_flag_free(void *data);
 
-int u_flag_add(u_proc *proc, u_flag *flag);
-int u_flag_del(u_proc *proc, u_flag *flag);
-int u_flag_clear_source(u_proc *proc, const void *source);
-int u_flag_clear_name(u_proc *proc, const char *name);
-int u_flag_clear_all(u_proc *proc);
-int u_flag_clear_flag(u_proc *proc, const void *flag);
-int u_flag_clear_timeout(u_proc *proc, time_t timeout);
+int u_flag_add(u_proc *proc, u_flag *flag, gint set_changed);
+int u_flag_del(u_proc *proc, u_flag *flag, gint set_changed);
+int u_flag_clear_source(u_proc *proc, const void *source, gint set_changed);
+int u_flag_clear_name(u_proc *proc, const char *name, gint set_changed);
+int u_flag_clear_all(u_proc *proc, gint set_changed);
+int u_flag_clear_flag(u_proc *proc, const void *flag, gint set_changed);
+int u_flag_clear_timeout(u_proc *proc, time_t timeout, gint set_changed);
 
 struct u_cgroup {
   struct cgroup *group;
@@ -431,6 +432,8 @@ enum ENSURE_UPDATE {
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update);
+void u_proc_set_changed_flag_recursive(u_proc *proc);
+void u_proc_clear_changed_flag_recursive(u_proc *proc);
 GList *u_proc_list_flags (u_proc *proc, gboolean recrusive);
 GArray *u_proc_get_current_task_pids(u_proc *proc);
 

@@ -385,7 +385,7 @@ void u_proc_free(void *ptr) {
   }
   g_hash_table_destroy (proc->skip_filter);
 
-  u_flag_clear_all(proc);
+  u_flag_clear_all(proc, FALSE);
 
   u_proc_remove_child_nodes(proc);
 
@@ -1143,7 +1143,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
     } else
         U_PROC_UNSET_STATE(proc, UPROC_BASIC);
 
-    if (! new_proc) u_flag_clear_timeout(proc, timeout);
+    if (! new_proc) u_flag_clear_timeout(proc, timeout, -1);
     updated = g_list_append(updated, proc);
 
     rv++;
@@ -1496,7 +1496,6 @@ int process_run_one(u_proc *proc, int update, int instant) {
   return TRUE;
 }
 
-
 /**
  * free flags
  * @ptr: #u_flag pointer
@@ -1534,6 +1533,7 @@ u_flag *u_flag_new(u_filter *source, const char *name) {
   rv->free_fnk = u_flag_free;
   rv->ref = 1;
   rv->source = source;
+  rv->urgent = 1;
 
   if(name) {
     rv->name = g_strdup(name);
@@ -1543,52 +1543,76 @@ u_flag *u_flag_new(u_filter *source, const char *name) {
 }
 
 /**
- * add flag to process
- * @arg proc #u_proc to add the flag to, or NULL for system flags
- * @arg flag #u_flag to add
+ * add flag to process or system flags
+ * @param proc #u_proc to add the flag to, or NULL for system flags
+ * @param flag #u_flag to add
+ * @param set_changed If 1, the `system_flags_changed` or `u_proc.changed`
+ * variable will be set. If 0, it won't. If -1 the behavior is determined by
+ * `u_flag.urgent` value.
  *
  * Adds a new flag to the u_proc or system flag list.
  *
  * @return boolean. TRUE on success.
  */
-int u_flag_add(u_proc *proc, u_flag *flag) {
+int u_flag_add(u_proc *proc, u_flag *flag, gint set_changed) {
   if(proc) {
     if(!g_list_find(proc->flags, flag)) {
       proc->flags = g_list_insert(proc->flags, flag, 0);
       INC_REF(flag);
     }
-    proc->changed = 1;
+    if (set_changed == 1 || flag->urgent) {
+      proc->changed = 1;
+      if (flag->inherit) {
+        u_proc_set_changed_flag_recursive(proc);
+      }
+    }
   } else {
     if(!g_list_find(system_flags, flag)) {
       system_flags = g_list_insert(system_flags, flag, 0);
       INC_REF(flag);
+      if (set_changed == 1 || flag->urgent) {
+        system_flags_changed = 1;
+      }
     }
   }
   return TRUE;
 }
 
 /**
- * delete flag from process
- * @arg proc #u_proc to remove the flag from, or NULL for system flags
- * @arg flag #u_flag to remove
+ * delete flag from process or system flags
+ * @param proc #u_proc to remove the flag from, or NULL for system flags
+ * @param flag #u_flag to remove
+ * @param set_changed If 1, the `system_flags_changed` or `u_proc.changed`
+ * variable will be set. If 0, it won't. If -1 the behavior is determined by
+ * `u_flag.urgent` value.
  *
  * Removes a flag from a process or system flags.
  *
  * @return boolean. TRUE on success.
  */
-int u_flag_del(u_proc *proc, u_flag *flag) {
+int u_flag_del(u_proc *proc, u_flag *flag, gint set_changed) {
   if(proc) {
-    if(g_list_index(proc->flags, flag) != -1) {
-      DEC_REF(flag);
+    if(g_list_index(proc->flags, flag) == -1) {
+      return FALSE;
+    }
+    if (set_changed == 1 || flag->urgent) {
+      proc->changed = 1;
+      if (flag->inherit) {
+        u_proc_set_changed_flag_recursive(proc);
+      }
     }
     proc->flags = g_list_remove(proc->flags, flag);
-    proc->changed = 1;
+    DEC_REF(flag);
     return TRUE;
   } else {
-    if(g_list_index(system_flags, flag) != -1) {
-      DEC_REF(flag);
+    if(g_list_index(system_flags, flag) == -1) {
+      return FALSE;
+    }
+    if (set_changed == 1 || flag->urgent) {
+      system_flags_changed = 1;
     }
     system_flags = g_list_remove(system_flags, flag);
+    DEC_REF(flag);
     return TRUE;
   }
   return FALSE;
@@ -1627,24 +1651,47 @@ static int u_flag_match_timeout(gconstpointer a, gconstpointer time) {
   return (flg->timeout > t);
 }
 
+// helper for u_proc_set_changed_flag_recursive / u_proc_clear_changed_flag_recursive
+static gboolean _g_node_proc_set_changed_flag(GNode *node, gpointer changed) {
+  u_proc *proc = node->data;
+  proc->changed = GPOINTER_TO_INT(changed);
+  return FALSE;
+}
+
+void u_proc_set_changed_flag_recursive(u_proc *proc) {
+  g_node_traverse(proc->node, G_PRE_ORDER, G_TRAVERSE_ALL, -1,
+      _g_node_proc_set_changed_flag, GUINT_TO_POINTER(1));
+}
+
+void u_proc_clear_changed_flag_recursive(u_proc *proc) {
+  g_node_traverse(proc->node, G_PRE_ORDER, G_TRAVERSE_ALL, -1,
+      _g_node_proc_set_changed_flag, GUINT_TO_POINTER(0));
+}
 
 #define CLEAR_BUILD(NAME, ARG, CMP) \
-int NAME (u_proc *proc, ARG ) { \
+int NAME (u_proc *proc, ARG, gint set_changed) { \
   GList *item; \
   int rv = 0; \
   while((item = CMP ) != NULL) { \
     if(proc) { \
+      if (set_changed == 1 || ((u_flag *)item)->urgent) { \
+        proc->changed = 1; \
+        if (((u_flag *)item)->inherit) { \
+            u_proc_set_changed_flag_recursive(proc); \
+        } \
+      } \
       proc->flags = g_list_remove_link (proc->flags, item); \
       DEC_REF(item->data); \
       item->data = NULL; \
-      proc->changed = 1; \
       rv++; \
       g_list_free(item); \
     } else { \
       system_flags = g_list_remove_link (system_flags, item); \
       DEC_REF(item->data); \
       item->data = NULL; \
-      system_flags_changed = 1; \
+      if (set_changed == 1 || ((u_flag *)item)->urgent) { \
+        system_flags_changed = 1; \
+      } \
       rv ++; \
       g_list_free(item); \
     } \
@@ -1660,17 +1707,26 @@ CLEAR_BUILD(u_flag_clear_flag, const void *var, g_list_find_custom(proc ? proc->
 
 CLEAR_BUILD(u_flag_clear_timeout, time_t tm, g_list_find_custom(proc ? proc->flags : system_flags, GUINT_TO_POINTER(tm), u_flag_match_timeout))
 
-int u_flag_clear_all(u_proc *proc) {
+int u_flag_clear_all(u_proc *proc, gint set_changed) {
   GList *item;
   int rv = 0;
+  gboolean change_children = FALSE;
   if(proc) {
     while((item = g_list_first(proc->flags)) != NULL) {
+      if (set_changed == 1 || ((u_flag *)item)->urgent) {
+        proc->changed = 1;
+        if (((u_flag *)item)->inherit) {
+          change_children = TRUE;
+        }
+      }
       proc->flags = g_list_remove_link (proc->flags, item);
       DEC_REF(item->data);
       item->data = NULL;
-      proc->changed = 1;
       rv++;
       g_list_free(item);
+    }
+    if (change_children) {
+      u_proc_set_changed_flag_recursive(proc);
     }
     g_list_free(proc->flags);
   } else {
@@ -1680,7 +1736,9 @@ int u_flag_clear_all(u_proc *proc) {
       item->data = NULL;
       g_list_free(item);
       rv++;
-      system_flags_changed = 1;
+      if (set_changed == 1 || ((u_flag *)item)->urgent) {
+        system_flags_changed = 1;
+      }
     }
     g_list_free(system_flags);
   }
@@ -1895,7 +1953,7 @@ int iterate(gpointer rv) {
           tparse, tfilter, tscheduler, (tparse + tfilter + tscheduler));
 
   g_timer_start(timer);
-  u_flag_clear_timeout(NULL, timeout);
+  u_flag_clear_timeout(NULL, timeout, -1);
   iteration += 1;
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "start iteration %d:", iteration);
   update_caches();

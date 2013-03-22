@@ -728,8 +728,13 @@ static int _u_proc_get_current_task_pids (lua_State *L) {
 static int u_proc_add_flag (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   u_flag *flag = check_u_flag(L, 2);
+  gint set_proc_changed = -1;
 
-  lua_pushinteger(L, u_flag_add(proc, flag));
+  if (lua_isboolean(L, 3)) {
+    set_proc_changed = lua_toboolean(L, 3);
+  }
+
+  lua_pushinteger(L, u_flag_add(proc, flag, set_proc_changed));
 
   return 1;
 }
@@ -737,8 +742,13 @@ static int u_proc_add_flag (lua_State *L) {
 static int u_proc_del_flag (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   u_flag *flag = check_u_flag(L, 2);
+  gint set_proc_changed = -1;
 
-  lua_pushinteger(L, u_flag_del(proc, flag));
+  if (lua_isboolean(L, 3)) {
+    set_proc_changed = lua_toboolean(L, 3);
+  }
+
+  lua_pushinteger(L, u_flag_del(proc, flag, set_proc_changed));
 
   return 1;
 }
@@ -746,32 +756,54 @@ static int u_proc_del_flag (lua_State *L) {
 static int u_proc_clear_flag_name (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   const char *name = luaL_checkstring(L, 2);
+  gint set_proc_changed = -1;
 
-  u_flag_clear_name(proc, name);
+  if (lua_isboolean(L, 3)) {
+     set_proc_changed = lua_toboolean(L, 3);
+  }
+
+  u_flag_clear_name(proc, name, set_proc_changed);
 
   return 0;
 }
 
 static int u_proc_clear_flag_source (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
+  gint set_proc_changed = -1;
 
-  u_flag_clear_source(proc, L);
+  if (lua_isboolean(L, 2)) {
+     set_proc_changed = lua_toboolean(L, 2);
+  }
+
+  u_flag_clear_source(proc, L, set_proc_changed);
 
   return 0;
 }
 
 static int u_proc_clear_flag_all (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
+  gint set_proc_changed = -1;
 
-  u_flag_clear_all(proc);
+  if (lua_isboolean(L, 2)) {
+     set_proc_changed = lua_toboolean(L, 2);
+  }
+
+  u_flag_clear_all(proc, set_proc_changed);
 
   return 0;
 }
 
 static int u_proc_clear_changed (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
+  gboolean recursive = FALSE;
+  if(lua_isboolean(L, 2)) {
+     recursive = lua_toboolean(L, 2);
+   }
 
   proc->changed = 0;
+  if (recursive) {
+    u_proc_clear_changed_flag_recursive(proc);
+  }
 
   return 0;
 }
@@ -1491,6 +1523,7 @@ static int u_flag_index (lua_State *L)
   PUSH_CHR(reason)
   PUSH_INT(value)
   PUSH_INT(threshold)
+  PUSH_INT(urgent)
   if(!strcmp(key, "is_source")) {
     lua_pushboolean(L, flag->source == L);
   }
@@ -1504,13 +1537,12 @@ static int u_flag_newindex (lua_State *L)
 
   PULL_CHR(name)
   PULL_CHR(reason)
-
   PULL_INT(inherit)
   PULL_INT(priority)
   PULL_INT(timeout)
-  //PULL_INT(reason)
   PULL_INT(value)
   PULL_INT(threshold)
+  PULL_INT(urgent)
   return 0;
 }
 
@@ -1545,6 +1577,7 @@ static int l_flag_new (lua_State *L)
     CHK_N_SET(reason, g_strdup(lua_tostring(L, -1)) )
     CHK_N_SET(value, lua_tointeger(L, -1))
     CHK_N_SET(threshold, lua_tointeger(L, -1))
+    CHK_N_SET(urgent, lua_toboolean(L, -1))
     return 1;
   }
   
@@ -1608,38 +1641,63 @@ static int u_sys_list_flags (lua_State *L) {
 
 static int u_sys_add_flag (lua_State *L) {
   u_flag *flag = check_u_flag(L, 1);
+  gint set_flags_changed = -1;
 
-  lua_pushinteger(L, u_flag_add(NULL, flag));
+  if (lua_isboolean(L, 2)) {
+    set_flags_changed = lua_toboolean(L, 2);
+  }
+
+  lua_pushinteger(L, u_flag_add(NULL, flag, set_flags_changed));
 
   return 1;
 }
 
 static int u_sys_del_flag (lua_State *L) {
   u_flag *flag = check_u_flag(L, 1);
+  gint set_flags_changed = -1;
 
-  lua_pushinteger(L, u_flag_del(NULL, flag));
+  if (lua_isboolean(L, 2)) {
+    set_flags_changed = lua_toboolean(L, 2);
+  }
+
+  lua_pushinteger(L, u_flag_del(NULL, flag, set_flags_changed));
 
   return 1;
 }
 
 static int u_sys_clear_flag_name (lua_State *L) {
   const char *name = luaL_checkstring(L, 1);
+  gint set_flags_changed = -1;
 
-  u_flag_clear_name(NULL, name);
+  if (lua_isboolean(L, 2)) {
+    set_flags_changed = lua_toboolean(L, 2);
+  }
+
+  u_flag_clear_name(NULL, name, set_flags_changed);
 
   return 0;
 }
 
 static int u_sys_clear_flag_source (lua_State *L) {
+  gint set_flags_changed = -1;
 
-  u_flag_clear_source(NULL, L);
+  if (lua_isboolean(L, 1)) {
+    set_flags_changed = lua_toboolean(L, 1);
+  }
+
+  u_flag_clear_source(NULL, L, set_flags_changed);
 
   return 0;
 }
 
 static int u_sys_clear_flag_all (lua_State *L) {
+  gint set_flags_changed = -1;
 
-  u_flag_clear_all(NULL);
+  if (lua_isboolean(L, 2)) {
+    set_flags_changed = lua_toboolean(L, 2);
+  }
+
+  u_flag_clear_all(NULL, set_flags_changed);
 
   return 0;
 }

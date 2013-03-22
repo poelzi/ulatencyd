@@ -105,6 +105,7 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "      <arg type=\"x\" name=\"value\" direction=\"in\" />\n"
 "      <arg type=\"x\" name=\"threshold\" direction=\"in\" />\n"
 "      <arg type=\"b\" name=\"inherit\" direction=\"in\" />\n"
+"      <arg type=\"b\" name=\"urgent\" direction=\"in\" />\n"
 "    </method>\n"
 "    <method name=\"addSystemFlag\">\n"
 "      <arg type=\"s\" name=\"name\" direction=\"in\" />\n"
@@ -113,6 +114,7 @@ DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
 "      <arg type=\"i\" name=\"priority\" direction=\"in\" />\n"
 "      <arg type=\"x\" name=\"value\" direction=\"in\" />\n"
 "      <arg type=\"x\" name=\"threshold\" direction=\"in\" />\n"
+"      <arg type=\"b\" name=\"urgent\" direction=\"in\" />\n"
 "      <arg type=\"b\" name=\"run_iteration\" direction=\"in\" />\n"
 "    </method>\n"
 "    <method name=\"listFlags\">\n"
@@ -463,7 +465,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         uint64_t tpid, ttid, timeout;
         int64_t priority, value, threshold;
-        uint32_t inherit;
+        uint32_t inherit, urgent;
         u_flag *flag;
         char *name, *reason;
 
@@ -477,6 +479,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
                                       DBUS_TYPE_INT64,  &value,
                                       DBUS_TYPE_INT64,  &threshold,
                                       DBUS_TYPE_BOOLEAN,&inherit,
+                                      DBUS_TYPE_BOOLEAN,&urgent,
                                       DBUS_TYPE_INVALID) ||
             !dbus_message_iter_init (m, &imsg))
               PUSH_ERROR(DBUS_ERROR_INVALID_ARGS, "wrong arguments")
@@ -502,8 +505,9 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         flag->value = value;
         flag->threshold = threshold;
         flag->inherit = inherit;
+        flag->urgent = urgent;
 
-        u_flag_add(proc, flag);
+        u_flag_add(proc, flag, -1);
         DEC_REF(flag);
 
         ret = dbus_message_new_method_return(m);
@@ -514,6 +518,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         int64_t priority, value, threshold;
         u_flag *flag;
         gboolean run_iteration;
+        uint32_t urgent;
         char *name, *reason;
 
         if (!dbus_message_get_args(m, &error,
@@ -523,6 +528,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
                                       DBUS_TYPE_INT32,   &priority,
                                       DBUS_TYPE_INT64,   &value,
                                       DBUS_TYPE_INT64,   &threshold,
+                                      DBUS_TYPE_BOOLEAN, &urgent,
                                       DBUS_TYPE_BOOLEAN, &run_iteration,
                                       DBUS_TYPE_INVALID) ||
             !dbus_message_iter_init (m, &imsg))
@@ -539,15 +545,17 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
         flag->priority = priority;
         flag->value = value;
         flag->threshold = threshold;
+        flag->urgent = urgent;
 
-        u_flag_add(NULL, flag);
+        u_flag_add(NULL, flag, -1);
         DEC_REF(flag);
-        system_flags_changed = 1;
 
         g_message("DBUS: added system flag: name=\"%s\", reason=\"%s\"", name, reason);
 
-        if (run_iteration)
-            g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
+        if (run_iteration) {
+          system_flags_changed = 1;
+          g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
+        }
 
         ret = dbus_message_new_method_return(m);
         goto finish;
@@ -587,9 +595,9 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
             PUSH_ERROR(DBUS_ERROR_ACCESS_DENIED, "access denied")
 
         if(is2) {
-            u_flag_clear_flag(proc, (void *)id);
+            u_flag_clear_flag(proc, (void *)id, TRUE);
         } else {
-            u_flag_clear_source(proc, U_DBUS_POINTER);
+            u_flag_clear_source(proc, U_DBUS_POINTER, TRUE);
         }
 
         ret = dbus_message_new_method_return(m);
