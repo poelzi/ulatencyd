@@ -1445,21 +1445,21 @@ int process_new_list(GArray *list, int update, int instant) {
   u_proc *proc;
   int i, j = 0;
   pid_t *pids = (pid_t *)malloc((list->len+1)*sizeof(pid_t));
-  //int pid_t = malloc(sizeof(pid_t)*(list->len+1));
   for(i = 0; i < list->len; i++) {
     if(update || !proc_by_pid(g_array_index(list,pid_t,i))) {
       pids[j] = g_array_index(list,pid_t,i);
       j++;
     }
   }
-  pids[j] = 0;
-  // if the process is already dead we can exit
-  process_update_pids(pids);
+  if (j>0) {
+    pids[j] = 0;
+    process_update_pids(pids);
+  }
   for(i=0; i < list->len; i++) {
     proc = proc_by_pid(g_array_index(list,pid_t,i));
-    if(!proc)
-      continue;
-    process_run_one(proc, FALSE, instant);
+    if(proc) {
+      process_run_one(proc, FALSE, instant);
+    }
   }
   free(pids);
   return TRUE;
