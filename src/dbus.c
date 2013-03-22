@@ -207,7 +207,7 @@ static DBusHandlerResult dbus_user_handler(DBusConnection *c, DBusMessage *m, vo
 
           goto finish;
         }
-        set_active_pid(uid, pid, tmpt);
+        set_active_pid(uid, pid, timestamp);
         ret = dbus_message_new_method_return(m);
 
         goto finish;
