@@ -484,6 +484,13 @@ int scheduler_run();
 u_scheduler *scheduler_get();
 int scheduler_set(u_scheduler *scheduler);
 
+extern int iteration_interval;
+
+gboolean iteration_request_full(gint priority, guint milliseconds, gboolean force);
+gboolean iteration_request_seconds_full(gint priority, guint seconds);
+inline gboolean iteration_request(guint milliseconds);
+inline gboolean iteration_request_seconds(guint seconds);
+
 int iterate(void *);
 
 int cgroups_cleanup(int instant);

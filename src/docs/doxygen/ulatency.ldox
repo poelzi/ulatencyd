@@ -568,26 +568,19 @@ function ulatency.process_update(pid)
 end
 
 --! Wrapper to invoke scheduler iteration.
---! @details The core listens on the kernel when new processes are spawned or exit and runs the
+--!
+--! @details The core listens on the kernel if new processes are spawned or exit and runs the
 --! @link lua_FILTERS filters@endlink and @link lua_SCHEDULER scheduler@endlink (specifically the
 --! `Scheduler:one()` method) on them.
---! Additionally, a full @ref ulatency.run_iteration "iteration" is run every configurable number of seconds
---! (*every `interval` seconds defined in the `core` configuration group, defaults to 12 seconds*)
---! on all processes. This is required for example when @link lua_FLAGS flags@endlink, set on a process, expire and the
---! scheduler will make another decision. Beside this interval you may want to invoke a full iteration manually, e.g.
---! if you detect (*usually inside a registered @ref lua_TIMEOUTS "timeout function"*) such important changes in the 
---! system environment requiring processes rescheduling.
 --!
---! Note, that invoking the iteration alone is not sufficient as scheduler (`Scheduler::all()`) will usually skip unchanged
---! processes. You should discuss the Scheduler documentation to find out how force it to reschedule affected processes.
---! The general way to force **all** processes to be rescheduled is to set `system_flags_changed` variable 
+--! Additionally, all changed processes are scheduled in regular interval. This defaults to 60 seconds
+--! and can be changed setting `interval` option in the configuration file.
+--!
+--! This function invokes this iteration manually.
+--!
+--! If you want to reschedule all processes, beside those changed, set `system_flags_changed`
 --! (@link ulatency.set_flags_changed `ulatency.set_flags_changed(1)`@endlink) before you invoke `ulatency.run_iteration()`.
---! Scheduler should detect this and reschedule all processes.
---!
---! `ulatency.run_iteration()` calls the @link iterate(gpointer rv) `iterate()`@endlink function implemented in the core, though indirectly, 
---! via `g_timeout_add(0, ...)`, that is, any pending main loop events will be dispatched first, including eventually
---! already running iteration.
---! @warning Can cause endless loop if you call this within iteration scope!
+--! Note that this won't work inside scheduler or the mappings as the flag at the end of every iteration.
 --!
 --! ##Iteration consists of following steps:
 --! - clears timed out system flags

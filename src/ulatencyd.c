@@ -106,8 +106,6 @@ static GOptionEntry entries[] =
 };
 
 
-int filter_interval;
-
 GMainContext *main_context;
 GMainLoop *main_loop;
 
@@ -313,9 +311,9 @@ void load_config() {
     g_error("could not load config file: %s: %s", config_file, error->message);
   }
 
-  filter_interval = g_key_file_get_integer(config_data, CONFIG_CORE, "interval", NULL);
-  if(!filter_interval)
-    filter_interval = 60;
+  iteration_interval = g_key_file_get_integer(config_data, CONFIG_CORE, "interval", NULL);
+  if(!iteration_interval)
+    iteration_interval = 60;
 
   mount_point = g_key_file_get_string(config_data, CONFIG_CORE, "mount_point", NULL);
   if(!mount_point)
@@ -444,7 +442,7 @@ static int signal_suspend (gpointer signal) {
   u_trace("added system flag: suspend");
   u_flag_add(NULL, flg, TRUE);
   DEC_REF(flg);
-  g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
+  iteration_request_full(G_PRIORITY_HIGH, 0, TRUE); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
   return 0;
 }
@@ -459,7 +457,7 @@ static int signal_quit(gpointer signal) {
   u_trace("added system flag: quit");
   u_flag_add(NULL, flg, TRUE);
   DEC_REF(flg);
-  g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
+  iteration_request_full(G_PRIORITY_HIGH, 0, TRUE); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
   return 0;
 }
@@ -484,16 +482,16 @@ static void signal_handler(int sig) {
     sigprocmask(SIG_BLOCK, &set, NULL);
     signal(SIGABRT, SIG_IGN);
     signal(SIGINT, SIG_IGN);
-    g_timeout_add(0, signal_suspend, GUINT_TO_POINTER(sig));
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, signal_suspend, GUINT_TO_POINTER(sig), NULL);
     break;
   case SIGTERM:
     sigaddset (&set, SIGTERM);
     sigprocmask(SIG_BLOCK, &set, NULL);
     signal(SIGTERM, SIG_IGN);
-    g_timeout_add(0, signal_quit, GUINT_TO_POINTER(sig));
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, signal_quit, GUINT_TO_POINTER(sig), NULL);
     break;
   case SIGUSR1:
-    g_timeout_add(0, signal_reload, GUINT_TO_POINTER(sig));
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, signal_reload, GUINT_TO_POINTER(sig), NULL);
     break;
   case SIGUSR2:
     g_timeout_add(0, signal_logrotate, GUINT_TO_POINTER(sig));
@@ -652,7 +650,7 @@ int main (int argc, char *argv[])
   iterate(GUINT_TO_POINTER(0));
   g_timeout_add_seconds(60, timeout_long, GUINT_TO_POINTER(1));
 
-  g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
+  iteration_request_seconds(0);
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "=== ulatencyd started successfully ===");
   g_main_loop_run(main_loop);

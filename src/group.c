@@ -173,7 +173,7 @@ void set_active_pid(guint uid, guint pid, time_t timestamp)
       }
       ups = next;
     }
-    g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //FIXME: schedule only changed processes
+    iteration_request(0); //FIXME: schedule only changed processes
   }
 
 }

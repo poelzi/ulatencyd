@@ -302,19 +302,9 @@ static void session_active_changed(DBusGProxy *proxy, gboolean active, u_session
   if (active) {
     // iterate
     g_message("CK: Active session changed to %s (UID: %d)", sess->name, sess->uid);
-    // TODO: add system flag, but it is probably useless
-    //const void *U_FLAG_SOURCE = (void *)ck_session_changed
-    //u_flag_clear_source(NULL, U_FLAG_SOURCE);
-    //u_flag *flg = u_flag_new(U_FLAG_SOURCE, "session.active.uid");
-    //flg->reason  = "ConsoleKit";
-    //flg->value = sess->uid;
-    //u_flag_add(NULL, flg);
-    //u_trace("added system flag: session.active.uid");
     system_flags_changed = 1;
-    // iteration must be run before xwatch poll, hopefully G_PRIORITY_HIGH is sufficient,
-    // otherwise we would have to temporary disable xwatch polling to avoid freezes on
-    // some systems
-    g_timeout_add_full(G_PRIORITY_HIGH, 0, iterate, GUINT_TO_POINTER(0), NULL);
+    // iteration must be run before xwatch poll to avoid freezes on my system
+    iteration_request_full(G_PRIORITY_HIGH, 0, TRUE);
   } else {
     g_message("CK: Session %s (UID: %d) became inactive", sess->name, sess->uid);
   }

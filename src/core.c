@@ -68,7 +68,9 @@ struct u_timer timer_filter;
 struct u_timer timer_scheduler;
 struct u_timer timer_parse;
 
-
+//! seconds between iterations,
+//! the change will be effective from the end of next iteration
+int iteration_interval;
 
 // delay new processes
 
@@ -1939,11 +1941,84 @@ static void update_caches() {
 }
 
 
-int iterate(gpointer rv) {
+// iteration requests
+
+static guint iteration_request_id = 0;
+static gboolean iteration_request_forced = FALSE;
+
+/**
+ * Request iteration.
+ *
+ * @param priority      the priority of the timeout source. Typically this will
+ *                      be `G_PRIORITY_DEFAULT`.
+ * @param milliseconds  delay before `iterate()`
+ * @param force         If TRUE, further requests will be ignored
+ *
+ * Use this to request new iteration rather than calling `g_timoute_add_*()`
+ * directly. Each request will replace the previous one, unless the previous one
+ * was 'forced'.
+ *
+ * If you do 'forced' request, further requests will be dropped until
+ * the forced one is dispatched.
+ *
+ * @return FALSE if the request was ignored because a pending forced request,
+ * otherwise TRUE.
+ */
+gboolean iteration_request_full(gint priority, guint milliseconds, gboolean force) {
+  if (iteration_request_id) {
+    if (iteration_request_forced && g_main_context_find_source_by_id(g_main_context_default(), iteration_request_id)) {
+      return FALSE;
+    }
+    // remove scheduled iterations
+    g_source_remove(iteration_request_id);
+  }
+  iteration_request_id = g_timeout_add_full(priority, milliseconds, iterate, GUINT_TO_POINTER(0), NULL);
+  iteration_request_forced = force;
+  return TRUE;
+}
+
+//! Schedule iteration with seconds granularity delay. See `iteration_request_full()`.
+gboolean iteration_request_seconds_full(gint priority, guint seconds) {
+  if (iteration_request_id) {
+    if (iteration_request_forced && g_main_context_find_source_by_id(g_main_context_default(), iteration_request_id)) {
+      return FALSE;
+    }
+    g_source_remove(iteration_request_id);
+  }
+  iteration_request_id = g_timeout_add_seconds_full(priority, seconds, iterate, GUINT_TO_POINTER(0), NULL);
+  iteration_request_forced = FALSE;
+  return TRUE;
+}
+
+/**
+ * Schedule iteration, shortcut to `iteration_request_full()`.
+ *
+ * Same as calling `iteration_request_full()` with `G_PRIORITY_DEFAULT`+1 priority.
+ * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
+ */
+inline gboolean iteration_request(guint milliseconds) {
+  return iteration_request_full(G_PRIORITY_DEFAULT+1, milliseconds, FALSE);
+}
+
+
+/**
+ * Schedule iteration with seconds granularity delay, shortcut to `iteration_request_seconds()`.
+ *
+ * Same as calling `iteration_request_seconds()` with `G_PRIORITY_DEFAULT`+1 priority.
+ * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
+ */
+inline gboolean iteration_request_seconds(guint seconds) {
+  return iteration_request_seconds_full(G_PRIORITY_DEFAULT+1, seconds);
+}
+
+int iterate(gpointer ignored) {
   time_t timeout = time(NULL);
   GTimer *timer = g_timer_new();
   gdouble last, current, tparse, tfilter, tscheduler;
   gulong dump;
+
+  g_source_remove(iteration_request_id);
+  iteration_request_forced = FALSE;
 
   tparse = g_timer_elapsed(timer_parse.timer, &dump);
   tfilter = g_timer_elapsed(timer_filter.timer, &dump);
@@ -1989,8 +2064,8 @@ int iterate(gpointer rv) {
   if(mlockall(MCL_CURRENT) && getuid() == 0)
     g_debug("can't mlock memory");
 
-
-  return GPOINTER_TO_INT(rv);
+  iteration_request_seconds(iteration_interval);
+  return FALSE;
 }
 
 static int cgroups_cleanup_wrapper(gpointer instant) {

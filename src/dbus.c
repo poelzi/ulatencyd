@@ -554,7 +554,7 @@ static DBusHandlerResult dbus_system_handler(DBusConnection *c, DBusMessage *m, 
 
         if (run_iteration) {
           system_flags_changed = 1;
-          g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
+          iteration_request(0);
         }
 
         ret = dbus_message_new_method_return(m);

@@ -2150,7 +2150,7 @@ static int l_run_interation (lua_State *L) {
   // DANGEROUS: can cause endless loop
   g_debug("run iteration from lua");
 
-  g_timeout_add(0, iterate, GUINT_TO_POINTER(0));
+  iteration_request(0);
   return 0;
 }
 
