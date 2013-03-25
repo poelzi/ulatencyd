@@ -417,9 +417,23 @@ class Tree(object):
         file      = u(" ") ),
     }
 
-    def __init__(self, tree=DEFAULT_TREE, processes=True, show_all=True,
+    def __init__(self, tree=None, processes=True, show_all=True,
                  utf = True, color = False, flags = False, cmdline = False,
                  group_values=True):
+        if not CGROUP_MOUNTS:
+            prnt("No CGroup subsystem hierarchy available.\n"
+                 "This means that no controller hierarchy with correspondent "
+                 "ulatencyd private hierarchy is mounted.")
+            sys.exit(2)
+        if tree and tree not in CGROUP_MOUNTS:
+            prnt("CGroup '%(tree)s' subsystem hierarchy unavailable.\n"
+                 "This means that '%(tree)s' controller hierarchy or "
+                 "'%(tree)s' ulatencyd private hierarchy is not mounted." %{'tree': tree})
+            sys.exit(2)
+        if not tree:
+            tree = DEFAULT_TREE
+            if tree not in CGROUP_MOUNTS:
+                tree = sorted(CGROUP_MOUNTS.keys())[0]
         self.tree = tree
         self.processes = processes
         self.show_all = show_all

@@ -295,16 +295,17 @@ end
 --! - __table__: search through given table of flags
 --! - __U_PROC__: search through flags of that process
 --! - __nil__: search through system flags
+--! @param (optional) recursive If true, inherited flags are included. Default is to not include them.
 --! @return boolean TRUE if at least one flag matches
 --! @note Examples:@code
 --!   ulatency.match_flag({"emergency", {name: "pressure", reason: "memory"}})
 --!   ulatency.match_flag({"user.idle", "daemon.idle"}, proc)
 --! @endcode
 --! @public @memberof ulatency
-function ulatency.match_flag(needles, where)
+function ulatency.match_flag(needles, where, recursive)
   local lst
   if type(where) == "userdata" then       -- "where" is proc, get its flags
-    lst = where:list_flags(true)
+    lst = where:list_flags(recursive)
   else
     lst = where or ulatency.list_flags()  -- "where" is already flags list or if nil, get system flag
   end
@@ -322,7 +323,7 @@ function ulatency.match_flag(needles, where)
         if in_flag and matching then return true end
         in_flag = false
         if type(needle) == "table" then
-          if ulatency.match_flag(needle, {flag}) then return true end
+          if ulatency.match_flag(needle, {flag}, false) then return true end
         elseif type(k) == "number" then
           if flag.name == needle then return true end
         else
