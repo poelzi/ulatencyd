@@ -278,10 +278,30 @@ int load_simple_directory(char *path) {
 }
 
 void read_rules(void) {
-    load_simple_directory(QUOTEME(CONFIG_PATH)"/simple.d");
-    load_simple_file(QUOTEME(CONFIG_PATH)"/simple.conf");
+    gchar **paths;
+    gsize len, i;
 
-    return;
+    paths = g_key_file_get_string_list(config_data, "simplerules",
+                                          "rules_files", &len, NULL);
+    if (paths) {
+      for(i = 0; i < len; i++) {
+        load_simple_file(paths[i]);
+      }
+      g_strfreev(paths);
+    } else {
+      load_simple_file(QUOTEME(CONFIG_PATH)"/simple.conf");
+    }
+
+    paths = g_key_file_get_string_list(config_data, "simplerules",
+                                          "rules_dirs", &len, NULL);
+    if (paths) {
+      for(i = 0; i < len; i++) {
+        load_simple_directory(paths[i]);
+      }
+      g_strfreev(paths);
+    } else {
+      load_simple_directory(QUOTEME(CONFIG_PATH)"/simple.d");
+    }
 }
 
 int rule_applies(u_proc *proc, struct simple_rule *rule) {
