@@ -384,7 +384,7 @@ static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
       g_error_free(error);
       error = NULL;
     }
-    if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
+    if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
                             G_TYPE_STRING,
                             &sess->X11Device, G_TYPE_INVALID)) {
       g_warning ("CK Error: %s\n", error->message);
