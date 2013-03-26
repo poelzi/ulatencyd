@@ -611,7 +611,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
               end,
     adjust = function(cgroup, proc)
                 ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                      proc.pid, proc.cmdfile, proc.euid, proc.cmdline_match or "<no cmdline>"))
+                      proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>"))
               end,
   },
 }
