@@ -227,7 +227,7 @@ install(FILES scripts/update-user-apps.sh
 enable_testing()
 set(CMAKE_CTEST_COMMAND "ctest -V")
 
-add_test(lua_tests src/ulatencyd -r tests --rule-pattern test.lua -v -v -v)
+add_test(lua_tests src/ulatencyd -c tests/conf/ulatencyd.conf -r tests --rule-pattern test.lua -v -v -v)
 # dbus dtd is outdated :-(
 #add_test(dbus_config CONFIGURATIONS Debug 
 #         COMMAND xmllint --loaddtd --valid conf/org.quamquam.ulatencyd.conf)
