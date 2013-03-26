@@ -1689,7 +1689,7 @@ int NAME (u_proc *proc, ARG, gint set_changed) { \
       system_flags = g_list_remove_link (system_flags, item); \
       DEC_REF(item->data); \
       item->data = NULL; \
-      if (set_changed == 1 || ((u_flag *)item->data)->urgent) { \
+      if (set_changed == 1) { \
         system_flags_changed = 1; \
       } \
       rv ++; \
@@ -1736,7 +1736,7 @@ int u_flag_clear_all(u_proc *proc, gint set_changed) {
       item->data = NULL;
       g_list_free(item);
       rv++;
-      if (set_changed == 1 || ((u_flag *)item->data)->urgent) {
+      if (set_changed == 1) {
         system_flags_changed = 1;
       }
     }
