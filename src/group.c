@@ -81,7 +81,9 @@ void clear_active_list(guint uid)
   struct user_active_process *up;
   u_proc *proc;
 
-  ua->actives = g_list_sort(ua->actives, cmp_last_change);
+  if(g_list_length(ua->actives) > 0) {
+    iteration_request(0);
+  }
 
   while(g_list_length(ua->actives) > 0) {
       up = g_list_last(ua->actives)->data;
@@ -89,8 +91,7 @@ void clear_active_list(guint uid)
       ua->actives = g_list_remove(ua->actives, up);
       g_free(up);
       if(proc) {
-        proc->changed = 1;
-        process_run_one(proc, FALSE, FALSE);
+        u_flag_clear_source(proc, (void *)set_active_pid, TRUE);
       }
   }
 }
