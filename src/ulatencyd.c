@@ -373,7 +373,6 @@ gboolean            g_spawn_sync                        ("/",
 #ifdef ENABLE_DBUS
 static int do_dbus_init() {
   GError *error = NULL;
-  DBusConnection *con;
 #ifdef DEVELOP_DBUS_SESSION
   char *env_uid;
   uid_t target = 0;
@@ -406,9 +405,12 @@ static int do_dbus_init() {
       g_error_free (error);
       return FALSE;
     }
-  con = dbus_g_connection_get_connection(U_dbus_connection);
 #ifndef DEVELOP_MODE
+  DBusConnection *con;
+  con = dbus_g_connection_get_connection(U_dbus_connection);
   dbus_connection_set_exit_on_disconnect (con, FALSE);
+#else
+  dbus_g_connection_get_connection(U_dbus_connection);
 #endif
   return TRUE;
 }
@@ -587,7 +589,7 @@ int main (int argc, char *argv[])
     open_logfile(log_file);
   }
 
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "");
+  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, " ");
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "================= starting ulatencyd =================");
 
   main_context = g_main_context_default();
