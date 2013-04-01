@@ -156,7 +156,6 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	char buff[BUFF_SIZE];
 	size_t recv_len;
 	struct sockaddr_nl from_nla;
-	socklen_t from_nla_len;
 	struct nlmsghdr *nlh;
 	struct sockaddr_nl kern_nla;
 	struct cn_msg *cn_hdr;
@@ -172,7 +171,6 @@ nl_connection_handler (GSocket *socket, GIOCondition condition, gpointer user_da
 	kern_nla.nl_pad = 0;
 
 	memset(buff, 0, sizeof(buff));
-	from_nla_len = sizeof(from_nla);
 	memcpy(&from_nla, &kern_nla, sizeof(from_nla));
 
 	/* the helper process exited */

@@ -66,6 +66,7 @@ enum {
 
 #define IOPRIO_CLASS_SHIFT	13
 
+/*  // test
 static void ioprio_print(int pid)
 {
   int ioprio, ioclass;
@@ -83,6 +84,7 @@ static void ioprio_print(int pid)
       printf("%s\n", to_prio[ioclass]);
   }
 }
+*/
 
 int ioprio_getpid(pid_t pid, int *ioprio, int *ioclass) {
   int rv = ioprio_get(IOPRIO_WHO_PROCESS, pid);

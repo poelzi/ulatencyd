@@ -151,11 +151,11 @@ int create_connection(struct x_server *xs) {
   g_debug("create x-watch connection: '%s'", xs->display);
 
   parsed = xcb_parse_display(xs->display, &host, &dsp, &screenNum);
-  free(host);
   if(!parsed) {
     g_warning("can't parse display: '%s'", xs->display);
     return FALSE;
   }
+  free(host);
 
 
   dispbuflen = snprintf(dispbuf, sizeof(dispbuf), "%d", dsp);

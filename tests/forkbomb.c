@@ -40,7 +40,7 @@ main (argc, argv)
   int work = 0;
   int rand = open("/dev/urandom",O_RDONLY);
   int data[2];
-  int tmpi;
+  int tmpi = 0;
   pid_t pid;
 
 
@@ -131,7 +131,7 @@ main (argc, argv)
         if(work) {
           read(rand, &data, sizeof(int)*2);
           if(data[1] != 0) {
-            tmpi = data[0]/data[1];
+            tmpi += data[0]/data[1];
           }
         } else {
           sleep(10000);

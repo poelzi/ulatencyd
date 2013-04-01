@@ -921,18 +921,22 @@ static int u_proc_set_pgid (lua_State *L) {
   if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
     return 0;
 
-  // we only set the fake value when it's differs from the original
   if(proc->proc->pgrp != value) {
-    proc->fake_pgrp_old = proc->proc->pgrp;
-    proc->fake_pgrp = value;
+    if(!proc->fake_pgrp) {
+      proc->fake_pgrp_old = proc->proc->pgrp;
+      proc->fake_pgrp = value;
+      proc->changed = 1;
+    } else if (proc->fake_pgrp != value) {
+      proc->fake_pgrp = value;
+      proc->changed = 1;
+    }
+  } else if (proc->fake_pgrp) { /* && proc->proc->pgrp == value */
+    proc->fake_pgrp = 0;
+    proc->fake_pgrp_old = 0;
+    proc->changed = 1;
   }
 
-  proc->changed = 1;
-
-  lua_pushinteger(L, 0);
-  lua_pushinteger(L, 0);
-
-  return 2;
+  return 0;
 }
 
 static int u_proc_set_oom_score (lua_State *L) {
