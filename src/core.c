@@ -2110,7 +2110,7 @@ u_scheduler *scheduler_get() {
 
 
 /***************************************************************************
- * rules and modules handling
+ * rules handling
  **************************************************************************/
 
 int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
@@ -2179,74 +2179,6 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
   }
   g_strfreev(disabled);
   return 0;
-}
-
-
-int load_modules(char *modules_directory) {
-  DIR             *dip;
-  struct dirent   *dit;
-  char rpath[PATH_MAX+1];
-  char *minit_name, *module_name, *error;
-  char **disabled;
-  gsize  disabled_len, i;
-  gboolean skip;
-  void *handle;
-  int (*minit)(void);
-
-  if ((dip = opendir(modules_directory)) == NULL)
-  {
-    perror("opendir");
-    g_warning("Couldn't load modules (directory '%s': %s)", modules_directory, g_strerror(errno));
-    return 0;
-  }
-
-  disabled = g_key_file_get_string_list(config_data, CONFIG_CORE,
-                                        "disabled_modules", &disabled_len, NULL);
-
-  while ((dit = readdir(dip)) != NULL)
-  {
-    skip = FALSE;
-    if(fnmatch("*.so", dit->d_name, 0))
-      continue;
-
-    module_name = g_strndup(dit->d_name,strlen(dit->d_name)-3);
-
-    for(i = 0; i < disabled_len; i++) {
-      if(!g_ascii_strcasecmp(disabled[i], module_name)) {
-        skip = TRUE;
-        break;
-      }
-    }
-    if(!skip) {
-      snprintf(rpath, PATH_MAX, "%s/%s", modules_directory, dit->d_name);
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "load module %s", dit->d_name);
-
-      handle = dlopen(rpath, RTLD_LAZY);
-      if (!handle) {
-        //fprintf(stderr, "%s\n", dlerror());
-        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load module %s", rpath);
-      }
-      dlerror();
-
-      minit_name = g_strconcat(module_name, "_init", NULL);
-      *(void **) (&minit) = dlsym(handle, minit_name);
-
-      if ((error = dlerror()) != NULL)  {
-        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load module %s: %s", module_name, error);
-      }
-
-      if(minit())
-        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "module %s returned error", module_name);
-
-      free(minit_name);
-    } else
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "skip module %s", module_name);
-
-    g_free(module_name);
-  }
-  g_strfreev(disabled);
-  closedir(dip);
-  return 1;
 }
 
 int luaopen_ulatency(lua_State *L);

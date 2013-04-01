@@ -349,10 +349,10 @@ typedef struct {
   char *(*get_config_description)(char *name);
 } u_scheduler;
 
-
-// module prototype
-int (*MODULE_INIT)(void);
-
+// umodule.c
+gboolean u_module_load_directory (char    *modules_directory);
+gboolean u_module_close          (GModule *module);
+void     u_module_close_me       (GModule *caller);
 
 // global variables
 extern GMainLoop *main_loop;

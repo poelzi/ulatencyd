@@ -632,7 +632,7 @@ int main (int argc, char *argv[])
   }
 
   adj_oom_killer(getpid(), -1000);
-  load_modules(modules_directory);
+  u_module_load_directory(modules_directory);
   load_rule_directory(rules_directory, load_pattern, TRUE);
 
   process_update_all();

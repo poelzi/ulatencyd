@@ -6,7 +6,7 @@
  */
 
 /*
-    Copyright 2012 Petr Gajdusek <gajdusek@centrum.cz>
+    Copyright 2012,2013 ulatencyd developers
 
     This file is part of ulatencyd.
 
@@ -36,10 +36,12 @@
 #include <string.h>
 #include <errno.h>
 #include <glib.h>
+#include <gmodule.h>
 #include <sys/inotify.h>
 
-static int netlink_fallback_id;
-static int netlink_fallback_debug;
+static int  netlink_fallback_id;
+static int  netlink_fallback_debug;
+GModule    *netlink_fallback_module;
 
 /*
  * test
@@ -129,6 +131,7 @@ static gboolean cb_inotify(GIOChannel *ch, GIOCondition condition, gpointer data
     if (netlink_proc_listening) {
         nlf_debug("netlink is working: stopping the netlink_fallback module");
         ret = FALSE;
+        u_module_close_me(netlink_fallback_module);
         goto out;
     }
 
@@ -166,8 +169,9 @@ out:
     return ret;
 }
 
-int netlink_fallback_init() {
-
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
     #ifndef TEST_NETLINK_FALLBACK
     netlink_fallback_debug = g_key_file_get_boolean(config_data, "netlink_fallback", "debug", NULL);
     #endif
@@ -177,9 +181,11 @@ int netlink_fallback_init() {
     GError *error = NULL;
     gboolean el = g_key_file_get_boolean(config_data, "core", "netlink", &error);
     if(!el && !error)
-      g_message("netlink support disabled, disabling netlink_fallback too.");
+      return "netlink support disabled, disabling netlink_fallback too.";
     if(error)
       g_error_free(error), error = NULL;
+
+    netlink_fallback_module = module;
 
     int fd, wd;
     GIOChannel *ch;
@@ -188,14 +194,18 @@ int netlink_fallback_init() {
 
     fd=inotify_init1(IN_NONBLOCK);
     if (fd == -1) {
-        g_warning("inotify instance couldn't be initialized: (%d): %s", errno, g_strerror(errno));
-        return 1;
+        return g_strdup_printf(    //FIXME: minor leak
+                      "inotify instance couldn't be initialized: (%d): %s",
+                      errno, g_strerror(errno));
     }
     wd=inotify_add_watch(fd, "/etc/ld.so.cache", IN_OPEN);
     if (wd == -1) {
-        g_warning("inotify watch couldn't be added: (%d): %s", errno, g_strerror(errno));
+        int saved_errno = errno;
         close(fd);
-        return 1;
+
+        return g_strdup_printf(    // FIXME: minor leak
+                      "inotify watch couldn't be added: (%d): %s",
+                      saved_errno, g_strerror(saved_errno));
     }
     nlf_debug("Watching for starting dynamically linked executables, wd is %x", wd);
 
@@ -206,7 +216,7 @@ int netlink_fallback_init() {
     g_io_add_watch(ch, G_IO_IN, cb_inotify, NULL);
     g_io_channel_unref(ch);
 
-    return 0;
+    return NULL;
 }
 
 

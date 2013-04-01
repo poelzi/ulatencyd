@@ -35,6 +35,7 @@
 #include <X11/Xauth.h>
 #include <errno.h>
 #include <glib.h>
+#include <gmodule.h>
 #include <pwd.h>
 #include <time.h>
 
@@ -541,21 +542,23 @@ static gboolean update_all_server(gpointer data) {
 }
 #endif
 
-int xwatch_init() {
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
   localhost = get_localhost();
   if(!localhost) {
-    g_warning("can't find localhost name\n");
-    return 0;
+    return "can't find localhost name";
   }
   xwatch_id = get_plugin_id();
 #ifndef TEST_XWATCH
   GError *error = NULL;
   int interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", &error);
-  if(error && error->code)
+  if(error) {
     interval = DEFAULT_INTERVAL;
+    g_error_free(error);
+  }
   g_timeout_add(interval, update_all_server, NULL);
   g_message("x server observation active. poll interval: %d", interval);
 #endif
-  return 0;
+  return NULL;
 }
-

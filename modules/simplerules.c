@@ -32,11 +32,13 @@
 #include <string.h>
 #include <errno.h>
 #include <glib.h>
+#include <gmodule.h>
 #include <sys/stat.h>
 #include <fnmatch.h>
 
-int simplerules_id;
-int simplerules_debug;
+int       simplerules_id;
+int       simplerules_debug;
+GModule  *simplerules_module;
 
 struct simple_rule {
   gid_t         gid;
@@ -395,10 +397,12 @@ int simplerules_run_proc(u_proc *proc, u_filter *filter) {
     return FILTER_MIX(FILTER_RERUN_EXEC | FILTER_STOP, 0);
 }
 
-
-int simplerules_init() {
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
     int i = 0;
     simplerules_id = get_plugin_id();
+    simplerules_module = module;
     u_filter *filter;
     simplerules_debug = g_key_file_get_boolean(config_data, "simplerules", "debug", NULL);
 //    target_rules = NULL;
@@ -415,6 +419,6 @@ int simplerules_init() {
         }
     }
 //    }
-    return 0;
+    return NULL;
 }
 
