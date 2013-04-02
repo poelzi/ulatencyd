@@ -35,7 +35,9 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
   {
     name = "user",
     cgroups_name = "usr_${euid}",
-    label = { "xdg_session" },
+    check = function(proc)
+              return ( proc.euid > 999 )
+            end,
     param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
       { 
@@ -131,7 +133,9 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
   {
     name = "user",
     cgroups_name = "usr_${euid}",
-    label = { "xdg_session" },
+    check = function(proc)
+              return ( proc.euid > 999 )
+            end,
     children = {
       { 
         name = "poison",
