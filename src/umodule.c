@@ -128,8 +128,7 @@ u_module_load_directory (char *modules_directory)
 
           module = g_module_open (rpath, G_MODULE_BIND_LAZY);
           if (!module) {
-            g_error ("Can't load module %s :%s",
-                  rpath, g_module_error());
+            g_warning ("%s", g_module_error());
           }
         }
       else
