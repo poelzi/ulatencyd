@@ -1218,6 +1218,9 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "active_pos" )) {
     lua_pushinteger(L, get_active_pos(proc));
     return 1;
+  } else if(!strcmp(key, "usession_id" )) {
+    lua_pushinteger(L, u_session_id_find_by_proc(proc));
+    return 1;
   } else if(!strcmp(key, "received_rt" )) {
     lua_pushboolean(L, proc->received_rt);
     return 1;
@@ -1330,7 +1333,7 @@ static int u_proc_index (lua_State *L)
     lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc->pgrp);
     return 1;
   }
-  if(!strcmp(key, "session" )) {
+  else if(!strcmp(key, "session" )) {
     lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc->session);
     return 1;
   }
@@ -2412,10 +2415,12 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_DEBUG, G_LOG_LEVEL_DEBUG)
   PUSH_INT(LOG_LEVEL_SCHED, U_LOG_LEVEL_SCHED)
   PUSH_INT(LOG_LEVEL_TRACE, U_LOG_LEVEL_TRACE)
-  
+
+  // filter retval
   PUSH_INT(FILTER_STOP, FILTER_STOP)
   PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)
 
+  // ioptio
   PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
   PUSH_INT(IOPRIO_CLASS_BE, IOPRIO_CLASS_BE)
@@ -2428,9 +2433,18 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(SCHED_BATCH, SCHED_BATCH)
   PUSH_INT(SCHED_IDLE, SCHED_IDLE)
 
+  // u_proc states
   PUSH_INT(UPROC_NEW, UPROC_NEW)
   PUSH_INT(UPROC_INVALID, UPROC_INVALID)
   PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)
+
+  // USession.id values
+  PUSH_INT(U_SESSION_UNKNOWN, U_SESSION_UNKNOWN)
+  PUSH_INT(U_SESSION_INIT, U_SESSION_INIT)
+  PUSH_INT(U_SESSION_KERNEL, U_SESSION_KERNEL)
+  PUSH_INT(U_SESSION_NONE, U_SESSION_NONE)
+  PUSH_INT(U_SESSION_USER_UNKNOWN, U_SESSION_USER_UNKNOWN)
+  PUSH_INT(U_SESSION_USER_FIRST, U_SESSION_USER_FIRST)
 
   /* remove meta table */
 	lua_remove(L, -2);
