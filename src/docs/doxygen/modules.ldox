@@ -85,6 +85,15 @@
 --!  @defgroup DBUS DBUS interface
 --!  @todo Describe DBUS interface
 
+--! @defgroup core The C core
+
+--!   @defgroup USession
+--!   @brief Sessions subsystem
+--!   @ingroup core
+
+--!     @defgroup USession-agent-api USession API for agents
+--!     @brief Sessions subsystem interface for session tracking agents.
+--!     @ingroup USession
 
 ----- hidden groups ------
 

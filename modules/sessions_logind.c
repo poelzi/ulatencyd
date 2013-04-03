@@ -18,11 +18,20 @@
 */
 
 #include "config.h"
+
+#include "usession-agent.h"
 #include "ulatency.h"
+
 #include <glib.h>
-#include <string.h>
+#include <gmodule.h>
 
 #ifdef ENABLE_DBUS
+
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
+  return "Logind not yet supported.";
+}
 
 #if 0
 

@@ -2218,20 +2218,18 @@ static int user_load_rule_directory(lua_State *L) {
 }
 
 static int l_uid_stats(lua_State *L) {
-    GList *cur = U_session_list;
-    u_session *sess;
+    USession *sess;
     uid_t uid = luaL_checkinteger(L, 1);
     int act = 0;
     int idle = 1;
-    while(cur) {
-        sess = cur->data;
-        if(sess->uid == uid) {
-            if(sess->active)
-                act = 1;
-            if(!sess->idle)
-                idle = 0;
-        }
-        cur = g_list_next(cur);
+    while (sess) {
+      if(sess->uid == uid) {
+          if(sess->active)
+              act = 1;
+          if(!sess->idle)
+              idle = 0;
+      }
+      sess = sess->next;
     }
     lua_pushboolean(L, act);
     lua_pushboolean(L, idle);
@@ -2255,16 +2253,24 @@ static int l_search_uid_env(lua_State *L) {
 }
 
 static int l_get_sessions(lua_State *L) {
-    GList *cur = U_session_list;
-    u_session *sess;
+    USession *sess;
+    int i;
+
     lua_newtable(L);
-    int i = 1;
-    while(cur) {
-        sess = cur->data;
+
+    i = 1;
+    sess = U_sessions;
+    while (sess) {
         lua_pushinteger(L, i);
         lua_newtable(L);
+        lua_pushboolean(L, sess->is_valid);
+        lua_setfield (L, -2, "is_valid");
+        lua_pushinteger(L, sess->id);
+        lua_setfield (L, -2, "id");
         lua_pushstring(L, sess->name);
         lua_setfield (L, -2, "name");
+        lua_pushinteger(L, sess->leader);
+        lua_setfield (L, -2, "leader");
         lua_pushstring(L, sess->X11Display);
         lua_setfield (L, -2, "X11Display");
         lua_pushstring(L, sess->X11Device);
@@ -2277,9 +2283,11 @@ static int l_get_sessions(lua_State *L) {
         lua_setfield (L, -2, "idle");
         lua_pushboolean(L, sess->active);
         lua_setfield (L, -2, "active");
+        lua_pushstring(L, sess->consolekit_cookie);
+        lua_setfield (L, -2, "consolekit_cookie");
         lua_settable(L, -3);
         i++;
-        cur = g_list_next(cur);
+        sess = sess->next;
     }
     return 1;
 }

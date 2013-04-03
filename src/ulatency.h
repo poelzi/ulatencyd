@@ -310,9 +310,39 @@ enum USER_ACTIVE_AGENT {
   USER_ACTIVE_AGENT_MODULE=1000,
 };
 
-// tracking for user sessions
-typedef struct {
-  gchar     *name;
+
+/*! \addtogroup USession
+ *  @{
+ */
+
+//! process session values
+enum U_SESSION_ID {
+  U_SESSION_UNKNOWN      = 0, //!< could not be determined, process already dead
+                              //!< or consolekit/logind error
+  U_SESSION_INIT         = 1, //!< init
+  U_SESSION_KERNEL       = 2, //!< kernel threads
+  U_SESSION_NONE         = 3, //!< process not belonging to any user session
+  U_SESSION_USER_UNKNOWN = 5, //!< unknown user session
+                              //!< (wrong consolekit cookie or ck error)
+  U_SESSION_USER_FIRST   = 10 //!< first user session
+};
+
+//! Structure containing information about **user** session.
+typedef struct _USession USession;
+
+struct _USession {
+  U_HEAD;
+  gboolean  is_valid; //!< FALSE if the session was closed and removed from
+                      //!< the `sessions` list and friends. It's kept around
+                      //!< just because its ref count > 0. Release it!
+
+  guint     id;       //!< Generated unique session ID (>= #U_SESSION_USER_FIRST)
+  gchar     *name;    //!< Unique session name specific to the used backend.
+
+  pid_t     leader;   //!< PID of the session leader; may be 0 - unknown (always
+                      //!< for consolekit) or the process may be already dead.
+                      //!< You should use `u_session_get_leader()` if you want
+                      //!< real `u_proc`.
   gchar     *X11Display;
   gchar     *X11Device;
   // most likely dbus session
@@ -320,13 +350,26 @@ typedef struct {
   uid_t     uid;
   uint32_t  idle;
   uint32_t  active;
+  gchar     *consolekit_cookie; //!< value of XDG_SESSION_COOKIE environment
+                                //!< variable; specific to consolekit backend
 #ifdef ENABLE_DBUS
   DBusGProxy *proxy;
 #endif
-} u_session;
+  USession *prev;
+  USession *next;
+};
 
-// list of active sessions
-extern GList *U_session_list;
+extern USession* U_sessions;
+
+USession*      u_session_find_by_proc           (u_proc      *proc);
+USession*      u_session_find_by_id             (guint        sess_id);
+guint          u_session_id_find_by_proc        (u_proc      *proc);
+u_proc *       u_session_get_leader             (USession    *session);
+void           u_session_invalidate_by_id       (guint        sess_id);
+void           u_proc_set_changed_by_session_id (guint        sess_id);
+
+/*! @} End of "addtogroup USession" */
+
 
 struct user_active {
   uid_t uid;
@@ -337,7 +380,6 @@ struct user_active {
   GList *actives;       // list of user_active_process
   gboolean enabled;     // if false, ignore this user active list - useful if the user is not active (or frozen)
 };
-
 
 typedef struct {
   int (*all)(void);    //!< make scheduler run over all processes

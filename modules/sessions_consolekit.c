@@ -18,9 +18,13 @@
 */
 
 #include "config.h"
+
+#include "usession-agent.h"
 #include "ulatency.h"
+
 #include <glib.h>
 #include <string.h>
+#include <gmodule.h>
 
 #ifdef ENABLE_DBUS
 
@@ -37,68 +41,46 @@ struct ck_seat {
 // list of current seats
 static GList *ck_seats = NULL;
 
-gint match_session(gconstpointer a, gconstpointer b) {
-  const u_session *sa = a;
-  return g_strcmp0(sa->name, (const char *)b);
-}
-
 // updates the idle hint of a session
-static void session_idle_hint_changed(DBusGProxy *proxy, gboolean hint, u_session *sess) {
+static void session_idle_hint_changed(DBusGProxy *proxy, gboolean hint, USession *sess) {
   g_debug("CK: idle changed %s -> %d", sess->name, hint);
-  sess->idle = hint;
+  u_session_idle_hint_changed (sess, hint);
 }
 
-static void session_active_changed(DBusGProxy *proxy, gboolean active, u_session *sess) {
+static void session_active_changed(DBusGProxy *proxy, gboolean active, USession *sess) {
   g_debug("CK: active changed %s -> %d", sess->name, active);
-  sess->active = active;
-  // Disable (and clear) or enable list of this user active processes.
-  // xwatch will not update X servers of disabled (inactive) users. This is needed
-  // to avoid freezes while requesting active atom from Xorg where some application
-  // is frozen.
-  GList *cur = U_session_list;
-  u_session *s;
-  int act = 0;
-  while(cur) {
-      s = cur->data;
-      if(s->uid == sess->uid) {
-          if(s->active)
-              act = 1;
-      }
-      cur = g_list_next(cur);
-  }
-  enable_active_list(sess->uid, act);
-
-  if (active) {
-    // iterate
-    g_message("CK: Active session changed to %s (UID: %d)", sess->name, sess->uid);
-    system_flags_changed = 1;
-    // iteration must be run before xwatch poll to avoid freezes on my system
-    iteration_request_full(G_PRIORITY_HIGH, 0, TRUE);
-  } else {
-    g_message("CK: Session %s (UID: %d) became inactive", sess->name, sess->uid);
-  }
+  u_session_active_changed(sess, active);
 }
 
-static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
+static USession* ck_session_added(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
     GError *error = NULL;
-    u_session *sess = g_malloc0(sizeof(u_session));
-    g_message("CK: Session added %s", name);
+    USession *sess;
+
+    g_debug ("CK: ck_session_added callback for %s", name);
+
+    sess = u_session_add (name);
+    if(!sess) { // session could not be registered
+      if (!u_session_find_by_name (name)) {
+        // and not already registered by consolekit_u_proc_get_session_id()
+        g_warning ("CK session %s won't be tracked.", name);
+      }
+      return sess;
+    }
 
     sess->proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
                                                 "org.freedesktop.ConsoleKit",
-                                                name,
+                                                sess->name,
                                                 "org.freedesktop.ConsoleKit.Session",
                                                 &error);
     if(error) {
         g_warning ("CK Error: %s\n", error->message);
-        g_free(name);
-        g_free(sess);
+        g_warning ("CK session %s won't be tracked.", sess->name);
+        u_session_remove(sess);
+        sess = NULL;
         g_error_free(error);
-        return;
+        return sess;
     }
 
-    sess->name = g_strdup(name);
-    U_session_list = g_list_append(U_session_list, sess);
     // connect to signals
     dbus_g_proxy_add_signal (sess->proxy, "IdleHintChanged",
                              G_TYPE_BOOLEAN, G_TYPE_INVALID);
@@ -132,51 +114,41 @@ static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
     if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
                             G_TYPE_UINT,
                             &sess->uid, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_warning ("CK Error: %s\n", error->message);
+        g_error_free(error);
+        error = NULL;
     }
     if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
                             G_TYPE_STRING,
                             &sess->X11Display, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_warning ("CK Error: %s\n", error->message);
+        g_error_free(error);
+        error = NULL;
     }
     if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
                             G_TYPE_STRING,
                             &sess->X11Device, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_warning ("CK Error: %s\n", error->message);
+        g_error_free(error);
+        error = NULL;
     }
+
+    g_message("CK: New session added (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
+              "X11Device=%s, name=%s)",
+              sess->id, sess->uid, sess->active,
+              sess->X11Display, sess->X11Device, sess->name);
+
 
     session_active_changed(NULL, sess->active, sess);
+    return sess;
 }
 
-static void ck_session_removed(DBusGProxy *proxy, gchar *name, gpointer ignored) {
-    u_session *sess = NULL;
-    GList *cur = U_session_list;
-    g_message("CK: Session removed %s", name);
-    while(cur) {
-      sess = cur->data;
-      if(g_strcmp0(name, sess->name) == 0) {
-        g_object_unref(sess->proxy);
-        g_free(sess->name);
-        g_free(sess->X11Display);
-        g_free(sess->X11Device);
-        g_free(sess->dbus_session);
-
-        U_session_list = g_list_remove(U_session_list, sess);
-        g_free(sess);
-        break;
-      }
-      cur = g_list_next(cur);
-    }
+static void ck_session_removed(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
+    u_session_remove_by_name (name);
 }
 
 
-static void ck_seat_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
+static void ck_seat_added(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
     GError *error = NULL;
     g_debug("CK: Seat added %s", name);
     struct ck_seat *seat = g_malloc0(sizeof(struct ck_seat));
@@ -187,12 +159,12 @@ static void ck_seat_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
                                             &error);
     if(error) {
         g_warning ("CK Error: %s\n", error->message);
-        g_free(name);
+        g_warning ("CK seat %s won't be tracked.", name);
         g_free(seat);
         g_error_free(error);
         return;
     }
-    seat->name = name;
+    seat->name = g_strdup(name);
     ck_seats = g_list_append(ck_seats, seat);
 
     dbus_g_proxy_add_signal (seat->proxy, "SessionAdded",
@@ -212,7 +184,7 @@ static void ck_seat_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
 
 }
 
-static void ck_seat_removed(DBusGProxy *proxy, gchar *name, gpointer ignored) {
+static void ck_seat_removed(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
     struct ck_seat *seat = NULL;
     g_debug("CK: Seat removed %s", name);
     GList *cur = ck_seats;
@@ -228,33 +200,118 @@ static void ck_seat_removed(DBusGProxy *proxy, gchar *name, gpointer ignored) {
     }
 }
 
-void consolekit_init() {
-    GPtrArray *array;
-    GError *error = NULL;
-    int i;
+static USession*
+get_session_for_cookie(const gchar *consolekit_cookie, gboolean *retry) {
+  GError *error = NULL;
+  gchar *consolekit_session;
+  USession *sess;
 
-    if(!U_dbus_connection_system)
-      return;
-
-    // cleanup first. the dbus connection could be new
-    struct ck_seat *seat = NULL;
-    GList *cur = ck_seats;
-
-    if(ck_manager_proxy)
-      g_object_unref (ck_manager_proxy);
-
-    while(cur) {
-      seat = cur->data;
-      g_object_unref(seat->proxy);
-      g_free(seat->name);
-      cur = g_list_next(cur);
+  sess = U_sessions;
+  while (sess)
+    {
+      if(g_strcmp0(consolekit_cookie, sess->consolekit_cookie) == 0)
+        return sess;
+      sess = sess->next;
     }
-    g_list_free(ck_seats);
 
-    while(U_session_list) {
-      u_session *sess= U_session_list->data;
-      ck_session_removed(NULL, sess->name, NULL);
+  if(!U_dbus_connection_system)
+    return NULL;
+
+  if (!ck_manager_proxy)
+    return NULL;
+
+  if (!dbus_g_proxy_call (ck_manager_proxy, "GetSessionForCookie", &error,
+                         G_TYPE_STRING, consolekit_cookie,
+                         G_TYPE_INVALID,
+                         DBUS_TYPE_G_OBJECT_PATH, &consolekit_session,
+                         G_TYPE_INVALID))
+    {
+      g_warning ("CK GetSessionForCookie('%s'): %s\n",
+                 consolekit_cookie, error->message);
+      if (retry != NULL)
+        {
+          switch (error->code) {
+            case DBUS_GERROR_IO_ERROR:
+            case DBUS_GERROR_LIMITS_EXCEEDED:
+            case DBUS_GERROR_NO_MEMORY:
+            case DBUS_GERROR_NO_REPLY:
+            case DBUS_GERROR_SPAWN_CHILD_SIGNALED:
+            case DBUS_GERROR_SPAWN_EXEC_FAILED:
+            case DBUS_GERROR_SPAWN_FAILED:
+            case DBUS_GERROR_SPAWN_FORK_FAILED:
+            case DBUS_GERROR_TIMED_OUT:
+            case DBUS_GERROR_TIMEOUT:
+              *retry = TRUE;
+              break;
+
+            default:
+              *retry = FALSE;
+          }
+        }
+      g_error_free (error);
+      return NULL;
     }
+
+  sess = u_session_find_by_name (consolekit_session);
+  if (!sess)
+    {
+      sess = ck_session_added(NULL, consolekit_session, NULL);
+      if (sess)
+        g_message("CK: Preallocated session %d: %s", sess->id, consolekit_session);
+      else
+        {
+          g_free (consolekit_session);
+          return NULL;
+        }
+    }
+
+  sess->consolekit_cookie = g_strdup(consolekit_cookie);
+
+  g_free(consolekit_session);
+
+  return sess;
+}
+
+guint
+consolekit_u_proc_get_session_id (u_proc *proc)
+{
+  char *consolekit_cookie;
+
+  if (!u_proc_ensure (proc, ENVIRONMENT, UPDATE_ONCE)) /* no environment */
+      return U_SESSION_UNKNOWN;
+
+  consolekit_cookie = g_hash_table_lookup (proc->environ, "XDG_SESSION_COOKIE");
+  if (consolekit_cookie)
+    {
+      USession *sess = NULL;
+      gboolean retry = FALSE;
+
+      sess = get_session_for_cookie (consolekit_cookie, &retry);
+      if (sess)
+        return sess->id;
+      else /* probably unable to find session for cookie */
+        return retry ? U_SESSION_UNKNOWN : U_SESSION_USER_UNKNOWN;
+    }
+  else /* no consolekit_cookie */
+    {
+      return U_SESSION_NONE;
+    }
+}
+
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
+    USessionAgent *agent;
+    gboolean       registered;
+    GError        *error = NULL;
+    GPtrArray     *array = NULL;
+    int           i;
+
+    g_assert (ck_seats == NULL);
+    g_assert (ck_manager_proxy == NULL);
+
+    if (!U_dbus_connection_system)
+      return "No DBUS connection";
 
     ck_manager_proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
                                       "org.freedesktop.ConsoleKit",
@@ -264,8 +321,24 @@ void consolekit_init() {
     if(error) {
         g_warning ("CK Error: %s\n", error->message);
         g_error_free(error);
-        return;
+        return "No ConsoleKit.";
     }
+
+    /* register to USession */
+
+    agent = g_new0 (USessionAgent, 1);
+    agent->name = "ConsoleKit";
+    agent->u_proc_get_session_id_func = consolekit_u_proc_get_session_id;
+    agent->session_get_leader_pid_func = NULL;
+
+    registered = u_session_agent_register (agent);
+
+    g_free (agent);
+
+    if (!registered)
+      return "Session tracking agent could not be registered.";
+
+    g_module_make_resident (module);
 
     dbus_g_proxy_add_signal (ck_manager_proxy, "SeatAdded",
                              G_TYPE_STRING, G_TYPE_INVALID);
@@ -305,6 +378,18 @@ void consolekit_init() {
         ck_session_added(NULL, g_ptr_array_index(array, i), NULL);
     }
     g_ptr_array_free(array, TRUE);
+
+    return NULL;
+}
+
+
+
+#else /* ENABLE_DBUS */
+
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
+  return "Compiled without DBUS support."
 }
 
 #endif /* ENABLE_DBUS */
