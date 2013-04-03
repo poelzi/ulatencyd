@@ -274,7 +274,6 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
             end,
     children = {
       {
-      {
         name = "bg_high",
         param = { ["?memory.swappiness"] = "20" },
         label = { "user.bg_high" },
@@ -302,6 +301,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         param = { ["?memory.swappiness"] = "40" },
         label = { "user.media" },
       },
+      {
         name = "poison",
         label = { "user.poison" },
         cgroups_name = "psn_${pid}",
