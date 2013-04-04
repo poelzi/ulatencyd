@@ -34,9 +34,9 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
   },
   {
     name = "user",
-    cgroups_name = "usr_${usession_id}",
+    cgroups_name = "usr_${session_id}",
     check = function(proc)
-              return proc.usession_id > ulatency.USESSION_NONE
+              return proc.session_id > ulatency.USESSION_NONE
             end,
     param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
@@ -75,7 +75,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
         name = "active",
         param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.usession_is_active and proc.is_active
+            return proc.session_is_active and proc.is_active
           end
       },
       { 
@@ -132,9 +132,9 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
   },
   {
     name = "user",
-    cgroups_name = "usr_${usession_id}",
+    cgroups_name = "usr_${session_id}",
     check = function(proc)
-              return proc.usession_id > ulatency.USESSION_NONE
+              return proc.session_id > ulatency.USESSION_NONE
             end,
     children = {
       { 
@@ -210,7 +210,7 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "0" },
         check = function(proc)
-            return proc.usession_is_active and proc.is_active
+            return proc.session_is_active and proc.is_active
           end
       },
       { 
@@ -277,11 +277,11 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
   },
   {
     name = "active",
-    cgroups_name = "usr_${usession_id}_active",
+    cgroups_name = "usr_${session_id}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
-        return proc.usession_id > ulatency.USESSION_NONE and
-               proc.usession_is_active and proc.is_active
+        return proc.session_id > ulatency.USESSION_NONE and
+               proc.session_is_active and proc.is_active
       end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)
@@ -352,11 +352,11 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
   },
   {
     name = "active",
-    cgroups_name = "usr_${usession_id}_active",
+    cgroups_name = "usr_${session_id}_active",
     param = { ["bfqio.weight"]="1000" },
     check = function(proc)
-        return proc.usession_id > ulatency.USESSION_NONE and
-               proc.usession_is_active and proc.is_active
+        return proc.session_id > ulatency.USESSION_NONE and
+               proc.session_is_active and proc.is_active
       end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)
