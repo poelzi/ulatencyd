@@ -1,0 +1,88 @@
+-- this file is for documentation purposes only
+
+--! @file U_SESSION.ldox
+--! @ingroup lua_DOC
+--! This file is for documentation purposes only, it documents the lua `U_SESSION` table, the interface to `USession`
+--! structure implemented in the core.
+
+--! @class U_SESSION
+--! @brief Session class. The `#U_SESSION` is basically proxy to `USession` structure implemented in the core, extended
+--! with lua bindings and possibly with lua (you can extend the `U_SESSION` table in lua).
+--!
+--! @internal
+--! All tasks in system and known to `ulatencyd` are stored in the `tasks` hash table as `u_task` instances.
+--!
+--! @attention
+--! Session objects are shared between all parts of ulatencyd. If you save a reference you do not save the
+--! data, but only a reference to it. Accessing values will always be the most recent version of it. If you
+--! want create a history of data, you have to store them as copies. If you save references they may be to
+--! a closed sessions, but still there. To prevent memory leaks you should check them periodically if they are
+--! still valid. You can check if the session of your reference is still valid with `U_SESSION.is_valid`.
+--! @note Best practice is to store your data attached to the session, so it gets collected when the session
+--! dies. Use `U_SESSION.data` for a table shared between all lua scripts. You should use `U_SESSION.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @ingroup lua_CORE lua_FLAGS
+U_SESSION = {}
+
+
+--! @name read/write properties
+--! @{
+
+--! @brief custom session data
+--! @details This is lua table shared between all lua scripts. You should use `U_SESSION.data[SOMEUNIQUESTRING]`
+--! to prevent clashes between rules.
+--! @public @memberof U_SESSION
+U_SESSION.data = {}
+--! @}
+
+--! @name read-only properties
+--! @{
+
+--! If TRUE, the `#U_SESSION` instance is valid, i.e. not closed.
+--! @public @memberof U_SESSION
+U_SESSION.is_valid = <boolean>
+--! If TRUE, the `#U_SESSION` instance is invalid, closed and waiting until lua 
+--! references drop to zero so the `#USession` instance may be freed
+--!
+--! @attention If you have stored references to this session somewhere, remove them, so the `#USession` may be freed.
+--! @note `#U_SESSION` instances returned by lua bindings are always valid.
+--! @public @memberof U_SESSION
+U_SESSION.is_invalid = <boolean>
+--! If the session is active (foreground).
+--! @public @memberof U_SESSION
+U_SESSION.is_active = <boolean>
+--! If the session is idle.
+--! @public @memberof U_SESSION
+U_SESSION.is_idle = <boolean>
+--! ID of the session. This is number ulatencyd uses for identification.
+--! ID of the first session is `ulatency.U_SESSION_USER_FIRST`.
+--! @public @memberof U_SESSION
+U_SESSION.id = <number>
+--! Encodes.the session name as used by the backend, usually path to DBUS
+--! object corresponding with the session.
+--! E.g. `/org/freedesktop/ConsoleKit/Session145`
+--! @public @memberof U_SESSION
+U_SESSION.name = <string>
+--! ID of the user who opened the session.
+--! @public @memberof U_SESSION
+U_SESSION.uid = <number>
+--! PID of the session leader. It is 0 if the backend does not export this
+--! information, e.g. ConsoleKit. The leader may be already dead.
+--! @public @memberof U_SESSION
+U_SESSION.leader_pid = <number> or 0
+--! Session leader (its #U_PROC instance) if known and alive. Otherwise `nil`.
+--! @public @memberof U_SESSION
+U_SESSION.leader = <U_PROC> or nil
+--! Encodes the X11 display name if the session is a graphical login. E.g. ":0".
+--! Otherwise it is empty.
+--! @public @memberof U_SESSION
+U_SESSION.X11Display = <string> or nil
+--! Encodes the X11 display device (e.g. /dev/tty7). If the session is not
+--! a graphical login it's empty.
+--! @public @memberof U_SESSION
+U_SESSION.X11Device = <string> or nil
+--! Encodes content of the XDG_SESSION_COOKIE environment variable, `nil`
+--! if other backend than consolekit is used.
+--! @public @memberof U_SESSION
+U_SESSION.consolekit_cookie = <string> or nil
+--! @}

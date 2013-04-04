@@ -70,6 +70,9 @@ u_session_free (void *ptr)
   g_free (sess->X11Device);
   g_free (sess->dbus_session);
   g_free (sess->consolekit_cookie);
+  if(sess->lua_data) {
+    luaL_unref(lua_main_state, LUA_REGISTRYINDEX, sess->lua_data);
+  }
   g_free (sess);
 }
 

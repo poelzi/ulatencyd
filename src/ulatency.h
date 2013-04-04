@@ -346,12 +346,13 @@ struct _USession {
   gchar     *X11Display;
   gchar     *X11Device;
   // most likely dbus session
-  gchar     *dbus_session;
+  gchar     *dbus_session; //!< N/A
   uid_t     uid;
   uint32_t  idle;
   uint32_t  active;
   gchar     *consolekit_cookie; //!< value of XDG_SESSION_COOKIE environment
                                 //!< variable; specific to consolekit backend
+  int       lua_data;          //!< id for per session lua storage
 #ifdef ENABLE_DBUS
   DBusGProxy *proxy;
 #endif

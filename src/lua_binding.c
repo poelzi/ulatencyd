@@ -577,6 +577,41 @@ static int u_task_gc (lua_State *L)
   return 0;
 }
 
+// U_SESSION
+
+#define U_SESSION "U_SESSION"
+#define U_SESSION_META "U_SESSION_META"
+
+static USession *check_u_session (lua_State *L, int index)
+{
+  USession **s;
+  luaL_checktype(L, index, LUA_TUSERDATA);
+  s = (USession **)luaL_checkudata(L, index, U_SESSION_META);
+  if (s == NULL) luaL_typerror(L, index, U_SESSION);
+  return *s;
+}
+
+static void push_u_session (lua_State *L, USession *sess)
+{
+  USession **s = (USession **)lua_newuserdata(L, sizeof(USession *));
+
+  INC_REF(sess);
+
+  *s = sess;
+  luaL_getmetatable(L, U_SESSION_META);
+  lua_setmetatable(L, -2);
+
+  return;
+}
+
+static int u_session_gc (lua_State *L)
+{
+  USession *sess = check_u_session(L, 1);
+
+  DEC_REF(sess);
+  return 0;
+}
+
 // U_FLAG
 
 #define U_FLAG "U_FLAG"
@@ -1473,6 +1508,134 @@ static const luaL_reg u_task_meta[] = {
   {"__tostring", u_task_tostring},
   {"__index",    u_task_index},
   {"__eq",       u_task_eq},
+  {NULL, NULL}
+};
+
+/*********************************************
+   u_session setup                              */
+
+
+static int u_session_tostring (lua_State *L)
+{
+  USession **sess = lua_touserdata(L, 1);
+  lua_pushfstring(L, "USession: <%p> id:%d uid:%d name:%s",
+        (*sess), (*sess)->id, (*sess)->uid, &(*sess)->name);
+  return 1;
+}
+
+static int u_session_eq (lua_State *L)
+{
+  USession *sess1 = check_u_session(L, 1);
+  USession *sess2 = check_u_session(L, 2);
+
+  lua_pushboolean(L, sess1 == sess2);
+  return 1;
+}
+
+static const luaL_reg u_session_methods[] = {
+  {NULL, NULL},
+};
+
+static int u_session_index (lua_State *L) {
+  USession *session = check_u_session(L, 1);
+  const char *key = luaL_checkstring(L, 2);
+
+  luaL_reg *lreg = (luaL_reg *)u_session_methods;
+
+  for (; lreg->name; lreg++) {
+    if(strcmp(lreg->name, key) == 0) {
+      lua_pushcfunction(L, lreg->func);
+      return 1;
+    }
+  }
+
+  lua_getfield(L, LUA_GLOBALSINDEX, U_SESSION);
+  int base = lua_gettop(L);
+  if (lua_istable(L, -1)) {
+    lua_pushstring(L, key);
+    lua_rawget(L, -2);
+    lua_remove(L,  base);
+    if(!lua_isnil(L, -1)) {
+      return 1;
+    }
+  }
+  lua_remove(L, base);
+
+  if(!strcmp(key, "is_valid" )) { \
+    lua_pushboolean(L, session->is_valid);
+    return 1;
+  } else if(!strcmp(key, "is_invalid" )) {
+    lua_pushboolean(L, !session->is_valid);
+    return 1;
+  } else if(!strcmp(key, "id" )) {
+    lua_pushinteger(L, session->id);
+    return 1;
+  } else if(!strcmp(key, "name" )) {
+    lua_pushstring(L, session->name);
+    return 1;
+  } else if(!strcmp(key, "leader_pid" )) {
+    u_session_get_leader (session);
+    lua_pushinteger(L, session->leader_pid);
+    return 1;
+  } else if(!strcmp(key, "X11Display" )) {
+    lua_pushstring(L, session->X11Display);
+    return 1;
+  } else if(!strcmp(key, "X11Device" )) {
+    lua_pushstring(L, session->X11Device);
+    return 1;
+  } else if(!strcmp(key, "dbus_session" )) {
+    lua_pushstring(L, session->dbus_session);
+    return 1;
+  } else if(!strcmp(key, "uid" )) {
+    lua_pushinteger(L, session->uid);
+    return 1;
+  } else if(!strcmp(key, "idle" ) || !strcmp(key, "is_idle" )) {
+    lua_pushboolean(L, session->uid);
+    return 1;
+  } else if(!strcmp(key, "active" ) || !strcmp(key, "is_active" )) {
+    lua_pushboolean(L, session->active);
+    return 1;
+  } else if(!strcmp(key, "consolekit_cookie" )) {
+    lua_pushstring(L, session->consolekit_cookie);
+    return 1;
+  } else if(!strcmp(key, "data" )) {
+    if(!session->lua_data) {
+      lua_newtable(L);
+      lua_pushvalue(L, -1);
+      session->lua_data = luaL_ref(L, LUA_REGISTRYINDEX);
+      return 1;
+    } else {
+      lua_rawgeti(L, LUA_REGISTRYINDEX, session->lua_data);
+      return 1;
+    }
+    return 0;
+  }
+
+  // session->session and session->proc available only if u_session is valid
+  if(!session->is_valid) {
+    lua_pushfstring(L, "USession<id %d, uid:%d name:%s> is not valid.",
+          session->id, session->uid, session->name);
+    lua_error(L);
+  }
+
+  if(!strcmp(key, "leader" )) {
+    u_proc *leader = u_session_get_leader(session);
+    if (leader) {
+      push_u_proc(L, leader);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  return 0;
+}
+
+static const luaL_reg u_session_meta[] = {
+  {"__gc",       u_session_gc},
+  {"__tostring", u_session_tostring},
+  {"__index",    u_session_index},
+  {"__eq",       u_session_eq},
   {NULL, NULL}
 };
 
@@ -2484,6 +2647,18 @@ int luaopen_ulatency(lua_State *L) {
   lua_rawset(L, -4);
   lua_pop(L, 1);
 
+  // map USession
+  luaL_register(L, U_SESSION, u_session_methods);
+  luaL_newmetatable(L, U_SESSION_META);
+  luaL_register(L, NULL, u_session_meta);
+  //lua_pushliteral(L, "__index");
+  //lua_pushvalue(L, -3);
+  //lua_rawset(L, -3);                  /* metatable.__index = methods */
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -2);               /* dup methods table*/
+  lua_rawset(L, -4);
+  lua_pop(L, 1);
+
   // map u_filter
   luaL_register(L, U_FLAG, u_flag_methods); 
   luaL_newmetatable(L, U_FLAG_META);
@@ -2496,6 +2671,7 @@ int luaopen_ulatency(lua_State *L) {
   lua_rawset(L, -4);
   lua_pop(L, 1);
 
+  luaL_ref(L, LUA_REGISTRYINDEX);
   luaL_ref(L, LUA_REGISTRYINDEX);
   luaL_ref(L, LUA_REGISTRYINDEX);
   luaL_ref(L, LUA_REGISTRYINDEX);
