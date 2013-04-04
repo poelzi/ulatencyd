@@ -21,7 +21,7 @@
 --! @note Best practice is to store your data attached to the session, so it gets collected when the session
 --! dies. Use `U_SESSION.data` for a table shared between all lua scripts. You should use `U_SESSION.data[SOMEUNIQUESTRING]`
 --! to prevent clashes between rules.
---! @ingroup lua_CORE lua_FLAGS
+--! @ingroup lua_CORE lua_USER_SESSIONS
 U_SESSION = {}
 
 

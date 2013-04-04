@@ -144,8 +144,7 @@ ulatency.UPROC_INVALID = UPROC_INVALID
 ulatency.UPROC_ALIVE = UPROC_ALIVE
 --! @}
 
---! `U_PROC.usession_id` values.
---! @name usession_id values
+--! @name U_PROC.session_id values
 --! @{
 
 --! @ingroup lua_USER_SESSIONS
