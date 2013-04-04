@@ -554,4 +554,13 @@ U_PROC.tpgid = <number>
 U_PROC.exit_signal = <number>
 --! @public @memberof U_PROC
 U_PROC.processor = <number>
+--! Process group ID.
+--! This is either real process group (pgrp) or the faked value set by
+--! `U_PROC:set_pgid()`.
+--! @public @memberof U_PROC
+U_PROC.pgrp = <number>
+--! Process session ID.
+--! This is either real process session (sid) or the faked value.
+--! @public @memberof U_PROC
+U_PROC.sid = <number>
 --! @}
