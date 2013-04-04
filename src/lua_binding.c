@@ -495,10 +495,10 @@ static int l_add_interval (lua_State *L) {
 
 // type checks and pushes
 
+// U_PROC
+
 #define U_PROC "U_PROC"
 #define U_PROC_META "U_PROC_META"
-#define U_TASK "U_TASK"
-#define U_TASK_META "U_TASK_META"
 
 static u_proc *check_u_proc (lua_State *L, int index)
 {
@@ -542,6 +542,11 @@ static int u_proc_gc (lua_State *L)
   return 0;
 }
 
+// U_TASK
+
+#define U_TASK "U_TASK"
+#define U_TASK_META "U_TASK_META"
+
 static u_task *check_u_task (lua_State *L, int index)
 {
   u_task **p;
@@ -571,6 +576,8 @@ static int u_task_gc (lua_State *L)
   DEC_REF(task);
   return 0;
 }
+
+// U_FLAG
 
 #define U_FLAG "U_FLAG"
 #define U_FLAG_META "U_FLAG_META"
@@ -2465,7 +2472,7 @@ int luaopen_ulatency(lua_State *L) {
   lua_rawset(L, -4);
   lua_pop(L, 1);
 
-  // map u_proc
+  // map u_task
   luaL_register(L, U_TASK, u_task_methods);
   luaL_newmetatable(L, U_TASK_META);
   luaL_register(L, NULL, u_task_meta);
