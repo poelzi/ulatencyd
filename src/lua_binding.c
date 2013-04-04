@@ -1379,8 +1379,8 @@ static int u_proc_index (lua_State *L)
     lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc->pgrp);
     return 1;
   }
-  else if(!strcmp(key, "session" )) {
-    lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc->session);
+  else if(!strcmp(key, "sid" )) {
+    lua_pushinteger(L, proc->fake_sid ? proc->fake_sid : (lua_Integer)proc->proc->session);
     return 1;
   }
 

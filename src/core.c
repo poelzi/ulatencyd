@@ -1044,7 +1044,7 @@ void clear_process_skip_filters(u_proc *proc, int block_types) {
 static void process_workarrounds(u_proc *proc, u_proc *parent) {
   // do various workaround jobs here...
   fake_var_fix(fake_pgrp, pgrp);
-  fake_var_fix(fake_session, session);
+  fake_var_fix(fake_sid, session);
 }
 
 #undef fake_var_fix

@@ -115,7 +115,7 @@ end
 --! Scheduler skips unchanged processes unless performing full run or normal run under special circumstances.
 --! A process is considered changed if
 --!       - recieved RT for the first time (SCHED_RR or SCHED_FIFO)
---!       - changed euid, egid, sessions, pgrp, sched or rtprio
+--!       - changed euid, egid, sid, pgrp, sched or rtprio
 --!       - or it was already marked as changed:
 --!           + new process affected by fast (instant) filters
 --!           + new process that has been removed from delay_stack

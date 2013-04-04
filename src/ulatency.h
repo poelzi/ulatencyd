@@ -192,8 +192,8 @@ typedef struct {
   // fake pgid because it can't be changed.
   pid_t         fake_pgrp;      //!< fake value for pgrp
   pid_t         fake_pgrp_old;
-  pid_t         fake_session;   //!< fake value of session
-  pid_t         fake_session_old;
+  pid_t         fake_sid;   //!< fake value of session
+  pid_t         fake_sid_old;
 
   u_proc_ensured ensured;       //!< properties ensured since current iteration start
 } u_proc;
