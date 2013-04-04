@@ -44,11 +44,11 @@
  * @param proc Process for which the session ID is requested.
  *
  * @return Session ID
- * @retval #U_SESSION_UNKNOWN (= 0) on failure or if `proc` is dead
- * @retval #U_SESSION_KERNEL     if `proc` is a kernel thread
- * @retval #U_SESSION_INIT       if `proc` is init
- * @retval #U_SESSION_NONE       if `proc` does not belong to any user session
- * @retval #U_SESSION_USER_FIRST (or greaer) if `proc` belongs to user session
+ * @retval #USESSION_UNKNOWN (= 0) on failure or if `proc` is dead
+ * @retval #USESSION_KERNEL     if `proc` is a kernel thread
+ * @retval #USESSION_INIT       if `proc` is init
+ * @retval #USESSION_NONE       if `proc` does not belong to any user session
+ * @retval #USESSION_USER_FIRST (or greaer) if `proc` belongs to user session
  *
  * Should the process belong to a user session, this function must found out
  * whether the #USession instance already exists (inside #sessions list) and

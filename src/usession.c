@@ -83,7 +83,7 @@ u_session_free (void *ptr)
 void
 u_session_destroy (USession *sess)
 {
-  if (sess->id >= U_SESSION_USER_FIRST)
+  if (sess->id >= USESSION_USER_FIRST)
     u_session_invalidate_by_id (sess->id);
 
   if (sess->prev)
@@ -114,15 +114,15 @@ u_session_destroy (USession *sess)
 static guint
 u_session_generate_id()
 {
-  static guint last = U_SESSION_USER_FIRST - 1;
+  static guint last = USESSION_USER_FIRST - 1;
   guint next;
 
   next = last;
   do
     {
       next++;
-      if (next < U_SESSION_USER_FIRST)
-        next = U_SESSION_USER_FIRST;
+      if (next < USESSION_USER_FIRST)
+        next = USESSION_USER_FIRST;
     }
   while (G_LIKELY (next != last) &&
          g_hash_table_contains (sessions_table, GUINT_TO_POINTER (next)));
@@ -145,11 +145,11 @@ u_session_generate_id()
  *
  * @return session identifier used by ulatencyd
  *
- * @retval #U_SESSION_UNKNOWN (= 0) on failure or if `proc` is dead
- * @retval #U_SESSION_KERNEL     if `proc` is a kernel thread
- * @retval #U_SESSION_INIT       if `proc` is init
- * @retval #U_SESSION_NONE       if `proc` does not belong to any user session
- * @retval #U_SESSION_USER_FIRST (or greaer) if `proc` belongs to user session,
+ * @retval #USESSION_UNKNOWN (= 0) on failure or if `proc` is dead
+ * @retval #USESSION_KERNEL     if `proc` is a kernel thread
+ * @retval #USESSION_INIT       if `proc` is init
+ * @retval #USESSION_NONE       if `proc` does not belong to any user session
+ * @retval #USESSION_USER_FIRST (or greaer) if `proc` belongs to user session,
  * same as corresponding `USession.id` property.
  */
 guint
@@ -160,7 +160,7 @@ u_session_id_find_by_proc (u_proc *proc)
 
   if (!u_proc_ensure (proc, BASIC, NOUPDATE) ||
       U_PROC_HAS_STATE (proc, UPROC_DEAD))
-    return U_SESSION_UNKNOWN;
+    return USESSION_UNKNOWN;
 
   sid = proc->proc->session;
 
@@ -169,10 +169,10 @@ u_session_id_find_by_proc (u_proc *proc)
     return sess_id;
 
   if (sid == 0)
-    sess_id = U_SESSION_KERNEL;
+    sess_id = USESSION_KERNEL;
   else {
     if (sid == 1)
-      sess_id = U_SESSION_INIT;
+      sess_id = USESSION_INIT;
   }
 
   if (!sess_id && sid != proc->pid) /* we want to be in the same session with our sgrp leader */
@@ -229,7 +229,7 @@ u_session_find_by_proc (u_proc *proc)
   guint sess_id;
 
   sess_id = u_session_id_find_by_proc (proc);
-  if (sess_id >= U_SESSION_USER_FIRST)
+  if (sess_id >= USESSION_USER_FIRST)
     return u_session_find_by_id (sess_id);
   else
     return NULL;
@@ -276,13 +276,13 @@ change_sgrp_by_session_id (gpointer _sid, gpointer _sess_id, gpointer sess_id)
 /**
  * Change all processes that belong to given session.
  *
- * @param sess_id Session ID, any of `U_SESSION_KERNEL`, `U_SESSION_INIT`,
- * `U_SESSION_UNKNOWN`, `U_SESSION_NONE`,`U_SESSION_USER_UNKNOWN`,
- * >= `U_SESSION_USER_FIRST`.
+ * @param sess_id Session ID, any of `USESSION_KERNEL`, `USESSION_INIT`,
+ * `USESSION_UNKNOWN`, `USESSION_NONE`,`USESSION_USER_UNKNOWN`,
+ * >= `USESSION_USER_FIRST`.
  *
  * Processes that belong to the session will be marked as changed.
  *
- * Usually you want call this with #sess_id >= `U_SESSION_NONE`
+ * Usually you want call this with #sess_id >= `USESSION_NONE`
  * for sessions that becomes active or inactive.
  */
 void
@@ -297,8 +297,8 @@ u_proc_set_changed_by_session_id (guint sess_id)
 /**
  * Invalidate session.
  *
- * @param sess_id Session ID, any of `#U_SESSION_UNKNOWN`, `#U_SESSION_NONE`,
- * `#U_SESSION_USER_UNKNOWN` or >= `#U_SESSION_USER_FIRST`.
+ * @param sess_id Session ID, any of `#USESSION_UNKNOWN`, `#USESSION_NONE`,
+ * `#USESSION_USER_UNKNOWN` or >= `#USESSION_USER_FIRST`.
  *
  * Processes that belong to the session will be marked as changed and forget
  * about their session. Next invocation of `u_session_id_find_by_proc()` or
@@ -469,7 +469,7 @@ u_session_add (const gchar *name)
     }
   else
     {
-      u_session_invalidate_by_id (U_SESSION_NONE);
+      u_session_invalidate_by_id (USESSION_NONE);
     }
 
   return sess;

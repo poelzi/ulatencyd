@@ -69,7 +69,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     name = "idle_user",
     cgroups_name = "idle_usr_${usession_id}",
     check = function(proc)
-              return proc.usession_id > ulatency.U_SESSION_NONE and not proc.usession_is_active
+              return proc.usession_id > ulatency.USESSION_NONE and not proc.usession_is_active
             end,
     param = { ["cpu.shares"]="1",  ["?cpu.rt_runtime_us"] = "100" }
   },
@@ -78,7 +78,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     name = "user",
     cgroups_name = "usr_${usession_id}",
     check = function(proc)
-              return proc.usession_id > ulatency.U_SESSION_NONE
+              return proc.usession_id > ulatency.USESSION_NONE
             end,
     param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
@@ -212,7 +212,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     name = "idle_user",
     cgroups_name = "idle_usr_${usession_id}",
     check = function(proc)
-              return proc.usession_id > ulatency.U_SESSION_NONE and not proc.usession_is_active
+              return proc.usession_id > ulatency.USESSION_NONE and not proc.usession_is_active
             end,
     param = { ["memory.soft_limit_in_bytes"] = "1", ["?memory.swappiness"] = "100", ["?memory.use_hierarchy"] = "1" },
     children = {
@@ -268,7 +268,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     name = "active_user",
     cgroups_name = "active_usr_${usession_id}",
     check = function(proc)
-              return proc.usession_id > ulatency.U_SESSION_NONE
+              return proc.usession_id > ulatency.USESSION_NONE
             end,
     children = {
       {
@@ -441,7 +441,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     name = "idle_user",
     cgroups_name = "idle_usr_${usession_id}",
     check = function(proc)
-                return proc.usession_id > ulatency.U_SESSION_NONE and not proc.usession_is_active
+                return proc.usession_id > ulatency.USESSION_NONE and not proc.usession_is_active
               end,
     param = { ["blkio.weight"]="10" },
     adjust = function(cgroup, proc)
@@ -606,7 +606,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
     name = "user",
     cgroups_name = "usr_${usession_id}",
     check = function(proc)
-                return proc.usession_id > ulatency.U_SESSION_NONE
+                return proc.usession_id > ulatency.USESSION_NONE
               end,
     param = { ["freezer.state"] = "THAWED" },
     children = {

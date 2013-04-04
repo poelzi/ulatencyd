@@ -152,22 +152,22 @@ ulatency.UPROC_ALIVE = UPROC_ALIVE
 
 --! The session could not be determined, process already dead or consolekit/logind error.
 --! @public @memberof ulatency
-ulatency.U_SESSION_UNKNOWN      = 0
+ulatency.USESSION_UNKNOWN      = 0
 --! the init (pid 1).
 --! @public @memberof ulatency
-ulatency.U_SESSION_INIT         = 1
+ulatency.USESSION_INIT         = 1
 --! kernel threads
 --! @public @memberof ulatency
-ulatency.U_SESSION_KERNEL       = 2
+ulatency.USESSION_KERNEL       = 2
 --! process does not belong to any user session
 --! @public @memberof ulatency
-ulatency.U_SESSION_NONE         = 3
+ulatency.USESSION_NONE         = 3
 --! unknown user session (wrong consolekit cookie or consolekit error)
 --! @public @memberof ulatency
-ulatency.U_SESSION_USER_UNKNOWN = 5
+ulatency.USESSION_USER_UNKNOWN = 5
 --! first user session
 --! @public @memberof ulatency
-ulatency.U_SESSION_USER_FIRST   = 10
+ulatency.USESSION_USER_FIRST   = 10
 
 --! @}
 

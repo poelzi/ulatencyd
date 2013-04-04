@@ -55,7 +55,7 @@ U_SESSION.is_active = <boolean>
 --! @public @memberof U_SESSION
 U_SESSION.is_idle = <boolean>
 --! ID of the session. This is number ulatencyd uses for identification.
---! ID of the first session is `ulatency.U_SESSION_USER_FIRST`.
+--! ID of the first session is `ulatency.USESSION_USER_FIRST`.
 --! @public @memberof U_SESSION
 U_SESSION.id = <number>
 --! Encodes.the session name as used by the backend, usually path to DBUS

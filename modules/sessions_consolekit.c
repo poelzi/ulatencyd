@@ -278,7 +278,7 @@ consolekit_u_proc_get_session_id (u_proc *proc)
   char *consolekit_cookie;
 
   if (!u_proc_ensure (proc, ENVIRONMENT, UPDATE_ONCE)) /* no environment */
-      return U_SESSION_UNKNOWN;
+      return USESSION_UNKNOWN;
 
   consolekit_cookie = g_hash_table_lookup (proc->environ, "XDG_SESSION_COOKIE");
   if (consolekit_cookie)
@@ -290,11 +290,11 @@ consolekit_u_proc_get_session_id (u_proc *proc)
       if (sess)
         return sess->id;
       else /* probably unable to find session for cookie */
-        return retry ? U_SESSION_UNKNOWN : U_SESSION_USER_UNKNOWN;
+        return retry ? USESSION_UNKNOWN : USESSION_USER_UNKNOWN;
     }
   else /* no consolekit_cookie */
     {
-      return U_SESSION_NONE;
+      return USESSION_NONE;
     }
 }
 

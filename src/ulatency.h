@@ -317,14 +317,14 @@ enum USER_ACTIVE_AGENT {
 
 //! process session values
 enum U_SESSION_ID {
-  U_SESSION_UNKNOWN      = 0, //!< could not be determined, process already dead
-                              //!< or consolekit/logind error
-  U_SESSION_INIT         = 1, //!< init
-  U_SESSION_KERNEL       = 2, //!< kernel threads
-  U_SESSION_NONE         = 3, //!< process not belonging to any user session
-  U_SESSION_USER_UNKNOWN = 5, //!< unknown user session
-                              //!< (wrong consolekit cookie or ck error)
-  U_SESSION_USER_FIRST   = 10 //!< first user session
+  USESSION_UNKNOWN      = 0, //!< could not be determined, process already dead
+                             //!< or consolekit/logind error
+  USESSION_INIT         = 1, //!< init
+  USESSION_KERNEL       = 2, //!< kernel threads
+  USESSION_NONE         = 3, //!< process not belonging to any user session
+  USESSION_USER_UNKNOWN = 5, //!< unknown user session
+                             //!< (wrong consolekit cookie or ck error)
+  USESSION_USER_FIRST   = 10 //!< first user session
 };
 
 //! Structure containing information about **user** session.
@@ -336,7 +336,7 @@ struct _USession {
                       //!< the `sessions` list and friends. It's kept around
                       //!< just because its ref count > 0. Release it!
 
-  guint     id;       //!< Generated unique session ID (>= #U_SESSION_USER_FIRST)
+  guint     id;       //!< Generated unique session ID (>= #USESSION_USER_FIRST)
   gchar     *name;    //!< Unique session name specific to the used backend.
 
   pid_t     leader_pid; //!< PID of the session leader; may be 0 - unknown (always
