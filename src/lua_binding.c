@@ -1260,10 +1260,10 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "active_pos" )) {
     lua_pushinteger(L, get_active_pos(proc));
     return 1;
-  } else if(!strcmp(key, "usession_id" )) {
+  } else if(!strcmp(key, "session_id" )) {
     lua_pushinteger(L, u_session_id_find_by_proc(proc));
     return 1;
-  } else if(!strcmp(key, "usession_is_active" )) {
+  } else if(!strcmp(key, "session_is_active" )) {
     USession *sess = u_session_find_by_proc(proc);
     lua_pushboolean(L, sess ? sess->active : 0);
     return 1;

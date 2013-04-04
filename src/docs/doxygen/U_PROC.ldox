@@ -313,12 +313,12 @@ U_PROC.is_active = <boolean>
 U_PROC.active_pos = <number>
 --! Session ID (specific to ulatency).
 --! @public @memberof U_PROC
-U_PROC.usession_id = <number>
+U_PROC.session_id = <number>
 --! If the process is in active user session. In event of the process being not
 --! in a session, the session could not be determined or process is dead, this
 --! value is FALSE.
 --! @public @memberof U_PROC
-U_PROC.usession_is_active
+U_PROC.session_is_active
 --! TRUE, if any of process tasks was scheduled in the past with SCHED_FIFO or SCHED_RR policy.
 --! @note Scheduling policies are updated only when the `/proc/#` is parsed again (`update_processes_run()`),
 --! usually every iteration, therefore short lasting RT policy may  not be detected.
