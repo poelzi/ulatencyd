@@ -120,6 +120,29 @@ function test_sysctl()
   assert_false(ulatency.set_sysctl("kernel.version", "bla"), "kernel.version should not be writeable")
 end
 
+function test_get_sessions()
+  sessions = ulatency.get_sessions()
+  assert_true(#sessions > 0, "very unlikely that no session exists")
+
+  found_active = false
+  for k,v in pairs(sessions) do
+    assert_u_session(v)
+    assert_number(k, "key not a number")
+    assert_true(v.id >= ulatency.USESSION_USER_FIRST, "non user sessions can't be in U_SESSION list")
+    assert_boolean(v.is_active)
+    if v.is_active then
+      assert_false(found_active, "only one active session allowed")
+      found_active = true
+    end
+  end
+  assert_true(found_active, "unlikely no session is active")
+
+  init = ulatency.get_pid(1)
+  assert_true (init.session == nil, "init should not be in user session")
+  assert_true (init.session_id == ulatency.USESSION_INIT)
+end
+
+
 function test_done()
   return test_active_done
 end

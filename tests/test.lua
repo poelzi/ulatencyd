@@ -43,6 +43,7 @@ end
 
 U_PROC_META = debug.getregistry()["U_PROC_META"]
 U_FLAG_META = debug.getregistry()["U_FLAG_META"]
+U_SESSION_META = debug.getregistry()["U_SESSION_META"]
 
 function assert_u_proc(data)
   return assert_userdata(data, "Not a u_proc object") or 
@@ -52,6 +53,11 @@ end
 function assert_u_flag(data)
   return assert_userdata(data, "Not a u_flag object") or 
          assert_metatable(U_FLAG_META, data, "Not a u_flag object")
+end
+
+function assert_u_session(data)
+  return assert_userdata(data, "Not a U_SESSION object") or
+         assert_metatable(U_SESSION_META, data, "Not a U_SESSION object")
 end
 
 
