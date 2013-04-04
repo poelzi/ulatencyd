@@ -2438,43 +2438,20 @@ static int l_search_uid_env(lua_State *L) {
 }
 
 static int l_get_sessions(lua_State *L) {
-    USession *sess;
-    int i;
+  USession *sess;
+  int       i;
 
-    lua_newtable(L);
-
-    i = 1;
-    sess = U_sessions;
-    while (sess) {
-        lua_pushinteger(L, i);
-        lua_newtable(L);
-        lua_pushboolean(L, sess->is_valid);
-        lua_setfield (L, -2, "is_valid");
-        lua_pushinteger(L, sess->id);
-        lua_setfield (L, -2, "id");
-        lua_pushstring(L, sess->name);
-        lua_setfield (L, -2, "name");
-        lua_pushinteger(L, sess->leader_pid);
-        lua_setfield (L, -2, "leader_pid");
-        lua_pushstring(L, sess->X11Display);
-        lua_setfield (L, -2, "X11Display");
-        lua_pushstring(L, sess->X11Device);
-        lua_setfield (L, -2, "X11Device");
-        lua_pushstring(L, sess->dbus_session);
-        lua_setfield (L, -2, "dbus_session");
-        lua_pushinteger(L, sess->uid);
-        lua_setfield (L, -2, "uid");
-        lua_pushboolean(L, sess->idle);
-        lua_setfield (L, -2, "idle");
-        lua_pushboolean(L, sess->active);
-        lua_setfield (L, -2, "active");
-        lua_pushstring(L, sess->consolekit_cookie);
-        lua_setfield (L, -2, "consolekit_cookie");
-        lua_settable(L, -3);
-        i++;
-        sess = sess->next;
-    }
-    return 1;
+  lua_newtable(L);
+  sess = U_sessions;
+  i = 1;
+  while (sess) {
+    lua_pushinteger(L, i);
+    push_u_session(L, sess);
+    lua_settable(L, -3);
+    i++;
+    sess = sess->next;
+  }
+  return 1;
 }
 
 #ifdef DEVELOP_MODE

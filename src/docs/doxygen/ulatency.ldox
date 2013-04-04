@@ -459,8 +459,8 @@ end
 
 --! @ingroup lua_USER_SESSIONS
 
---! Returns array of ConsoleKit sessions.
---! @return array of #USession structures.
+--! Returns all user sessions.
+--! @return table of #U_SESSION tables.
 --! @public @memberof ulatency
 function ulatency.get_sessions()
 end
