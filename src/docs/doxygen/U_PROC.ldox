@@ -311,7 +311,17 @@ U_PROC.is_active = <boolean>
 --! Position in active list.
 --! @public @memberof U_PROC
 U_PROC.active_pos = <number>
---! Session ID (specific to ulatency).
+--! `#U_SESSION` instance to which the process belongs or `nil`.
+--! @public @memberof U_PROC
+U_PROC.session = <U_SESSION> or nil
+--! Session ID (specific to ulatency). May be
+--! - ulatency.USESSION_UNKNOWN (0)
+--! - ulatency.USESSION_INIT
+--! - ulatency.USESSION_KERNEL
+--! - ulatency.USESSION_NONE
+--! - ulatency.USESSION_USER_UNKNOWN
+--! - ulatency.USESSION_USER_FIRST or greater, in this case #U_PROC.session
+--! contains corresponding #U_SESSION instance.
 --! @public @memberof U_PROC
 U_PROC.session_id = <number>
 --! If the process is in active user session. In event of the process being not
