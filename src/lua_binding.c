@@ -2283,8 +2283,8 @@ static int l_get_sessions(lua_State *L) {
         lua_setfield (L, -2, "id");
         lua_pushstring(L, sess->name);
         lua_setfield (L, -2, "name");
-        lua_pushinteger(L, sess->leader);
-        lua_setfield (L, -2, "leader");
+        lua_pushinteger(L, sess->leader_pid);
+        lua_setfield (L, -2, "leader_pid");
         lua_pushstring(L, sess->X11Display);
         lua_setfield (L, -2, "X11Display");
         lua_pushstring(L, sess->X11Device);

@@ -65,7 +65,7 @@ typedef guint  (*USessionAgentIdProcFunc)        (u_proc      *proc);
 
 /**
  * Session agent function that should return the
- * \ref #USession.leader "PID of given session leader".
+ * \ref #USession.leader_pid "PID of given session leader".
  *
  * @param session_name
  * @return PID of the session leader on success; 0 on failure

@@ -314,11 +314,11 @@ u_session_invalidate_by_id (guint sess_id)
 }
 
 /**
- * Get session leader `u_proc` and ensure `USession.leader` is set.
+ * Get session leader `u_proc` and ensure `USession.leader_pid` is set.
  *
  * @param session USession instance which leader should be returned.
  *
- * This function stores the leader PID into 'USession.leader' property - if
+ * This function stores the leader PID into 'USession.leader_pid' property - if
  * not already set, and if the leader is known and is valid and alive process,
  * returns the corresponding `u_proc` instance.
  *
@@ -330,18 +330,18 @@ u_session_invalidate_by_id (guint sess_id)
 u_proc *
 u_session_get_leader (USession *session)
 {
-  if (!session->leader && u_session_agent &&
+  if (!session->leader_pid && u_session_agent &&
       u_session_agent->session_get_leader_pid_func)
     {
-      session->leader =
+      session->leader_pid =
           u_session_agent->session_get_leader_pid_func (session->name);
     }
 
-  if (session->leader)
+  if (session->leader_pid)
     {
       u_proc *leader;
 
-      leader = proc_by_pid (session->leader);
+      leader = proc_by_pid (session->leader_pid);
       if (leader &&
           U_PROC_IS_VALID (leader) && ! U_PROC_HAS_STATE(leader, UPROC_DEAD))
         {

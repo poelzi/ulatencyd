@@ -339,10 +339,10 @@ struct _USession {
   guint     id;       //!< Generated unique session ID (>= #U_SESSION_USER_FIRST)
   gchar     *name;    //!< Unique session name specific to the used backend.
 
-  pid_t     leader;   //!< PID of the session leader; may be 0 - unknown (always
-                      //!< for consolekit) or the process may be already dead.
-                      //!< You should use `u_session_get_leader()` if you want
-                      //!< real `u_proc`.
+  pid_t     leader_pid; //!< PID of the session leader; may be 0 - unknown (always
+                        //!< for consolekit) or the process may be already dead.
+                        //!< You should use `u_session_get_leader()` if you want
+                        //!< real `u_proc`.
   gchar     *X11Display;
   gchar     *X11Device;
   // most likely dbus session
