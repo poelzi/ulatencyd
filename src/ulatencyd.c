@@ -557,6 +557,7 @@ int main (int argc, char *argv[])
       g_print ("option parsing failed: %s\n", error->message);
       exit (1);
     }
+  g_option_context_free (context);
 
   pid_t pid, sid;
   if (opt_daemon) {
