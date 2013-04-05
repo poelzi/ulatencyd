@@ -51,7 +51,7 @@
  * @retval #USESSION_USER_FIRST (or greaer) if `proc` belongs to user session
  *
  * Should the process belong to a user session, this function must found out
- * whether the #USession instance already exists (inside #sessions list) and
+ * whether the #USession instance already exists (inside #U_sessions list) and
  * return its \ref #USession.id "id".
  * In the event the #USession instance does not exist, new one must be
  * created with `u_session_add()` and its id returned.

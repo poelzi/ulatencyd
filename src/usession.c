@@ -34,11 +34,11 @@
 
 /**
  * Pointer to the first `USession` instance.
- * You can traverse all the sessions using `USession.next` property.
+ * You can traverse all sessions using `USession.next` property.
  *
  * Once a new user session detected, an `USession` instance is created
- * and inserted into the `sessions` list and into the internal hash table that
- * is indexed by the assigned session id. Also the internal table that maps
+ * and inserted into the `U_sessions` list and into the internal hash table that
+ * is indexed by session ids. Also the internal table that maps
  * process sgrp to session id is updated.
  *
  * \attention Don't add/delete sessions manually! Use corresponding
@@ -237,7 +237,7 @@ u_session_find_by_proc (u_proc *proc)
 
 /**
  * Returns `USession` instance with given ID.
- * This is faster than walking through the `#sessions` list because it lookups
+ * This is faster than walking through the `#U_sessions` list because it lookups
  * internal hash table indexed by session IDs.
  *
  * @param sess_id `USession.id` of the session which should be returned.
@@ -497,7 +497,7 @@ u_session_find_by_name (const gchar *name)
 }
 
 /**
- * Remove a `USession` which matches the given name from the #sessions list
+ * Remove a `USession` which matches the given name from the #U_sessions list
  * and related hash tables.
  *
  * @param name Value of the \ref #USession.name "name" property the `USession`
@@ -540,7 +540,7 @@ u_session_remove (USession *sess)
 }
 
 /**
- * Remove a `USession` instance which matches the given ID from the #sessions
+ * Remove a `USession` instance which matches the given ID from the #U_sessions
  * list and related hash tables.
  *
  * @param name Value of the \ref #USession.id "id" property the `USession`
