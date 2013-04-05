@@ -368,7 +368,8 @@ u_session_get_leader (USession *session)
 static gboolean
 u_session_check_agent (gpointer ignored)
 {
-  g_warning ("No session tracking agent registered, sessions are not tracked!");
+  if (!u_session_agent)
+    g_warning ("No session tracking agent registered, sessions are not tracked!");
   return FALSE;
 }
 
