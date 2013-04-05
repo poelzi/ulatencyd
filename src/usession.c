@@ -355,6 +355,39 @@ u_session_get_leader (USession *session)
   return NULL;
 }
 
+//GSourceFunc
+static gboolean
+u_session_check_agent (gpointer ignored)
+{
+  g_warning ("No session tracking agent registered, sessions are not tracked!");
+  return FALSE;
+}
+
+/**
+ * Initialize u_session subsystem.
+ *
+ * This initializes internal hash tables and adds a one time timeout that will
+ * check if an agent has been registered. If not, warning will be logged.
+ *
+ * @return TRUE on success, FALSE if u_session variables already initialized.
+ */
+gboolean
+u_session_init ()
+{
+  g_return_val_if_fail (sessid_by_sid == NULL &&
+                        sessions_table == NULL &&
+                        U_sessions == NULL &&
+                        session_last == NULL,
+                        FALSE);
+
+  sessions_table = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+                    NULL, (GDestroyNotify) u_session_destroy);
+  sessid_by_sid = g_hash_table_new (g_direct_hash, g_direct_equal);
+
+  g_timeout_add (0, u_session_check_agent, NULL);
+  return TRUE;
+}
+
 /* --- functions for agents ---  */
 
 /**
@@ -381,11 +414,6 @@ u_session_agent_register (const USessionAgent *agent_definition)
                agent_definition->name, u_session_agent->name);
     return FALSE;
   }
-  g_return_val_if_fail (sessid_by_sid == NULL &&
-                        sessions_table == NULL &&
-                        U_sessions == NULL &&
-                        session_last == NULL,
-                        FALSE);
 
   u_session_agent = g_new0 (USessionAgent, 1);
   u_session_agent->name = g_strdup (agent_definition->name);
@@ -402,10 +430,6 @@ u_session_agent_register (const USessionAgent *agent_definition)
                "processes will not be scheduled according their session.",
                u_session_agent->name);
     }
-
-  sessions_table = g_hash_table_new_full (g_direct_hash, g_direct_equal,
-                    NULL, (GDestroyNotify) u_session_destroy);
-  sessid_by_sid = g_hash_table_new (g_direct_hash, g_direct_equal);
 
   return TRUE;
 }
