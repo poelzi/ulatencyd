@@ -64,7 +64,11 @@ u_session_free (void *ptr)
   USession *sess = ptr;
   g_assert (sess->ref == 0);
 
-  g_object_unref (sess->proxy);
+  if (sess->proxy && G_IS_OBJECT (sess->proxy))
+    {
+      g_object_unref (sess->proxy);
+      g_assert (! G_IS_OBJECT (sess->proxy));
+    }
   g_free (sess->name);
   g_free (sess->X11Display);
   g_free (sess->X11Device);
@@ -106,6 +110,11 @@ u_session_destroy (USession *sess)
   sess->prev = NULL;
 
   sess->is_valid = FALSE;
+  if (sess->proxy && G_IS_OBJECT (sess->proxy))
+    {
+      g_object_unref (sess->proxy);
+      g_assert (! G_IS_OBJECT (sess->proxy));
+    }
   DEC_REF (sess);
 }
 
