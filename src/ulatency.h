@@ -51,6 +51,12 @@
                                U_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
+#ifndef g_info
+#define g_info(...)     g_log (G_LOG_DOMAIN,         \
+                               G_LOG_LEVEL_INFO,     \
+                               __VA_ARGS__)
+#endif
+
 
 #define VERSION 0.5.0+exp0.6.0-pre1
 
@@ -362,6 +368,7 @@ struct _USession {
 
 extern USession* U_sessions;
 
+gboolean       u_session_init                   ();
 USession*      u_session_find_by_proc           (u_proc      *proc);
 USession*      u_session_find_by_id             (guint        sess_id);
 guint          u_session_id_find_by_proc        (u_proc      *proc);
