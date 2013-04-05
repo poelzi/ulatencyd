@@ -336,7 +336,10 @@ g_module_check_init (GModule *module)
     g_free (agent);
 
     if (!registered)
-      return "Session tracking agent could not be registered.";
+      {
+        g_object_unref (ck_manager_proxy);
+        return "Session tracking agent could not be registered.";
+      }
 
     g_module_make_resident (module);
 
