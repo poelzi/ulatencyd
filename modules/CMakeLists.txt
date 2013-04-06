@@ -25,13 +25,13 @@ target_link_libraries(netlink_fallback ${GMODULE_LIBRARIES})
 if (DBUS_FOUND AND ENABLE_DBUS)
   include_directories (${DBUS_INCLUDE_DIRS})
 
-  # sessions_consolekit
-  add_module (sessions_consolekit sessions_consolekit.c)
-  target_link_libraries (sessions_consolekit ${GLIB2_LIBRARIES} ${GMODULE_LIBRARIES} ${DBUS_LIBRARIES})
+  # consolekit
+  add_module (consolekit consolekit.c)
+  target_link_libraries (consolekit ${GLIB2_LIBRARIES} ${GMODULE_LIBRARIES} ${DBUS_LIBRARIES})
 
-  # sessions_logind
-  add_module (sessions_logind sessions_logind.c)
-  target_link_libraries (sessions_logind ${GLIB2_LIBRARIES} ${GMODULE_LIBRARIES} ${DBUS_LIBRARIES})
+  # logind
+  add_module (logind logind.c)
+  target_link_libraries (logind ${GLIB2_LIBRARIES} ${GMODULE_LIBRARIES} ${DBUS_LIBRARIES})
 
 
   pkg_check_modules(XCB xcb)
@@ -53,5 +53,5 @@ if (DBUS_FOUND AND ENABLE_DBUS)
   endif (XCB_FOUND AND XAU_FOUND AND DBUS_FOUND AND ENABLE_DBUS)
 
 else (DBUS_FOUND AND ENABLE_DBUS)
-  message("DBUS headers missing. Modules xwatch, sessions_consolekit and sessions_logind modules disabled.")
+  message("DBUS headers missing. Modules xwatch, consolekit and logind modules disabled.")
 endif (DBUS_FOUND AND ENABLE_DBUS)

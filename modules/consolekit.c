@@ -378,7 +378,7 @@ g_module_check_init (GModule *module)
         return "Unable to register agent.";
       }
 
-    module_debug = g_key_file_get_boolean (config_data, "sessions_consolekit",
+    module_debug = g_key_file_get_boolean (config_data, "consolekit",
                                           "debug", NULL);
 
     g_module_make_resident (module);
