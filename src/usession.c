@@ -445,36 +445,58 @@ u_session_agent_register (const USessionAgent *agent_definition)
 }
 
 /**
- * Register new user session.
+ * Allocate new `USession` structure.
  *
- * @param name Unique string the agent will use for identifying the new session,
- * e.g. dbus path to the session object.
- *
- * The session agent **MUST** fill the returned instance of `USession` structure
- * immediately, otherwise the processes may be wrongly scheduled.
- *
- * @return Pointer to new allocated `USession` instance or NULL on failure or
- * if the session already exists.
+ * @return Pointer to new allocated `USession` structure with reference counter
+ * set to 1; don't forget release it with `DEC_REF()`.
  */
 USession *
-u_session_add (const gchar *name)
+u_session_new ()
 {
   USession *sess;
-  u_proc *leader; // session leader
-
-  if (u_session_find_by_name (name))
-    return NULL;
 
   sess = g_new0 (USession, 1);
+  sess->free_fnk = u_session_free;
+  sess->ref = 1;
+
+  return sess;
+}
+
+/**
+ * Register new user session.
+ *
+ * @param sess Pointer to `USession` structure
+ *
+ * Register new session previously allocated with `u_session_new()`.
+ * It should have all properties already set. The \ref USession.id "id" is
+ * generated and check is made, if session with same name does not exist.
+ * Session is then added to `U_sessions` list and internal hash table, and
+ * marked as \ref USession.is_valid "valid".
+ *
+ * After successfully registered, its leader process or, if not known,
+ * all processes that do not belong to any session, will be set
+ * as changed. Also `u_session_active_hint_changed()` and
+ * `u_session_idle_hint_changed()` are called.
+ *
+ * @return TRUE on success; or FALSE if session with same name already exists
+ * or the \USession.id "id" could not be generated.
+ *
+ */
+gboolean
+u_session_add (USession *sess)
+{
+  u_proc   *leader; // session leader
+
+  g_return_val_if_fail (sess && sess->id == 0 && sess->is_valid == FALSE &&
+                        sess->name && ! u_session_find_by_name (sess->name),
+                        FALSE);
+
   sess->id = u_session_generate_id ();
   if (!sess->id)
     {
-      g_free (sess);
-      return NULL;
+      g_warning ("Session \"%s\" won't be tracked.", sess->name);
+      return FALSE;
     }
-  sess->free_fnk = u_session_free;
-  sess->ref = 1;
-  sess->name = g_strdup (name);
 
   if (session_last)
     {
@@ -490,7 +512,7 @@ u_session_add (const gchar *name)
   session_last = sess;
 
   g_hash_table_insert (sessions_table, GUINT_TO_POINTER (sess->id), sess);
-
+  INC_REF (sess);
   sess->is_valid = TRUE;
 
   leader = u_session_get_leader (sess);
@@ -506,7 +528,9 @@ u_session_add (const gchar *name)
       u_session_invalidate_by_id (USESSION_NONE);
     }
 
-  return sess;
+  u_session_active_changed (sess, sess->active);
+  u_session_idle_hint_changed (sess, sess->idle);
+  return TRUE;
 }
 
 /**

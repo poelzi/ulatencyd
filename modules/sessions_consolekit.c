@@ -52,95 +52,106 @@ static void session_active_changed(DBusGProxy *proxy, gboolean active, USession 
   u_session_active_changed(sess, active);
 }
 
-static USession* ck_session_added(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
-    GError *error = NULL;
-    USession *sess;
+static USession *
+register_session (const gchar *name)
+{
+  GError *error = NULL;
+  USession *sess;
 
+  sess = u_session_new ();
+
+  sess->name = g_strdup (name);
+  sess->proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
+                                              "org.freedesktop.ConsoleKit",
+                                              sess->name,
+                                              "org.freedesktop.ConsoleKit.Session",
+                                              &error);
+  if(error) {
+      g_warning ("CK Error: %s\n", error->message);
+      g_warning ("CK session %s won't be tracked.", sess->name);
+      g_error_free(error);
+      DEC_REF (sess);
+      g_assert (sess == NULL);
+      return NULL;
+  }
+
+  // connect to signals
+  dbus_g_proxy_add_signal (sess->proxy, "IdleHintChanged",
+                           G_TYPE_BOOLEAN, G_TYPE_INVALID);
+  dbus_g_proxy_connect_signal(sess->proxy,
+                              "IdleHintChanged",
+                              G_CALLBACK(session_idle_hint_changed),
+                              sess,
+                              NULL);
+  dbus_g_proxy_add_signal (sess->proxy, "ActiveChanged",
+                           G_TYPE_BOOLEAN, G_TYPE_INVALID);
+  dbus_g_proxy_connect_signal(sess->proxy,
+                              "ActiveChanged",
+                              G_CALLBACK(session_active_changed),
+                              sess,
+                              NULL);
+
+  if(!dbus_g_proxy_call (sess->proxy, "GetIdleHint", &error, G_TYPE_INVALID,
+                          G_TYPE_BOOLEAN,
+                          &sess->idle, G_TYPE_INVALID)) {
+      g_warning ("CK Error: %s\n", error->message);
+      g_error_free(error);
+      error = NULL;
+  }
+  if(!dbus_g_proxy_call (sess->proxy, "IsActive", &error, G_TYPE_INVALID,
+                          G_TYPE_BOOLEAN,
+                          &sess->active, G_TYPE_INVALID)) {
+      g_warning ("CK Error: %s\n", error->message);
+      g_error_free(error);
+      error = NULL;
+  }
+  if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
+                          G_TYPE_UINT,
+                          &sess->uid, G_TYPE_INVALID)) {
+      g_warning ("CK Error: %s\n", error->message);
+      g_error_free(error);
+      error = NULL;
+  }
+  if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
+                          G_TYPE_STRING,
+                          &sess->X11Display, G_TYPE_INVALID)) {
+      g_warning ("CK Error: %s\n", error->message);
+      g_error_free(error);
+      error = NULL;
+  }
+  if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
+                          G_TYPE_STRING,
+                          &sess->X11Device, G_TYPE_INVALID)) {
+      g_warning ("CK Error: %s\n", error->message);
+      g_error_free(error);
+      error = NULL;
+  }
+
+  if (u_session_add (sess))
+    {
+      g_message("CK: New session added (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
+                "X11Device=%s, name=%s)",
+                sess->id, sess->uid, sess->active,
+                sess->X11Display, sess->X11Device, sess->name);
+      DEC_REF (sess);
+      g_assert (sess != NULL);
+    }
+  else
+    {
+      DEC_REF (sess);
+      g_assert (sess == NULL);
+    }
+
+  return sess;
+}
+
+static void ck_session_added(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
     g_debug ("CK: ck_session_added callback for %s", name);
 
-    sess = u_session_add (name);
-    if(!sess) { // session could not be registered
-      if (!u_session_find_by_name (name)) {
-        // and not already registered by consolekit_u_proc_get_session_id()
-        g_warning ("CK session %s won't be tracked.", name);
-      }
-      return sess;
-    }
+    if (u_session_find_by_name (name))
+      return;
 
-    sess->proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
-                                                "org.freedesktop.ConsoleKit",
-                                                sess->name,
-                                                "org.freedesktop.ConsoleKit.Session",
-                                                &error);
-    if(error) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_warning ("CK session %s won't be tracked.", sess->name);
-        u_session_remove(sess);
-        sess = NULL;
-        g_error_free(error);
-        return sess;
-    }
-
-    // connect to signals
-    dbus_g_proxy_add_signal (sess->proxy, "IdleHintChanged",
-                             G_TYPE_BOOLEAN, G_TYPE_INVALID);
-    dbus_g_proxy_connect_signal(sess->proxy,
-                                "IdleHintChanged",
-                                G_CALLBACK(session_idle_hint_changed),
-                                sess,
-                                NULL);
-    dbus_g_proxy_add_signal (sess->proxy, "ActiveChanged",
-                             G_TYPE_BOOLEAN, G_TYPE_INVALID);
-    dbus_g_proxy_connect_signal(sess->proxy,
-                                "ActiveChanged",
-                                G_CALLBACK(session_active_changed),
-                                sess,
-                                NULL);
-
-    if(!dbus_g_proxy_call (sess->proxy, "GetIdleHint", &error, G_TYPE_INVALID,
-                            G_TYPE_BOOLEAN,
-                            &sess->idle, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-    if(!dbus_g_proxy_call (sess->proxy, "IsActive", &error, G_TYPE_INVALID,
-                            G_TYPE_BOOLEAN,
-                            &sess->active, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-    if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
-                            G_TYPE_UINT,
-                            &sess->uid, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-    if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
-                            G_TYPE_STRING,
-                            &sess->X11Display, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-    if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
-                            G_TYPE_STRING,
-                            &sess->X11Device, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-
-    g_message("CK: New session added (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
-              "X11Device=%s, name=%s)",
-              sess->id, sess->uid, sess->active,
-              sess->X11Display, sess->X11Device, sess->name);
-
-
-    session_active_changed(NULL, sess->active, sess);
-    return sess;
+    register_session (name);
 }
 
 static void ck_session_removed(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
@@ -255,9 +266,11 @@ get_session_for_cookie(const gchar *consolekit_cookie, gboolean *retry) {
   sess = u_session_find_by_name (consolekit_session);
   if (!sess)
     {
-      sess = ck_session_added(NULL, consolekit_session, NULL);
+      sess = register_session (consolekit_session);
       if (sess)
-        g_message("CK: Preallocated session %d: %s", sess->id, consolekit_session);
+        {
+          g_message("CK: Preallocated session %d: %s", sess->id, consolekit_session);
+        }
       else
         {
           g_free (consolekit_session);

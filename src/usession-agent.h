@@ -86,7 +86,8 @@ typedef struct
 
 gboolean    u_session_agent_register      (const USessionAgent *agent_definition);
 
-USession*   u_session_add                 (const gchar         *name);
+USession*   u_session_new                 ();
+gboolean    u_session_add                 (USession *sess);
 
 USession*   u_session_find_by_name        (const gchar *name);
 gboolean    u_session_remove              (USession *sess);
