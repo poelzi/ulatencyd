@@ -17,6 +17,13 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#define _GNU_SOURCE
+#define  MODULE_NAME "consolekit"
+
+#ifndef G_LOG_DOMAIN
+#define G_LOG_DOMAIN MODULE_NAME
+#endif
+
 #include "config.h"
 
 #include "usession-agent.h"
@@ -25,6 +32,10 @@
 #include <glib.h>
 #include <string.h>
 #include <gmodule.h>
+
+static gboolean     module_debug = TRUE;
+
+#define m_debug(...)    if (module_debug) g_debug (__VA_ARGS__)
 
 #ifdef ENABLE_DBUS
 
@@ -42,14 +53,17 @@ struct ck_seat {
 static GList *ck_seats = NULL;
 
 // updates the idle hint of a session
-static void session_idle_hint_changed(DBusGProxy *proxy, gboolean hint, USession *sess) {
-  g_debug("CK: idle changed %s -> %d", sess->name, hint);
+static void session_idle_hint_changed (DBusGProxy *proxy, gboolean hint, USession *sess)
+{
+  m_debug ("IdleHintChanged signal for %s -> %s",
+            sess->name, hint ? "TRUE" : "FALSE");
   u_session_idle_hint_changed (sess, hint);
 }
 
 static void session_active_changed(DBusGProxy *proxy, gboolean active, USession *sess) {
-  g_debug("CK: active changed %s -> %d", sess->name, active);
-  u_session_active_changed(sess, active);
+  m_debug ("ActiveChanged signal for %s -> %s",
+            sess->name, active ? "TRUE" : "FALSE");
+  u_session_active_changed (sess, active);
 }
 
 static USession *
@@ -67,7 +81,7 @@ register_session (const gchar *name)
                                               "org.freedesktop.ConsoleKit.Session",
                                               &error);
   if(error) {
-      g_warning ("CK Error: %s\n", error->message);
+      g_warning ("CK error: %s\n", error->message);
       g_warning ("CK session %s won't be tracked.", sess->name);
       g_error_free(error);
       DEC_REF (sess);
@@ -94,45 +108,41 @@ register_session (const gchar *name)
   if(!dbus_g_proxy_call (sess->proxy, "GetIdleHint", &error, G_TYPE_INVALID,
                           G_TYPE_BOOLEAN,
                           &sess->idle, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
+        g_warning ("CK error: %s\n", error->message);
       g_error_free(error);
       error = NULL;
   }
   if(!dbus_g_proxy_call (sess->proxy, "IsActive", &error, G_TYPE_INVALID,
                           G_TYPE_BOOLEAN,
                           &sess->active, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
+        g_warning ("CK error: %s\n", error->message);
       g_error_free(error);
       error = NULL;
   }
   if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
                           G_TYPE_UINT,
                           &sess->uid, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
+        g_warning ("CK error: %s\n", error->message);
       g_error_free(error);
       error = NULL;
   }
   if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
                           G_TYPE_STRING,
                           &sess->X11Display, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
+        g_warning ("CK error: %s\n", error->message);
       g_error_free(error);
       error = NULL;
   }
   if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
                           G_TYPE_STRING,
                           &sess->X11Device, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
+        g_warning ("CK error: %s\n", error->message);
       g_error_free(error);
       error = NULL;
   }
 
   if (u_session_add (sess))
     {
-      g_message("CK: New session added (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
-                "X11Device=%s, name=%s)",
-                sess->id, sess->uid, sess->active,
-                sess->X11Display, sess->X11Device, sess->name);
       DEC_REF (sess);
       g_assert (sess != NULL);
     }
@@ -146,22 +156,26 @@ register_session (const gchar *name)
 }
 
 static void ck_session_added(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
-    g_debug ("CK: ck_session_added callback for %s", name);
+    m_debug ("SessionAdded signal for %s", name);
 
     if (u_session_find_by_name (name))
-      return;
+      {
+        m_debug ("Session already registered.");
+        return;
+      }
 
     register_session (name);
 }
 
 static void ck_session_removed(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
+    m_debug ("SessionRemoved signal for %s", name);
     u_session_remove_by_name (name);
 }
 
 
 static void ck_seat_added(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
     GError *error = NULL;
-    g_debug("CK: Seat added %s", name);
+    m_debug("Seat added %s", name);
     struct ck_seat *seat = g_malloc0(sizeof(struct ck_seat));
     seat->proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
                                             "org.freedesktop.ConsoleKit",
@@ -169,8 +183,9 @@ static void ck_seat_added(DBusGProxy *proxy, const gchar *name, gpointer ignored
                                             "org.freedesktop.ConsoleKit.Seat",
                                             &error);
     if(error) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_warning ("CK seat %s won't be tracked.", name);
+        g_warning ("CK error: %s\n", error->message);
+        g_warning ("Unable to bind to the seat %s. "
+                   "No session of it will be tracked.", name);
         g_free(seat);
         g_error_free(error);
         return;
@@ -197,7 +212,7 @@ static void ck_seat_added(DBusGProxy *proxy, const gchar *name, gpointer ignored
 
 static void ck_seat_removed(DBusGProxy *proxy, const gchar *name, gpointer ignored) {
     struct ck_seat *seat = NULL;
-    g_debug("CK: Seat removed %s", name);
+    m_debug("Seat removed %s", name);
     GList *cur = ck_seats;
     while(cur) {
       seat = cur->data;
@@ -212,7 +227,8 @@ static void ck_seat_removed(DBusGProxy *proxy, const gchar *name, gpointer ignor
 }
 
 static USession*
-get_session_for_cookie(const gchar *consolekit_cookie, gboolean *retry) {
+get_session_for_cookie (const gchar *consolekit_cookie, gboolean *retry)
+{
   GError *error = NULL;
   gchar *consolekit_session;
   USession *sess;
@@ -237,7 +253,7 @@ get_session_for_cookie(const gchar *consolekit_cookie, gboolean *retry) {
                          DBUS_TYPE_G_OBJECT_PATH, &consolekit_session,
                          G_TYPE_INVALID))
     {
-      g_warning ("CK GetSessionForCookie('%s'): %s\n",
+      g_warning ("CK GetSessionForCookie('%s'): %s",
                  consolekit_cookie, error->message);
       if (retry != NULL)
         {
@@ -269,7 +285,8 @@ get_session_for_cookie(const gchar *consolekit_cookie, gboolean *retry) {
       sess = register_session (consolekit_session);
       if (sess)
         {
-          g_message("CK: Preallocated session %d: %s", sess->id, consolekit_session);
+          m_debug ("session preallocated (id=%d: name=%s)",
+                   sess->id, consolekit_session);
         }
       else
         {
@@ -301,9 +318,15 @@ consolekit_u_proc_get_session_id (u_proc *proc)
 
       sess = get_session_for_cookie (consolekit_cookie, &retry);
       if (sess)
-        return sess->id;
+        {
+          return sess->id;
+        }
       else /* probably unable to find session for cookie */
-        return retry ? USESSION_UNKNOWN : USESSION_USER_UNKNOWN;
+        {
+          g_warning ("Unable to get CK session for pid %d despite cookie exists (%s error)",
+                     proc->pid, retry ? "temporal" : "permanent");
+          return retry ? USESSION_UNKNOWN : USESSION_USER_UNKNOWN;
+        }
     }
   else /* no consolekit_cookie */
     {
@@ -332,7 +355,7 @@ g_module_check_init (GModule *module)
                                       "org.freedesktop.ConsoleKit.Manager",
                                       &error);
     if(error) {
-        g_warning ("CK Error: %s\n", error->message);
+        g_warning ("CK error: %s\n", error->message);
         g_error_free(error);
         return "No ConsoleKit.";
     }
@@ -340,7 +363,7 @@ g_module_check_init (GModule *module)
     /* register to USession */
 
     agent = g_new0 (USessionAgent, 1);
-    agent->name = "ConsoleKit";
+    agent->name = MODULE_NAME;
     agent->u_proc_get_session_id_func = consolekit_u_proc_get_session_id;
     agent->session_get_leader_pid_func = NULL;
 
@@ -351,8 +374,12 @@ g_module_check_init (GModule *module)
     if (!registered)
       {
         g_object_unref (ck_manager_proxy);
-        return "Session tracking agent could not be registered.";
+        u_module_close_me (module);
+        return "Unable to register agent.";
       }
+
+    module_debug = g_key_file_get_boolean (config_data, "sessions_consolekit",
+                                          "debug", NULL);
 
     g_module_make_resident (module);
 
@@ -409,3 +436,5 @@ g_module_check_init (GModule *module)
 }
 
 #endif /* ENABLE_DBUS */
+
+#undef m_debug

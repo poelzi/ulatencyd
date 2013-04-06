@@ -115,6 +115,12 @@ u_session_destroy (USession *sess)
       g_object_unref (sess->proxy);
       g_assert (! G_IS_OBJECT (sess->proxy));
     }
+
+  g_info ("Session removed (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
+            "X11Device=%s, name=%s)",
+            sess->id, sess->uid, sess->active,
+            sess->X11Display, sess->X11Device, sess->name);
+
   DEC_REF (sess);
 }
 
@@ -137,7 +143,7 @@ u_session_generate_id()
          g_hash_table_contains (sessions_table, GUINT_TO_POINTER (next)));
 
   if G_UNLIKELY (next == last) {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "u_session_generate_id() failed: too much sessions");
+    g_warning ("Too much sessions.");
     return 0;
   }
 
@@ -419,8 +425,8 @@ u_session_agent_register (const USessionAgent *agent_definition)
                         agent_definition->name != NULL, FALSE);
   if (u_session_agent)
   {
-    g_warning ("Cannot register \"%s\" USession agent, "
-               "\"%s\" agent already registered.",
+    g_info ("Registration of session agent \"%s\" denied, "
+               "agent \"%s\" already registered.",
                agent_definition->name, u_session_agent->name);
     return FALSE;
   }
@@ -436,8 +442,10 @@ u_session_agent_register (const USessionAgent *agent_definition)
     }
   else
     {
-    g_warning ("%s: u_session_agent->u_proc_get_session_id_func missing: "
-               "processes will not be scheduled according their session.",
+    g_debug ("%s: u_session_agent->u_proc_get_session_id_func missing.",
+             u_session_agent->name);
+    g_warning ("Agent \"%s\" is unable to determine processes sessions. "
+               "Processes will not be scheduled according their session.",
                u_session_agent->name);
     }
 
@@ -528,8 +536,14 @@ u_session_add (USession *sess)
       u_session_invalidate_by_id (USESSION_NONE);
     }
 
+  g_info ("New session added (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
+            "X11Device=%s, name=%s)",
+            sess->id, sess->uid, sess->active,
+            sess->X11Display, sess->X11Device, sess->name);
+
   u_session_active_changed (sess, sess->active);
   u_session_idle_hint_changed (sess, sess->idle);
+
   return TRUE;
 }
 
@@ -635,6 +649,20 @@ u_session_active_changed (USession *sess,
 {
   sess->active = active;
 
+  if (active)
+    {
+      g_info ("Active session changed to %s (ID: %d, UID: %d)",
+              sess->name, sess->id, sess->uid);
+      // iteration must be run before xwatch poll to avoid freezes on my system,
+      // FIXME: better to sotp xwatch from polling other servers
+      iteration_request_full(G_PRIORITY_HIGH, 0, TRUE);
+    }
+  else
+    {
+      g_info ("Session %s (ID: %d, UID: %d) is now inactive.",
+              sess->name, sess->id, sess->uid);
+    }
+
   // Disable (and clear) or enable list of this user active processes.
   // xwatch will not update X servers of disabled (inactive) users. This is needed
   // to avoid freezes while requesting active atom from Xorg where some application
@@ -662,19 +690,6 @@ u_session_active_changed (USession *sess,
 
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_ACTIVE
   u_proc_set_changed_by_session_id (sess->id);
-
-  if (active)
-    {
-      g_message ("Active session changed to %s (ID: %d, UID: %d)",
-                 sess->name, sess->id, sess->uid);
-      // iteration must be run before xwatch poll to avoid freezes on my system
-      iteration_request_full(G_PRIORITY_HIGH, 0, TRUE);
-    }
-  else
-    {
-      g_message ("Session %s (ID: %d, UID: %d) became inactive.",
-                 sess->name, sess->id, sess->uid);
-    }
 }
 
 /**
@@ -694,6 +709,9 @@ u_session_idle_hint_changed (USession *sess,
                              gboolean   hint)
 {
   sess->idle = hint;
+  g_info ("Session %s (ID: %d, UID: %d) is %s.",
+          sess->name, sess->id, sess->uid,
+          hint ? "idle" : "not idle");
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_IDLE
   u_proc_set_changed_by_session_id (sess->id);
   iteration_request(0);
