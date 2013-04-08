@@ -22,6 +22,7 @@
 #include "config.h"
 #include "ulatency.h"
 #include "usession.h"
+#include "uhook.h"
 
 #include <proc/procps.h>
 #include <proc/sysinfo.h>
@@ -762,6 +763,18 @@ static void processes_free_value(gpointer data) {
     cur = cur->next;
   }
 
+  //! [Invoking hooks with feedback.]
+  if (U_PROC_HAS_STATE (proc, UPROC_BASIC) &&
+      U_hook_list[U_HOOK_TYPE_PROCESS_EXIT])
+    {
+      UHookDataProcessExit *data;
+
+      data = (UHookDataProcessExit *) U_hook_data[U_HOOK_TYPE_PROCESS_EXIT];
+      data->proc = proc;
+      u_hook_list_invoke (U_HOOK_TYPE_PROCESS_EXIT);
+    }
+  //! [Invoking hooks with feedback.]
+
   U_PROC_SET_STATE(proc, UPROC_INVALID);
   g_ptr_array_free(proc->tasks, TRUE);
   proc->tasks = NULL;
@@ -914,13 +927,31 @@ static void rebuild_tree() {
  * @return boolean if a major change detected
  */
 
-static int detect_changed(proc_t *old, proc_t *new) {
-  // detects changes of main paramenters
+static int detect_changed(proc_t *old, proc_t *new)
+{
+  int changed = 0;
+
   if(old->euid != new->euid || old->session != new->session ||
      old->egid != new->egid || old->pgrp != new->pgrp ||
      old->sched != new->sched || old->rtprio != new->rtprio)
-     return 1;
-  return 0;
+     changed = 1;
+
+  //! [Invoking hooks.]
+  if (changed && U_hook_list[U_HOOK_TYPE_PROCESS_CHANGED_MAJOR])
+    {
+      UHookDataProcessChangedMajor *data;
+
+      data = (UHookDataProcessChangedMajor *)
+                  U_hook_data[U_HOOK_TYPE_PROCESS_CHANGED_MAJOR];
+      data->proc_old = old;
+      data->proc_new = new;
+      data->changed = changed;
+      u_hook_list_invoke (U_HOOK_TYPE_PROCESS_CHANGED_MAJOR);
+      changed = data->changed;
+    }
+  //! [Invoking hooks.]
+
+  return changed;
 }
 
 /**
@@ -2015,7 +2046,7 @@ inline gboolean iteration_request_seconds(guint seconds) {
 int iterate(gpointer ignored) {
   time_t timeout = time(NULL);
   GTimer *timer = g_timer_new();
-  gdouble last, current, tparse, tfilter, tscheduler;
+  gdouble last, current, tparse, tfilter, tscheduler, thooks;
   gulong dump;
 
   g_source_remove(iteration_request_id);
@@ -2024,9 +2055,11 @@ int iterate(gpointer ignored) {
   tparse = g_timer_elapsed(timer_parse.timer, &dump);
   tfilter = g_timer_elapsed(timer_filter.timer, &dump);
   tscheduler = g_timer_elapsed(timer_scheduler.timer, &dump);
+  thooks = g_timer_elapsed(timer_hooks.timer, &dump);
 
-  g_debug("spend between iterations: update=%0.2F filter=%0.2F scheduler=%0.2F total=%0.2F", 
-          tparse, tfilter, tscheduler, (tparse + tfilter + tscheduler));
+  g_debug("spend between iterations: update=%0.2F filter=%0.2F scheduler=%0.2F "
+          "total=%0.2F (thereof hooks=%0.2F)",
+          tparse, tfilter, tscheduler, (tparse + tfilter + tscheduler), thooks);
 
   g_timer_start(timer);
   u_flag_clear_timeout(NULL, timeout, -1);
@@ -2060,6 +2093,7 @@ int iterate(gpointer ignored) {
   u_timer_stop_clear(&timer_parse);
   u_timer_stop_clear(&timer_filter);
   u_timer_stop_clear(&timer_scheduler);
+  u_timer_stop_clear(&timer_hooks);
 
   // try the make current memory non swapalbe
   if(mlockall(MCL_CURRENT) && getuid() == 0)
@@ -2267,6 +2301,7 @@ int core_init() {
   delay = delay * 1000000;
 
   //subsystems initialization
+  u_hook_init();
   u_session_init();
 
   return 1;

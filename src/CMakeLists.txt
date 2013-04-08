@@ -23,7 +23,7 @@ IF(DBUS_FOUND AND ENABLE_DBUS)
 ENDIF(DBUS_FOUND AND ENABLE_DBUS)
 
 add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
-               linux_netlink.c umodule.c usession.c
+               linux_netlink.c umodule.c usession.c uhook.c
                ${EXTRA_C} lua_binding.c tools.c)
 
 target_link_libraries (ulatencyd lbc dl ${MY_LUA_LIBRARIES}

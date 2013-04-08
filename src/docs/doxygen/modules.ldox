@@ -95,6 +95,10 @@
 --!     @brief Sessions subsystem interface for session tracking agents.
 --!     @ingroup USession
 
+--!   @defgroup UHook Hooks
+--!   @ingroup core
+
+
 ----- hidden groups ------
 
 --- @defgroup lua_DOC Doc helpers

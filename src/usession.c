@@ -27,6 +27,8 @@
 #include "usession-agent.h"
 
 #include "ulatency.h"
+#include "uhook.h"
+
 #include <glib.h>
 
 
@@ -56,6 +58,18 @@ static USessionAgent *u_session_agent = NULL;  // agent in charge
 
 
 /* --- private functions --- */
+
+inline static void
+invoke_hooks (UHookType type,
+              USession *sess)
+{
+  if (U_hook_list[type])
+    {
+      UHookDataSession *data = (UHookDataSession *) U_hook_data[type];
+      data->session = sess;
+      g_hook_list_invoke_check (U_hook_list[type], FALSE);
+    }
+}
 
 // frees all memory of a USession instance, called if the ref counter drops 0
 void
@@ -121,6 +135,7 @@ u_session_destroy (USession *sess)
             sess->id, sess->uid, sess->active,
             sess->X11Display, sess->X11Device, sess->name);
 
+  invoke_hooks (U_HOOK_TYPE_SESSION_REMOVED, sess);
   DEC_REF (sess);
 }
 
@@ -544,6 +559,7 @@ u_session_add (USession *sess)
   u_session_active_changed (sess, sess->active);
   u_session_idle_hint_changed (sess, sess->idle);
 
+  invoke_hooks (U_HOOK_TYPE_SESSION_ADDED, sess);
   return TRUE;
 }
 
@@ -690,6 +706,8 @@ u_session_active_changed (USession *sess,
 
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_ACTIVE
   u_proc_set_changed_by_session_id (sess->id);
+
+  invoke_hooks (U_HOOK_TYPE_SESSION_ACTIVE_CHANGED, sess);
 }
 
 /**
@@ -714,5 +732,7 @@ u_session_idle_hint_changed (USession *sess,
           hint ? "idle" : "not idle");
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_IDLE
   u_proc_set_changed_by_session_id (sess->id);
+
+  invoke_hooks (U_HOOK_TYPE_SESSION_IDLE_CHANGED, sess);
   iteration_request(0);
 }
