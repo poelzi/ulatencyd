@@ -316,69 +316,6 @@ enum USER_ACTIVE_AGENT {
   USER_ACTIVE_AGENT_MODULE=1000,
 };
 
-
-/*! \addtogroup USession
- *  @{
- */
-
-//! process session values
-enum U_SESSION_ID {
-  USESSION_UNKNOWN      = 0, //!< could not be determined, process already dead
-                             //!< or consolekit/logind error
-  USESSION_INIT         = 1, //!< init
-  USESSION_KERNEL       = 2, //!< kernel threads
-  USESSION_NONE         = 3, //!< process not belonging to any user session
-  USESSION_USER_UNKNOWN = 5, //!< unknown user session
-                             //!< (wrong consolekit cookie or ck error)
-  USESSION_USER_FIRST   = 10 //!< first user session
-};
-
-//! Structure containing information about **user** session.
-typedef struct _USession USession;
-
-struct _USession {
-  U_HEAD;
-  gboolean  is_valid; //!< FALSE if the session was closed and removed from
-                      //!< the `sessions` list and friends. It's kept around
-                      //!< just because its ref count > 0. Release it!
-
-  guint     id;       //!< Generated unique session ID (>= #USESSION_USER_FIRST)
-  gchar     *name;    //!< Unique session name specific to the used backend.
-
-  pid_t     leader_pid; //!< PID of the session leader; may be 0 - unknown (always
-                        //!< for consolekit) or the process may be already dead.
-                        //!< You should use `u_session_get_leader()` if you want
-                        //!< real `u_proc`.
-  gchar     *X11Display;
-  gchar     *X11Device;
-  // most likely dbus session
-  gchar     *dbus_session; //!< N/A
-  uid_t     uid;
-  uint32_t  idle;
-  uint32_t  active;
-  gchar     *consolekit_cookie; //!< value of XDG_SESSION_COOKIE environment
-                                //!< variable; specific to consolekit backend
-  int       lua_data;          //!< id for per session lua storage
-#ifdef ENABLE_DBUS
-  DBusGProxy *proxy;
-#endif
-  USession *prev;
-  USession *next;
-};
-
-extern USession* U_sessions;
-
-gboolean       u_session_init                   ();
-USession*      u_session_find_by_proc           (u_proc      *proc);
-USession*      u_session_find_by_id             (guint        sess_id);
-guint          u_session_id_find_by_proc        (u_proc      *proc);
-u_proc *       u_session_get_leader             (USession    *session);
-void           u_session_invalidate_by_id       (guint        sess_id);
-void           u_proc_set_changed_by_session_id (guint        sess_id);
-
-/*! @} End of "addtogroup USession" */
-
-
 struct user_active {
   uid_t uid;
   guint max_processes;
@@ -607,7 +544,7 @@ uint64_t     get_number_of_processes();
 #endif
 #define U_DBUS_RETRY_WAIT       500 * 1000
 
-#endif
-
 // linux_netlink.c
 extern gboolean netlink_proc_listening; //!< Linux netlink module listening to proc events
+
+#endif /* __ulatency_h__ */

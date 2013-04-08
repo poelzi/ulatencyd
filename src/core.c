@@ -21,6 +21,7 @@
 
 #include "config.h"
 #include "ulatency.h"
+#include "usession.h"
 
 #include <proc/procps.h>
 #include <proc/sysinfo.h>
@@ -2264,6 +2265,10 @@ int core_init() {
     g_timeout_add((int)(delay / 3), run_new_pid, NULL);
   // we save delay as ns for easier comparison
   delay = delay * 1000000;
+
+  //subsystems initialization
+  u_session_init();
+
   return 1;
 }
 

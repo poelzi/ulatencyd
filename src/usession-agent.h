@@ -30,7 +30,9 @@
 #ifndef __U_SESSION_AGENT_H__
 #define __U_SESSION_AGENT_H__
 
+#include "usession.h"
 #include "ulatency.h"
+
 #include <glib.h>
 
 /*! \addtogroup USession-agent-api

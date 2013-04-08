@@ -23,6 +23,7 @@
 
 #include "config.h"
 #include "ulatency.h"
+#include "usession.h"
 #include <dbus/dbus-glib.h>
 #include <sys/types.h>
 #include <sys/wait.h>

@@ -19,6 +19,8 @@
 
 #include "config.h"
 #include "ulatency.h"
+#include "usession.h"
+
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
