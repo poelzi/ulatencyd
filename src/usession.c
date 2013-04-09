@@ -607,9 +607,9 @@ u_session_add (USession *sess)
       u_session_invalidate_by_id (USESSION_NONE);
     }
 
-  g_info ("New session added (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
-            "X11Device=%s, name=%s)",
-            sess->id, sess->uid, sess->active,
+  g_info ("New session added (ID=%d, type=%s, UID=%d, ACTIVE=%d, "
+            "X11Display=%s, X11Device=%s, name=%s)",
+            sess->id, sess->session_type, sess->uid, sess->active,
             sess->X11Display, sess->X11Device, sess->name);
 
   u_session_active_changed (sess, sess->active);

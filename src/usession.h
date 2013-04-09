@@ -89,6 +89,7 @@ struct _USession
                         //!< for consolekit) or the process may be already dead.
                         //!< You should use `u_session_get_leader()` if you want
                         //!< real `u_proc`.
+  gchar     *session_type; //!< session-type, e.g. "x11"
   gchar     *X11Display;
   gchar     *X11Device;
   // most likely dbus session

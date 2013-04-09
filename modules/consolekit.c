@@ -126,6 +126,13 @@ register_session (const gchar *name)
         g_error_free(error);
         error = NULL;
   }
+  if (!dbus_g_proxy_call (sess->proxy, "GetSessionType", &error, G_TYPE_INVALID,
+                          G_TYPE_STRING,
+                          &sess->session_type, G_TYPE_INVALID)) {
+        g_warning ("CK error: %s\n", error->message);
+        g_error_free(error);
+        error = NULL;
+  }
   if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
                           G_TYPE_STRING,
                           &sess->X11Display, G_TYPE_INVALID)) {
