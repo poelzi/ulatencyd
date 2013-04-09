@@ -109,36 +109,36 @@ register_session (const gchar *name)
                           G_TYPE_BOOLEAN,
                           &sess->idle, G_TYPE_INVALID)) {
         g_warning ("CK error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_error_free(error);
+        error = NULL;
   }
   if(!dbus_g_proxy_call (sess->proxy, "IsActive", &error, G_TYPE_INVALID,
                           G_TYPE_BOOLEAN,
                           &sess->active, G_TYPE_INVALID)) {
         g_warning ("CK error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_error_free(error);
+        error = NULL;
   }
   if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
                           G_TYPE_UINT,
                           &sess->uid, G_TYPE_INVALID)) {
         g_warning ("CK error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_error_free(error);
+        error = NULL;
   }
   if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
                           G_TYPE_STRING,
                           &sess->X11Display, G_TYPE_INVALID)) {
         g_warning ("CK error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_error_free(error);
+        error = NULL;
   }
   if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
                           G_TYPE_STRING,
                           &sess->X11Device, G_TYPE_INVALID)) {
         g_warning ("CK error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
+        g_error_free(error);
+        error = NULL;
   }
 
   if (u_session_add (sess))
