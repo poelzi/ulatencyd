@@ -38,9 +38,6 @@
 #include <polkit/polkit.h>
 #endif
 
-//#include <libcgroup.h>
-
-
 #define U_LOG_LEVEL_SCHED   1 << 8
 #define u_sched(...)    g_log (G_LOG_DOMAIN,         \
                                U_LOG_LEVEL_SCHED,    \
