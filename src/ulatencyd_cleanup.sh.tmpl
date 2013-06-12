@@ -13,10 +13,10 @@ set -e
 
 SLEEP_SECONDS=120
 
-CMD="/usr/bin/ulatency"
+CMD="ulatency"
 CMD_ARGS="clear-empty"
 
-[ -e $CMD ] || exit 0
+which $CMD >/dev/null || exit 0
 
 /bin/pidof -o $$ -x "$0" >/dev/null && exit 0 || true
 
