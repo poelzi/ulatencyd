@@ -585,6 +585,10 @@ int main (int argc, char *argv[])
 
   load_config();
 
+  if(verbose >= G_LOG_LEVEL_INFO) {
+      g_setenv("G_MESSAGES_DEBUG", "all", FALSE);
+  }
+
   g_log_set_default_handler(filter_log_handler, NULL);
   if(log_file) {
     open_logfile(log_file);
