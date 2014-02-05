@@ -23,6 +23,7 @@
 #include <lualib.h>
 #include <lauxlib.h>
 #include <string.h>
+#include <libcgroup.h>
 
 
 #define CGROUP "cgroup_cgroup"
