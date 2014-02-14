@@ -11,10 +11,6 @@ add_definitions(-DHAVE_INLINE)
 #set_directory_properties(APPEND PROPERTY COMPILE_FLAGS -Wall)
 
 
-IF(LIBCGROUPS)
-  list(APPEND EXTRA_C "lua_cgroups.c")
-ENDIF(LIBCGROUPS)
-
 IF(DBUS_FOUND AND ENABLE_DBUS)
   list(APPEND EXTRA_C "dbus.c")
   IF(POLKIT_FOUND)
@@ -27,7 +23,7 @@ add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
                ${EXTRA_C} lua_binding.c tools.c)
 
 target_link_libraries (ulatencyd lbc dl ${MY_LUA_LIBRARIES}
-                       ${LIBCGROUP_LIBRARIES} ${DBUS_LIBRARIES}
+                       ${DBUS_LIBRARIES}
                        ${GLIB2_LIBRARIES} ${GIO_LIBRARIES} ${GTHREAD_LIBRARIES}
                        ${POLKIT_LIBRARIES} procps)
 

@@ -9,17 +9,12 @@ INCLUDE (CheckIncludeFiles)
 option(CONFIG_PREFIX "config prefix" "/etc")
 option(DEVELOP_MODE "build for development" FALSE)
 option(DEVELOP_DBUS_SESSION "export to session dbus" FALSE)
-option(LIBCGROUPS "add libcgroups support (BROKEN)" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
 option(ENABLE_DBUS "enable dbus" TRUE)
 option(STATIC_LINK_LIBPROCPS "statically link to libprocps" TRUE)
 
 SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
-
-if(LIBCGROUPS)
-  pkg_check_modules(LIBCGROUP libcgroup OPTIONAL)
-endif(LIBCGROUPS)
 
 pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
 
@@ -102,7 +97,6 @@ configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src
-                     ${LIBCGROUP_INCLUDE_DIRS}
                      ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
                      ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS})
 

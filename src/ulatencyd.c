@@ -46,9 +46,6 @@ DBusGConnection *U_dbus_connection_system;
 #include <glib.h>
 #include <proc/sysinfo.h>
 #include <proc/readproc.h>
-#ifdef LIBCGROUP
-#include <libcgroup.h>
-#endif
 #include <sys/mman.h>
 #include <error.h>
 
@@ -114,9 +111,6 @@ GMainLoop *main_loop;
 
 void cleanup() {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "cleanup daemon");
-#ifdef LIBCGROUP
-  cgroup_unload_cgroups();
-#endif
   // for valgrind
   core_unload();
 }
@@ -595,23 +589,6 @@ int main (int argc, char *argv[])
 
   main_context = g_main_context_default();
   main_loop = g_main_loop_new(main_context, FALSE);
-
-#if LIBCGROUP
-  if(cgroup_init()) {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not init libcgroup. try mounting cgroups...");
-    g_mkdir_with_parents(mount_point, 0755);
-    if(!mount_cgroups() || cgroup_init()) {
-#ifdef DEVELOP_MODE
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
-      //g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "give up init libcgroup");
-#else
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
-#endif
-    }
-  }
-#else
-  //mount_cgroups();
-#endif
 
   atexit(cleanup);
 
