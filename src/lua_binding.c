@@ -2310,24 +2310,18 @@ static const luaL_reg R[] = {
 	lua_pushstring(L, SYMBOLE); \
 	lua_setfield(L, -2, #NAME);
 
-int luaopen_ulatency(lua_State *L) {
+LUALIB_API int luaopen_ulatency(lua_State *L) {
+  /* create new type UL_META */
+  luaL_newmetatable(L, UL_META);
+  lua_pushvalue(L, -1);
+  lua_setfield(L, -2, "__index");
 
+  /* create `ulatency` table */
+  luaL_register(L, "ulatency", R);
+  lua_pushvalue(L, -2);
+  lua_setfield(L, -2, "meta_ulatency");
 
-	/* create metatable */
-	luaL_newmetatable(L, UL_META);
-
-	/* metatable.__index = metatable */
-	lua_pushvalue(L, -1);
-	lua_setfield(L, -2, "__index");
-
-	/* register module */
-	luaL_register(L, "ulatency", R);
-
-	/* register metatable as socket_meta */
-	lua_pushvalue(L, -2);
-	lua_setfield(L, -2, "meta_ulatency");
-
-	/* module version */
+  // module version
   PUSH_STR(version, QUOTEME(VERSION))
   PUSH_STR(release_agent, QUOTEME(RELEASE_AGENT))
   PUSH_STR(path_rules_directory, QUOTEME(RULES_DIRECTORY))
@@ -2335,7 +2329,6 @@ int luaopen_ulatency(lua_State *L) {
 
   //PUSH_INT(hertz, Hertz)
   PUSH_INT(smp_num_cpus, smp_num_cpus)
-
 
   // glib log level
   PUSH_INT(LOG_LEVEL_ERROR, G_LOG_LEVEL_ERROR)
@@ -2347,9 +2340,11 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_SCHED, U_LOG_LEVEL_SCHED)
   PUSH_INT(LOG_LEVEL_TRACE, U_LOG_LEVEL_TRACE)
   
+  // filter flags
   PUSH_INT(FILTER_STOP, FILTER_STOP)
   PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)
 
+  // io priority stuff
   PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
   PUSH_INT(IOPRIO_CLASS_BE, IOPRIO_CLASS_BE)
@@ -2362,56 +2357,58 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(SCHED_BATCH, SCHED_BATCH)
   PUSH_INT(SCHED_IDLE, SCHED_IDLE)
 
+  // u_proc states
   PUSH_INT(UPROC_NEW, UPROC_NEW)
   PUSH_INT(UPROC_INVALID, UPROC_INVALID)
   PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)
 
-  /* remove meta table */
-	lua_remove(L, -2);
+  lua_remove(L, -2);  // remove meta table
+  return 1; /* return `ulatency` table */
+}
 
-  // map u_proc
-  luaL_register(L, U_PROC, u_proc_methods); 
+LUALIB_API int luaopen_u_proc(lua_State *L) {
+  /* create new type U_PROC_META */
   luaL_newmetatable(L, U_PROC_META);
   luaL_register(L, NULL, u_proc_meta);
-  //lua_pushliteral(L, "__index");
-  //lua_pushvalue(L, -3);
-  //lua_rawset(L, -3);                  /* metatable.__index = methods */
-  lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -2);               /* dup methods table*/
-  lua_rawset(L, -4);
-  lua_pop(L, 1);
 
-  // map u_proc
-  luaL_register(L, U_TASK, u_task_methods);
+  /* create `U_PROC` table */
+  luaL_register(L, U_PROC, u_proc_methods);
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
+
+  lua_remove(L, -2);  // remove metatable
+  return 1; /* return `U_PROC` table */
+}
+
+LUALIB_API int luaopen_u_task(lua_State *L) {
+  /* create new type U_TASK_META */
   luaL_newmetatable(L, U_TASK_META);
   luaL_register(L, NULL, u_task_meta);
-  //lua_pushliteral(L, "__index");
-  //lua_pushvalue(L, -3);
-  //lua_rawset(L, -3);                  /* metatable.__index = methods */
-  lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -2);               /* dup methods table*/
-  lua_rawset(L, -4);
-  lua_pop(L, 1);
 
-  // map u_filter
-  luaL_register(L, U_FLAG, u_flag_methods); 
+  /* create `U_TASK` table */
+  luaL_register(L, U_TASK, u_task_methods);
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
+
+  lua_remove(L, -2); // remove meta table
+  return 1; /* return `U_TASK` table */
+}
+
+LUALIB_API int luaopen_u_flag(lua_State *L) {
+  /* create new type U_FLAG_META */
   luaL_newmetatable(L, U_FLAG_META);
   luaL_register(L, NULL, u_flag_meta);
-  //lua_pushliteral(L, "__index");
-  //lua_pushvalue(L, -3);
-  //lua_rawset(L, -3);                  /* metatable.__index = methods */
+
+  /* create `U_FLAG` table */
+  luaL_register(L, U_FLAG, u_flag_methods);
   lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -2);               /* dup methods table*/
-  lua_rawset(L, -4);
-  lua_pop(L, 1);
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
 
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-
-	return 1;
+  lua_remove(L, -2);// remove meta table
+  return 1; /* return `U_FLAG` table */
 }
 
 // misc functions

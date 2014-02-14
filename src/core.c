@@ -2116,8 +2116,12 @@ int load_modules(char *modules_directory) {
   return 1;
 }
 
-int luaopen_ulatency(lua_State *L);
-int luaopen_bc(lua_State *L);
+LUALIB_API int luaopen_bc       (lua_State *L);
+LUALIB_API int luaopen_cgroups  (lua_State *L);
+LUALIB_API int luaopen_ulatency (lua_State *L);
+LUALIB_API int luaopen_u_proc   (lua_State *L);
+LUALIB_API int luaopen_u_task   (lua_State *L);
+LUALIB_API int luaopen_u_flag   (lua_State *L);
 
 int u_dbus_setup();
 
@@ -2181,12 +2185,39 @@ int core_init() {
 
   // configure lua
   lua_main_state = luaL_newstate();
-  luaL_openlibs(lua_main_state);
-  luaopen_bc(lua_main_state);
-  luaopen_ulatency(lua_main_state);
-#ifdef LIBCGROUP
-  luaopen_cgroup(lua_main_state);
-#endif
+  if (lua_main_state) {
+      luaL_openlibs(lua_main_state);
+
+      lua_pushcfunction(lua_main_state, luaopen_bc);
+      lua_pushstring(lua_main_state, "bc");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_ulatency);
+      lua_pushstring(lua_main_state, "ulatency");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_u_proc);
+      lua_pushstring(lua_main_state, "U_PROC");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_u_task);
+      lua_pushstring(lua_main_state, "U_TASK");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_u_flag);
+      lua_pushstring(lua_main_state, "U_FLAG");
+      lua_call(lua_main_state, 1, 0);
+
+      #ifdef LIBCGROUP
+      lua_pushcfunction(lua_main_state, luaopen_cgroups);
+      lua_pushstring(lua_main_state, "cgroups");
+      lua_call(lua_main_state, 1, 0);
+      #endif
+  } else {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open lua libraries");
+  }
+
+
 
   // FIXME make it configurable
   scheduler_set(&LUA_SCHEDULER);

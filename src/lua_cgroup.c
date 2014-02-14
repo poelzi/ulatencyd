@@ -604,7 +604,7 @@ static const luaL_reg R[] = {
 	lua_pushinteger(L, SYMBOLE); \
 	lua_setfield(L, -2, #NAME);
 
-int luaopen_cgroup(lua_State *L) {
+int luaopen_cgroups(lua_State *L) {
 
 
 	/* create metatable */
