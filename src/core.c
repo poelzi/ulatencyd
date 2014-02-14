@@ -2116,7 +2116,6 @@ int load_modules(char *modules_directory) {
   return 1;
 }
 
-LUALIB_API int luaopen_bc       (lua_State *L);
 LUALIB_API int luaopen_ulatency (lua_State *L);
 LUALIB_API int luaopen_u_proc   (lua_State *L);
 LUALIB_API int luaopen_u_task   (lua_State *L);
@@ -2186,10 +2185,6 @@ int core_init() {
   lua_main_state = luaL_newstate();
   if (lua_main_state) {
       luaL_openlibs(lua_main_state);
-
-      lua_pushcfunction(lua_main_state, luaopen_bc);
-      lua_pushstring(lua_main_state, "bc");
-      lua_call(lua_main_state, 1, 0);
 
       lua_pushcfunction(lua_main_state, luaopen_ulatency);
       lua_pushstring(lua_main_state, "ulatency");

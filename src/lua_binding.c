@@ -1042,7 +1042,7 @@ static int handle_proc_t (lua_State *L, proc_t *proc, const char *key) {
   PUSH_INT(stime) 
   PUSH_INT(cutime) 
   PUSH_INT(cstime)
-  // FIXME need bc lib here
+  // FIXME need bc lib here (https://github.com/LuaDist/lbc/)
   PUSH_INT(start_time) 
 #ifdef SIGNAL_STRING
   PUSH_STR(signal)
