@@ -35,7 +35,9 @@ Build Requirements:
   - libdbus-glib-1-dev
   - liblua5.1-0-dev | libluajit-5.1-dev
   - liblua5.1-posix1 (sometimes called luaposix)
-  - libprocps-dev
+  - libprocps 3.3.3 for static linkage (usually in libprocps-dev packages)
+    or shared libprocps for dynamic linkage (requires patching to export
+    enough symbols)
 
 Cgroups release agent (optional):
   - dbus-send
@@ -62,6 +64,43 @@ Compiling:
 Configure options (optional):
 
  # ccmake .
+
+Compilation troubleshooting (libprocps)
+
+  ulatencyd needs some symbols that libprocps does not export, therefore
+  you must either link to static libprocps or patch that library to
+  export all needed symbols.
+
+  By default ulatencyd satically links to libprocps.
+
+  You can override location of static libprocps library and the include
+  directory by setting PROCPS_STATIC_LIBRARY and PROCPS_STATIC_INCLUDE_DIR
+  cmake variables. By default locations will be detected with help
+  from pkg-config.
+
+     PROCPS_STATIC_LIBRARY       specifies full path to the library
+                                 (i.e. path to the libprocps.a file)
+     PROCPS_STATIC_INCLUDE_DIR   specifies directory which contains
+                                 the proc/procps.h header.
+
+  e.g.:
+  # cmake -D PROCPS_STATIC_LIBRARY:FILEPATH=/path/to/libprocps.a \
+	  -D PROCPS_STATIC_INCLUDE_DIR:PATH=/path/to/include/dir .
+
+  If you insist on dynamic linkage to shared libprocps, update or patch
+  libprocps to export all symbols that application needs. CMake will
+  output the list during configuration phase, alternatively you can get
+  them from CMakeLists.txt. If you manage your solution to be persistent,
+  future proof (in sense of API changes) and officially accepted by your
+  GNU/Linux distribution, please contact ulatencyd authors.
+
+  Dynamic linkage to shared libprocps may be enabled by setting
+  PROCPS_STATIC to OFF, e.g.:
+
+  # cmake -D PROCPS_STATIC:BOOL=ON .
+
+  Location of shared libprocps and include dir may be overridden by
+  cmake variable PROCPS_LIBRARY ans PROCPS_INCLUDE_DIR.
 
 Building Documentation:
 
