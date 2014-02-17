@@ -72,7 +72,7 @@ Install:
 
 Running:
 
- # sudo /usr/local/sbin/ulatencyd -v 2
+ # sudo /usr/local/sbin/ulatencyd -v -f /var/log/ulatencyd
 
 == Links ==
 
