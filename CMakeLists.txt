@@ -3,7 +3,7 @@ project(ulatency C)
 
 INCLUDE(FindPkgConfig)
 INCLUDE(FindGettext)
-INCLUDE (CheckIncludeFiles)
+INCLUDE(CheckIncludeFiles)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
@@ -152,13 +152,6 @@ configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src
                      ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
                      ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS})
-
-if(STATIC_LIBPROCPS)
-  #include_directories(${STATIC_LIBPROCPS_INCLUDE_DIR})
-  include_directories(${LIBPROC_STATIC_INCLUDE_DIRS})
-else()
-  include_directories(${LIBPROC_INCLUDE_DIRS})
-endif()
 
 IF(LUA_JIT AND LUAJIT_FOUND)
   include_directories (${LUAJIT_INCLUDE_DIRS})
