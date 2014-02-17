@@ -31,27 +31,27 @@ ulatencyd is designed for fixing exactly that.
 == Building ==
 
 Build Requirements:
-  libglib2.0-dev
-  libdbus-glib-1-dev
-  liblua5.1-0-dev | libluajit-5.1-dev
-  liblua5.1-posix1 (sometimes called luaposix)
-  libprocps-dev
+  - libglib2.0-dev
+  - libdbus-glib-1-dev
+  - liblua5.1-0-dev | libluajit-5.1-dev
+  - liblua5.1-posix1 (sometimes called luaposix)
+  - libprocps-dev
 
 Cgroups release agent (optional):
-  dbus-send
+  - dbus-send
 
 Documentation:
-  doxygen
-  libmoose-perl
-  pandoc
+  - doxygen
+  - libmoose-perl
+  - pandoc
 
 CLI:
-  python-dbus
-  python2.5+ - python3.2+
+  - python-dbus
+  - python2.5+ - python3.2+
 
 GUI:
-  python-qt4
-  python-qt4-dbus
+  - python-qt4
+  - python-qt4-dbus
 
 
 Compiling:
