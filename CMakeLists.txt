@@ -6,7 +6,6 @@ INCLUDE(FindGettext)
 INCLUDE (CheckIncludeFiles)
 
 
-option(CONFIG_PREFIX "config prefix" "/etc")
 option(DEVELOP_MODE "build for development" FALSE)
 option(DEVELOP_DBUS_SESSION "export to session dbus" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
@@ -49,10 +48,9 @@ else(STATIC_LINK_LIBPROCPS)
   set(procps ${LIBPROC_LIBRARIES})
 endif(STATIC_LINK_LIBPROCPS)
 
-SET(CONFIG_PREFIX "/etc" CACHE STRING
-      "Config prefix"
-      FORCE)
 SET(SYSTEMD_DIR "/lib/systemd/system" CACHE STRING
+SET(CONFIG_PREFIX "/etc" CACHE PATH
+      "Config prefix")
       "systemd service file directory")
 
 if(DEVELOP_MODE)
