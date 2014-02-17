@@ -48,9 +48,9 @@ else(STATIC_LINK_LIBPROCPS)
   set(procps ${LIBPROC_LIBRARIES})
 endif(STATIC_LINK_LIBPROCPS)
 
-SET(SYSTEMD_DIR "/lib/systemd/system" CACHE STRING
 SET(CONFIG_PREFIX "/etc" CACHE PATH
       "Config prefix")
+SET(SYSTEMD_DIR "/lib/systemd/system" CACHE PATH
       "systemd service file directory")
 
 if(DEVELOP_MODE)
