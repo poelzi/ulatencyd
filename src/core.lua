@@ -77,22 +77,28 @@ end
 --! @brief Recursively creates a directory.
 --! @param path Full path of the new directory.
 --! @return boolean
---! @retval TRUE if the directory was successfully created.
---! @retval FALSE if creation of some directory along the `path` failed.
+--! @retval 0 if the directory was successfully created.
+--! @retval nil, errstr, errno if creation of some directory along the `path` failed.
 function mkdirp(path)
-  if posix.access(path) ~= 0 then
+  if not posix.access(path, "f") then
     local parts = path:split("/")
     for i,v in ipairs(parts) do
       name = "/" .. table.concat(parts, "/", 1, i)
-      if posix.access(name, "r") ~= 0 then
-        if posix.mkdir(name) ~= 0 then
-          cg_log("can't create "..name)
-          return false
+
+      if not posix.access(name, "f") then -- this fail if `name`
+                  -- (e.g /sys/fs/cgroup/cpu) is a symlink not created by root
+        local ok, errstr, errno = posix.mkdir(name)
+        if not ok then
+          cg_log(string.format(
+                "mkdirp(%s): Can't create directory: %s",
+                path, errstr))
+          return nil, errstr, errno
         end
       end
+
     end
   end
-  return true
+  return 0
 end
 
 --! @brief Log error after writing to sysfs failed: decides whether the error should be logged,
