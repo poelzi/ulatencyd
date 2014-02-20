@@ -100,7 +100,7 @@ Compilation troubleshooting (libprocps)
   # cmake -D PROCPS_STATIC:BOOL=ON .
 
   Location of shared libprocps and include dir may be overridden by
-  cmake variable PROCPS_LIBRARY ans PROCPS_INCLUDE_DIR.
+  cmake variable PROCPS_SHARED_LIBRARY ans PROCPS_SHARED_INCLUDE_DIR.
 
 Building Documentation:
 

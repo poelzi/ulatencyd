@@ -25,7 +25,7 @@ add_executable(ulatencyd core.c ulatencyd.c group.c sysinfo.c sysctl.c
 target_link_libraries (ulatencyd dl ${MY_LUA_LIBRARIES}
                        ${DBUS_LIBRARIES}
                        ${GLIB2_LIBRARIES} ${GIO_LIBRARIES} ${GTHREAD_LIBRARIES}
-                       ${POLKIT_LIBRARIES} ${MY_PROCPS_LIBRARIES})
+                       ${POLKIT_LIBRARIES} ${PROCPS_LIBRARIES} )
 
 SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 

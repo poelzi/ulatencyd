@@ -82,20 +82,10 @@ set(PROCPS_CHECK_PROC_T_MEMBERS
 set(PROCPS_REQUIRE_PROC_T_MEMBERS ${PROCPS_CHECK_PROC_T_MEMBERS}) # require all
 set(Procps_VERBOSE ON)
 
-set(PROCPS_REQUIRE_NG ON) # set OFF if you want to try legacy non-forked procps;
+set(PROCPS_REQUIRE_NG ON) # set OFF if you want to try older procps;
                           # proc_t->vm_swap will be probably missing and
                           # the legacy library was never tested with ulatencyd
-find_package(Procps REQUIRED "3.3.0") # not sure by version, 3.3.3 tested
-
-if(PROCPS_STATIC)
-  # static linkage to procps
-  include_directories(${PROCPS_STATIC_INCLUDE_DIRS})
-  set(MY_PROCPS_LIBRARIES ${PROCPS_STATIC_LIBRARIES})
-else()
-  # dynamic linkage to shared procps
-  include_directories(${PROCPS_INCLUDE_DIRS})
-  set(MY_PROCPS_LIBRARIES ${PROCPS_LIBRARIES})
-endif()
+find_package(Procps "3.3.0" REQUIRED) # not sure by version, 3.3.3 tested
 
 # -----------------------------------------------------------------------------
 #  End finding procps
@@ -151,7 +141,8 @@ configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src
                      ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
-                     ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS})
+                     ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS}
+                     ${PROCPS_INCLUDE_DIRS} )
 
 IF(LUA_JIT AND LUAJIT_FOUND)
   include_directories (${LUAJIT_INCLUDE_DIRS})

@@ -1,21 +1,80 @@
-# - Try to find procps
-# Once done this will be defined
-#  PROCPS_FOUND         - System has libprocps
-#  PROCPS_INCLUDE_DIRS  - The libprocps include directories
-#  PROCPS_LIBRARIES     - The libraries needed to use libprocps
+# - Try to find procps or procps-ng library
+#
+# -----------------------------------------------------------------------------
+#  Once done these variables will be defined
+# -----------------------------------------------------------------------------
+#
+#  PROCPS_FOUND          - System has suitable libprocps
+#  PROCPS_INCLUDE_DIRS   - The libprocps include directories
+#  PROCPS_LIBRARIES      - The libraries needed to use libprocps
 #  PROCPS_VERSION_STRING - libprocps version
-#  PROCPS_MISSING_SYMBOLS - list of missing symbols (see PROCPS_CHECK_SYMBOLS)
-#  PROCPS_MISSING_PROC_T_MEMBERS - list of missing proc_t members (see PROCPS_CHECK_PROC_T_MEMBERS)
 #
-# Options you can set before calling find_package(Procps ...)
-#  PROCPS_STATIC        - force static linkage
-#  PROCPS_REQUIRE_NG    - if set, require libprocps-ng
-#  PROCPS_CHECK_SYMBOLS - list of symbols to check
-#  PROCPS_CHECK_PROC_T_MEMBERS - list of proc_t members to check
-#  PROCPS_REQUIRE_SYMBOLS - list of required symbols from PROCPS_CHECK_SYMBOLS
-#  PROCPS_REQUIRE_PROC_T_MEMBERS - list of required proc_t members from PROCPS_CHECK_PROC_T_MEMBERS
-#  Procps_VERBOSE         - be more verbose
+# Following two variables are udpated only if PROCPS_FOUND is true
 #
+#  PROCPS_MISSING_SYMBOLS            - list of missing symbols
+#                                      (see PROCPS_CHECK_SYMBOLS)
+#  PROCPS_MISSING_PROC_T_MEMBERS     - list of missing proc_t members
+#                                      (see PROCPS_CHECK_PROC_T_MEMBERS)
+#  PROCPS_HAS_<symbol>
+#  PROCPS_PROC_T_HAS_MEMBER_<member>
+#
+# -----------------------------------------------------------------------------
+#  Variables you can set before calling find_package(Procps ...)
+# -----------------------------------------------------------------------------
+#
+#  PROCPS_STATIC                 - set ON for static linkage (CACHED OPTION)
+#  PROCPS_HEADERS                - required headers, defaults to list:
+#                                    "proc/procps.h"
+#                                    "proc/sysinfo.h"
+#                                    "proc/pwcache.h"
+#                                    "proc/readproc.h"
+#
+#  PROCPS_REQUIRE_NG             - if set, require procps-ng fork
+#  PROCPS_CHECK_SYMBOLS          - list of symbols to check
+#  PROCPS_CHECK_PROC_T_MEMBERS   - list of proc_t members to check
+#  PROCPS_REQUIRE_SYMBOLS        - list of required symbols from
+#                                  PROCPS_CHECK_SYMBOLS, any of these missing
+#                                  will cause failure. 
+#  PROCPS_REQUIRE_PROC_T_MEMBERS - list of required proc_t members from
+#                                  PROCPS_CHECK_PROC_T_MEMBERS, any of these
+#                                  missing will cause failure.
+#  Procps_VERBOSE                - be more verbose
+#  Procps_DEBUG                  - output debug info
+#
+# Location of library and include dir.
+#   1) If the variable is defined to a value that is not a false constant it
+#      will be used as the location.
+#   2) If the variable is defined to a value that is false constant (i.e. 0,
+#      OFF, NO, FALSE, N, IGNORE, empty string, or ends in the suffix
+#      '-NOTFOUND') the location will be (re)detected and variable updated to
+#      that.
+#
+#  PROCPS_STATIC_LIBRARY     - location of library for static linkage
+#                              (CACHED FILEPATH)
+#  PROCPS_STATIC_INCLUDE_DIR - include dir for static linkage (CACHED PATH)
+#  PROCPS_SHARED_LIBRARY     - location of shared library (CACHED FILEPATH)  
+#  PROCPS_SHARED_INCLUDE_DIR - include dir for dynamic linkage (CACHED PATH)
+#
+#  PROCPS_LIBRARY            - overrides PROCPS_SHARED_LIBRARY or
+#                              PROCPS_STATIC_LIBRARY if PROCPS_STATIC is ON
+#  PROCPS_INCLUDE_DIR        - overrides PROCPS_SHARED_INCLUDE_DIR or
+#                              PROCPS_STATIC_INCLUDE_DIR if PROCPS_STATIC is ON
+#
+#  PROCPS_LIBRARY and PROCPS_INCLUDE_DIR will be removed from the cache after
+#  their value is copied to PROCPS_(STATIC|SHARED)_* variables.
+#
+#  This module detects changes in the input variables and in the library and
+#  header files and internally tracks separate results for both static and
+#  dynamic linking. It is done this way because the unstardardized and possibly
+#  changing procps API may require the user to try several procps versions
+#  or switch between dynamic and static linking. I wanted to avoid the need to
+#  clean the cache each time.
+#  
+#  Because of this you don't need to clean the CMake cache to reconfigure
+#  procps. If you need just change PROCPS_STATIC, PROCPS_LIBRARY and
+#  PROCPS_INCLUDE_DIR variable. Simple running of "cmake ." should be
+#  sufficient to reconfigure the project.
+#  
 # -----------------------------------------------------------------------------
 #  Example usage
 # -----------------------------------------------------------------------------
@@ -36,15 +95,16 @@
 #       "kb_committed_as" "kb_dirty" "kb_inactive" "kb_mapped" "kb_pagetables"
 #
 #       "vminfo"
-#       "vm_nr_dirty" "vm_nr_writeback" "vm_nr_pagecache" "vm_nr_page_table_pages"
-#       "vm_nr_reverse_maps" "vm_nr_mapped" "vm_nr_slab" "vm_pgpgin" "vm_pgpgout"
-#       "vm_pswpin" "vm_pswpout" "vm_pgalloc" "vm_pgfree" "vm_pgactivate"
-#       "vm_pgdeactivate" "vm_pgfault" "vm_pgmajfault" "vm_pgscan" "vm_pgrefill"
-#       "vm_pgsteal" "vm_kswapd_steal" "vm_pageoutrun" "vm_allocstall"
+#       "vm_nr_dirty" "vm_nr_writeback" "vm_nr_pagecache" "vm_nr_mapped"
+#       "vm_nr_reverse_maps" "vm_nr_page_table_pages" "vm_nr_slab" "vm_pgpgin"
+#       "vm_pgpgout" "vm_pswpin" "vm_pswpout" "vm_pgalloc" "vm_pgfree"
+#       "vm_pgactivate" "vm_pgdeactivate" "vm_pgfault" "vm_pgmajfault"
+#       "vm_pgscan" "vm_pgrefill" "vm_pgsteal" "vm_kswapd_steal" "vm_pageoutrun"
+#       "vm_allocstall"
 #   )
 # set(PROCPS_REQUIRE_SYMBOLS ${PROCPS_CHECK_SYMBOLS}) # require all
 #
-# set(PROCPS_CHECK_PROC_T_MEMBERS	    # list of required proc_t structure members
+# set(PROCPS_CHECK_PROC_T_MEMBERS    # list of required proc_t structure members
 #       "tid" "ppid" "state" "utime" "stime" "cutime" "cstime" "start_time"
 #       "signal" "blocked" "sigignore" "sigcatch" "_sigpnd" "start_code"
 #       "end_code" "start_stack" "kstk_esp" "kstk_eip" "wchan" "priority"
@@ -55,22 +115,14 @@
 #       "sgroup" "fgroup" "cmd" "nlwp" "tgid" "tty" "euid" "egid" "ruid" "rgid"
 #       "suid" "sgid" "fuid" "fgid" "tpgid" "exit_signal" "processor"
 #   )
-# set(PROCPS_REQUIRE_PROC_T_MEMBERS ${PROCPS_CHECK_PROC_T_MEMBERS}) # require all
+# set(PROCPS_REQUIRE_PROC_T_MEMBERS ${PROCPS_CHECK_PROC_T_MEMBERS}) #require all
 # set(Procps_VERBOSE ON)
 #
-# set(PROCPS_REQUIRE_NG ON) # set OFF if you want to try legacy non-forked procps;
-#                           # proc_t->vm_swap will be probably missing
-# find_package(Procps REQUIRED "3.3.0")
+# set(PROCPS_REQUIRE_NG ON) # set OFF if you want to try older procps
+# find_package(Procps "3.3.0" REQUIRED)
 #
-# if(PROCPS_STATIC)
-#   # static linkage to procps
-#   include_directories(${PROCPS_STATIC_INCLUDE_DIRS})
-#   set(MY_PROCPS_LIBRARIES ${PROCPS_STATIC_LIBRARIES})
-# else()
-#   # dynamic linkage to shared procps
-#   include_directories(${PROCPS_INCLUDE_DIRS})
-#   set(MY_PROCPS_LIBRARIES ${PROCPS_LIBRARIES})
-# endif()
+# include_directories(${PROCPS_INCLUDE_DIRS})
+# set(LIBS ${LIBS} ${PROCPS_LIBRARIES})
 #
 #
 #=============================================================================
@@ -83,15 +135,13 @@
 # See the License for more information.
 #=============================================================================
 
-message(STATUS "Finding procps library and headers...")
-
 INCLUDE(FindPkgConfig)
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckStructHasMember)
 INCLUDE(FindPackageHandleStandardArgs)
 
 # -----------------------------------------------------------------------------
-#  Options and help messages
+#  Options and help descriptions
 # -----------------------------------------------------------------------------
 
 set(desc_PROCPS_STATIC      # list will be displayed joined with semi-colon
@@ -102,16 +152,16 @@ set(desc_PROCPS_STATIC      # list will be displayed joined with semi-colon
 option(PROCPS_STATIC "${desc_PROCPS_STATIC}" TRUE)
 
 set(help_PROCPS_STATIC_LOCATION
-  "You can override location of libprocps library and the include directory by"
-  " setting PROCPS_STATIC_LIBRARY and PROCPS_STATIC_INCLUDE_DIR cmake"
-  " variables.\n"
+  "You can override location of libprocps library to which you want statically"
+  " link and location of the include directory by setting PROCPS_STATIC_LIBRARY"
+  " and PROCPS_STATIC_INCLUDE_DIR cmake variables.\n"
   "   PROCPS_STATIC_LIBRARY       specifies full path to the library\n"
   "                               (i.e. path to the libprocps.a file)\n"
   "   PROCPS_STATIC_INCLUDE_DIR   specifies directory which contains\n"
   "                               the proc/procps.h header.\n"
   "You may achieve this e.g. by running\n"
   " ## cmake -D PROCPS_STATIC_LIBRARY:FILEPATH=/path/to/libprocps.a"
-  " -D PROCPS_STATIC_INCLUDE_DIR:PATH=/path/to/include/dir .\n" )
+  " -D PROCPS_STATIC_INCLUDE_DIR:PATH=/path/to/include/dir .\n")
 
 set(help_PROCPS_SHARED
   "If you insist on dynamic linkage to shared libprocps, update or patch"
@@ -126,15 +176,15 @@ set(help_PROCPS_SHARED
 
 set(help_PROCPS_SHARED_LOCATION
   "You can override location of shared libprocps library and the include"
-  " directory by setting PROCPS_LIBRARY and PROCPS_INCLUDE_DIR cmake"
-  " variables.\n"
-  "   PROCPS_LIBRARY              specifies full path to the library\n"
+  " directory by setting PROCPS_SAHRED_LIBRARY and PROCPS_SHARED_INCLUDE_DIR"
+  " cmake variables.\n"
+  "   PROCPS_SHARED_LIBRARY       specifies full path to the library\n"
   "                               (i.e. path to the libprocps.so file)\n"
-  "   PROCPS_INCLUDE_DIR          specifies directory which contains\n"
+  "   PROCPS_SHARED_INCLUDE_DIR   specifies directory which contains\n"
   "                               the proc/procps.h header.\n"
   "You may achieve this e.g. by running\n"
-  " ## cmake -D PROCPS_LIBRARY:FILEPATH=/path/to/libprocps.so"
-  " -D PROCPS_INCLUDE_DIR:PATH=/path/to/include/dir .\n" )
+  " ## cmake -D PROCPS_SHARED_LIBRARY:FILEPATH=/path/to/libprocps.so"
+  " -D PROCPS_SHARED_INCLUDE_DIR:PATH=/path/to/include/dir .\n" )
 
 
 
@@ -142,319 +192,535 @@ set(help_PROCPS_SHARED_LOCATION
 #  Miscellaneous macros
 # -----------------------------------------------------------------------------
 
+# debug
 macro(print_procps_variables)
- foreach(_varname LIBRARY STATIC_LIBRARY INCLUDE_DIR STATIC_INCLUDE_DIR
-                  VERSION_STRING STATIC_VERSION_STRING)
-   message(STATUS "\${_PROCPS_SAVED_${_varname}} = ${_PROCPS_SAVED_${_varname}} "
+ foreach(_varname SHARED_LIBRARY STATIC_LIBRARY
+                  SHARED_INCLUDE_DIR STATIC_INCLUDE_DIR
+                  SHARED_VERSION_STRING STATIC_VERSION_STRING)
+   message(STATUS
+           "\${__procps_saved_${_varname}} = ${__procps_saved_${_varname}} "
            "    \${PROCPS_${_varname}} = ${PROCPS_${_varname}}" )
  endforeach()
 endmacro()
 
-macro(verbose_message)
-  if(Procps_VERBOSE AND NOT Procps_FIND_QUIETLY)
+# debug
+macro(print_all_variables)
+  get_cmake_property(_variableNames VARIABLES)
+  foreach (_variableName ${_variableNames})
+    message(STATUS "${_variableName}=${${_variableName}}")
+  endforeach()
+endmacro()
+
+#
+# file_stat: get status of file that you may be later compare to detect changes
+# file_stat(<VAR>, filepath)
+#
+macro(file_stat var filepath )
+  if(EXISTS "${filepath}" )
+    execute_process(
+        COMMAND "stat" "-L" "--printf=%i %Y %u:%g %a %s %n" "${filepath}"
+        OUTPUT_VARIABLE ${var}
+        ERROR_QUIET )
+  else()
+    set(${var} "${filepath}-NOTFOUND") 
+  endif()
+  msg_debug("file_stat(\"${filepath}\") ${var} = \"${${var}}\"")
+endmacro()
+
+#
+# save_files_stat: Internally save stat of library and headers files
+# save_files_stat( "STATIC" | "SHARED" )
+# You can call detect_changed_files()
+#
+function(save_files_stat linkage)
+  msg_debug("Saving file stats.")
+  unset(INCLUDE_DIR_FILES)
+  foreach(h ${PROCPS_HEADERS})
+    set(INCLUDE_DIR_FILES
+        ${INCLUDE_DIR_FILES} "${PROCPS_${linkage}_INCLUDE_DIR}/${h}")
+  endforeach()
+
+  set(LIBRARY_FILES "${PROCPS_${linkage}_LIBRARY}")
+
+  foreach(_var "LIBRARY" "INCLUDE_DIR")
+    unset(stats)
+    if(PROCPS_${linkage}_${_var} AND EXISTS "${PROCPS_${linkage}_${_var}}")
+      foreach(f ${${_var}_FILES})
+        unset(stat)
+        file_stat(stat "${f}")
+        set(stats ${stats} "${stat}")
+      endforeach()
+      set(__procps_saved_filestat_${linkage}_${_var} "${stats}" CACHE INTERNAL "")
+    else()
+      unset(__procps_saved_filestat_${linkage}_${_var} CACHE)
+    endif()
+    msg_debug("save __procps_saved_filestat_${linkage}_${_var}: "
+              "\"${__procps_saved_filestat_${linkage}_${_var}}\"" ) 
+  endforeach()
+endfunction()
+
+#
+# detect_changed_files: Detect if library or headers files has been changed.
+# Usage: detect_changed_files ( "STATIC" | "SHARED" )
+# 
+# Detect if library or headers files has been changed since last
+# save_files_stat(). Sets internal variables 
+# PROCPS_CHANGED_{LIBRARY,INCLUDE_DIR,VERSION_STRING} to ON/OFF.
+#
+
+function(detect_changed_files linkage)
+  msg_debug("Detecting if file stats changed.")
+  unset(INCLUDE_DIR_FILES)
+  foreach(h ${PROCPS_HEADERS})
+    set(INCLUDE_DIR_FILES
+        ${INCLUDE_DIR_FILES} "${PROCPS_${linkage}_INCLUDE_DIR}/${h}")
+  endforeach()
+
+  set(LIBRARY_FILES "${PROCPS_${linkage}_LIBRARY}")
+
+  foreach(_var "LIBRARY" "INCLUDE_DIR")
+    set(changed TRUE)
+    if(DEFINED __procps_saved_filestat_${linkage}_${_var}
+            AND PROCPS_${linkage}_${_var} 
+            AND EXISTS "${PROCPS_${linkage}_${_var}}" )
+      msg_debug("Detecting changes for PROCPS_${linkage}_${_var}.")
+      unset(stats)
+      foreach(f ${${_var}_FILES})
+        unset(stat)
+        file_stat(stat "${f}")
+        set(stats ${stats} "${stat}")
+      endforeach()
+      if(stats AND
+            "${stats}" STREQUAL "${__procps_saved_filestat_${linkage}_${_var}}")
+        set(changed FALSE)
+      endif()
+    endif()
+    set(PROCPS_CHANGED_${_var} "${changed}")
+    set(PROCPS_CHANGED_${_var} "${changed}" PARENT_SCOPE)
+    msg_debug("PROCPS_CHANGED_${_var} = ${PROCPS_CHANGED_${_var}}")
+  endforeach()
+endfunction()
+
+#
+# status message
+#
+macro(msg)
+  if(NOT PROCPS_CONFIGURED OR Procps_DEBUG)
+    message(STATUS ${ARGV})
+  endif()
+endmacro()
+
+#
+# status verbose message
+#
+macro(msg_verbose)
+  if(Procps_VERBOSE AND NOT Procps_FIND_QUIETLY AND NOT PROCPS_CONFIGURED
+     OR Procps_DEBUG
+    )
     message(STATUS "  " ${ARGV})
   endif()
 endmacro()
 
 #
-# fail
+# status debug message
+#
+macro(msg_debug)
+  if(Procps_DEBUG)
+    message(STATUS "  D: " ${ARGV})
+  endif()
+endmacro()
+
+unset(errors)
+
+#
+# error: Add error.
+# error("error message to display" ...)
+#
+# Add error message to `errors` list and if Procps_VERBOSE is set, print
+# the message to the user.
+#
+macro(error)
+  if(Procps_FIND_REQUIRED)
+    msg_verbose("E: ${ARGV}")
+  else()
+    msg_verbose("W: ${ARGV}")
+  endif()
+  
+  # join list
+  unset(error_msg)
+  foreach(msg ${ARGV})
+    set(error_msg "${error_msg}${msg}")
+  endforeach()
+
+  if (DEFINED errors) 
+    set(errors ${errors} "${error_msg}")
+  else()
+    set(errors "${error_msg}")
+  endif()
+endmacro()
+
+#
+# fail: Fail module.
+# fail("error message to display" ...)
+#
+# Fail the module and print all errors from the `errors` list as reasons
+# of failure. Optional arguments are appended to the end of the `errors` list
+# before printing.
 #
 macro(fail)
+  if(${ARGC} GREATER 0)
+    error(${ARGV})
+  endif()
   if(PROCPS_STATIC)
-    if(NOT _found_lib)
-      set(_msg "Suitable ${_log_libname} static library not found.\n" )
-    elseif(NOT _found_headers)
-      set(_msg "Suitable ${_log_libname} include directory not found.\n" )
-    endif()
-    set(_msg ${_msg} ${help_PROCPS_STATIC_LOCATION} )
-  else(PROCPS_STATIC)
-    if(NOT _found_lib)
-      set(_msg "Suitable ${_log_libname} shared library not found.\n" )
-    elseif(NOT _found_headers)
-      set(_msg "Suitable ${_log_libname} include directory not found.\n" )
-    endif()
-    set(_msg ${_msg} ${help_PROCPS_SHARED_LOCATION} "\n" ${help_PROCPS_SHARED} )
+    set(_msg "Library ${log_libname} for static linking not found.")
+    set(_help ${help_PROCPS_STATIC_LOCATION})
+  else()
+    set(_msg "Library ${log_libname} for dynamic linking not found.")
+    set(_help ${help_PROCPS_SHARED_LOCATION} "\n" ${help_PROCPS_SHARED} )
   endif()
 
   if(Procps_FIND_REQUIRED)
-    message(SEND_ERROR "Unable to find procps.\nREASON: " ${ARGV} "\n" ${_msg})
+    unset(reasons)
+    foreach(err ${errors})
+      if(reasons)
+        set(reasons "${reasons}\n REASON: " ${err})
+      else()
+        set(reasons " REASON: " ${err})
+      endif()
+    endforeach()
+    message(SEND_ERROR ${_msg} "\n" ${reasons} "\n" ${_help} )
   elseif(NOT Procps_FIND_QUIETLY)
-    message(STATUS "  W: " ${ARGV} )
+    message(STATUS "  W: " ${_msg} )
+    foreach(err ${errors})
+      message(STATUS "  REASON: " ${err} ) 
+    endforeach()
+  else()
+    message(STATUS "  not found procps")
   endif()
+  unset(__procps_saved_OK CACHE)
   return()
 endmacro()
 
+#
+# check_failed: Fail the module if some errors were added with error() macro.
+#
+macro(check_failed)
+  if (DEFINED errors)
+    fail()
+  endif()
+endmacro()
+
+#
+# finish
+#
+macro(finish)
+  find_package_handle_standard_args(Procps
+                                    REQUIRED_VARS PROCPS_LIBRARIES
+                                                  PROCPS_INCLUDE_DIRS
+                                                  PROCPS_VERSION_STRING
+                                    VERSION_VAR PROCPS_VERSION_STRING )
+  return()
+endmacro()
 
 # -----------------------------------------------------------------------------
-#  Begin finding procps library and headers
+#  Begin setup
 # -----------------------------------------------------------------------------
 
-find_package(PkgConfig)
+msg_debug("FindProcps starts.")
 
-unset(PC_PROCPS_FOUND CACHE)
-pkg_check_modules(PC_PROCPS QUIET libprocps)
+## setup linkage type (static or dynamic)
+if (PROCPS_STATIC)
+  set(desc_PROCPS_STATIC_LIBRARY # list will be displayed joined with semi-colon
+    "Full path to libprocps.a for static linkage"
+    " leave empty for auto detection.")
+  set(desc_PROCPS_STATIC_INCLUDE_DIR # displayed joined with semi-colon
+    "Directory that contains proc/procps.h header for static linkage"
+    " leave empty for auto detection.")
+  set(libtype "STATIC")
+  set(pc_vars_prefix ${pc}_STATIC)
+  set(advanced_var_names "PROCPS_VERSION_STRING")
+  set(CMAKE_FIND_LIBRARY_PREFIXES ${CMAKE_STATIC_LIBRARY_PREFIX})
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
 
+else()
+  set(desc_PROCPS_SHARED_LIBRARY # list will be displayed joined with semi-colon
+    "Full path to libprocps.so for dynamic linkage"
+    " leave empty for auto detection.")
+  set(desc_PROCPS_SHARED_INCLUDE_DIR # displayed joined with semi-colon
+    "Directory that contains proc/procps.h header for dynamic linkage"
+    " leave empty for auto detection.")
+  set(libtype "SHARED")
+  set(pc_vars_prefix ${pc})
+  set(advanced_var_names "PROCPS_INCLUDE_DIR" "PROCPS_LIBRARY"
+                         "PROCPS_VERSION_STRING")
+  set(CMAKE_FIND_LIBRARY_PREFIXES ${CMAKE_SHARED_LIBRARY_PREFIX})
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
+endif()
+
+## setup required headers
+if(NOT PROCPS_HEADERS)
+  set(PROCPS_HEADERS
+              "proc/procps.h"
+              "proc/sysinfo.h"
+              "proc/pwcache.h"
+              "proc/readproc.h" )
+endif()
+
+
+unset(found_lib)
+unset(found_headers)
+
+## be silent if nothing changed and previous result was ok
+set(PROCPS_CONFIGURED OFF)
+if (__procps_saved_OK 
+    AND NOT DEFINED PROCPS_LIBRARY AND NOT DEFINED PROCPS_LIBRARY
+    AND PROCPS_${libtype}_INCLUDE_DIR AND PROCPS_${libtype}_LIBRARY
+    AND "${libtype}" STREQUAL "${__procps_saved_libtype}"
+    AND "${PROCPS_HEADERS}" STREQUAL "${__procps_saved_HEADERS}"
+    AND "${PROCPS_REQUIRE_NG}" STREQUAL "${__procps_saved_REQUIRE_NG}"
+   )
+  detect_changed_files("${libtype}")
+
+  if(NOT PROCPS_CHANGED_LIBRARY AND NOT PROCPS_CHANGED_INCLUDE_DIR)
+    set(PROCPS_CONFIGURED ON)
+    set(found_headers TRUE)
+    set(found_lib TRUE)
+    msg_debug("Procps already configured.")
+  endif()
+endif()
+
+set(__procps_saved_libtype "${libtype}" CACHE INTERNAL "")
+set(__procps_saved_HEADERS "${PROCPS_HEADERS}" CACHE INTERNAL "")
+set(__procps_saved_REQUIRE_NG "${PROCPS_REQUIRE_NG}" CACHE INTERNAL "")
+
+# initial message
+if (PROCPS_STATIC)
+  msg("Checking for library procps and headers for static linking.")
+else()
+  msg("Checking for library procps and headers for dynamic linking.")
+endif()
+
+## setup require procps-ng
 if(PROCPS_REQUIRE_NG)
-  message(STATUS "  ... (libprocps-ng required, legacy libproc will be ignored) ...")
-  set(_log_libname "procps-ng") # for logs
-  set(lib_names "procps")
-  set(ver_rexp
+  msg_verbose(
+    "I: procps-ng required, other procps libraries will not be found.")
+  set(log_libname "procps-ng")   # for logs
+  set(lib_names "procps")        # for find_library()
+  set(ver_rexp                   # regex of verion to be parsed from the lib 
     # 's/^\.\{0,\}procps-ng version \([0-9\.]\{1,\}\)\.\{0,\}$/\1/p'
     "s/^\\.\\{0,\\}procps-ng version \\([0-9\\.]\\{1,\\}\\)\\.\\{0,\\}$/\\1/p" )
+
 else()
-  set(_log_libname "procps") # for logs
-  set(lib_names "procps" "proc")
-  set(ver_rexp
+  set(log_libname "procps")      # for logs
+  set(lib_names "procps" "proc") # for find_library()
+  set(ver_rexp                   # regex of verion to be parsed from the lib
     # 's/^\.\{0,\}procps\(-ng\|\) version \([0-9\.]\{1,\}\)\.\{0,\}$/\2/p'
     "s/^\\.\\{0,\\}procps\\(-ng\\|\\) version \\([0-9\\.]\\{1,\\}\\)\\.\\{0,\\}$/\\2/p" )
 endif()
 
+# override PROCPS_${libtype}_INCLUDE_DIR with PROCPS_INCLUDE_DIR if passed
+if(DEFINED PROCPS_INCLUDE_DIR)
+  msg_verbose("I: Overriding PROCPS_${libtype}_INCLUDE_DIR with value from "
+              "PROCPS_INCLUDE_DIR (\"${PROCPS_INCLUDE_DIR}\")")  
+  set(PROCPS_${libtype}_INCLUDE_DIR ${PROCPS_INCLUDE_DIR}
+      CACHE PATH "${desc_PROCPS_${libtype}_INCLUDE_DIR}" FORCE)
+  msg_verbose("I: Unsetting PROCPS_INCLUDE_DIR variable.")
+  unset(PROCPS_INCLUDE_DIR CACHE)
+endif()
+
+# overide PROCPS_${libtype}_LIBRARY with PROCPS_LIBRARY if set
+if(DEFINED PROCPS_LIBRARY)
+  msg_verbose("I: Overriding PROCPS_${libtype}_LIBRARY with value from "
+              "PROCPS_LIBRARY (\"${PROCPS_LIBRARY}\")")
+  set(PROCPS_${libtype}_LIBRARY "${PROCPS_LIBRARY}"
+      CACHE FILEPATH "${desc_PROCPS_${libtype}_LIBRARY}" FORCE)
+  msg_verbose("I: Unsetting PROCPS_LIBRARY variable.")
+  unset(PROCPS_LIBRARY CACHE)
+endif()
+
 # -----------------------------------------------------------------------------
-#  Finding static procps library and headers
+#  End setup
 # -----------------------------------------------------------------------------
 
-unset(_found_lib)
-unset(_found_headers)
 
-if (PROCPS_STATIC)
-  message(STATUS "  ... for static linkage.")
-  set(desc_PROCPS_STATIC_LIBRARY # list will be displayed joined with semi-colon
-    "Full path to libprocps.a for static linkage"
-    " leave empty for auto detection.")
+if(NOT PROCPS_CONFIGURED) # if configured skip finding procps
+# -----------------------------------------------------------------------------
+#  Begin finding procps library and headers
+# -----------------------------------------------------------------------------
 
-  set(desc_PROCPS_STATIC_INCLUDE_DIR # list will be displayed joined with semi-colon
-    "Directory that contains proc/procps.h header for static linkage"
-    " leave empty for auto detection.")
 
-  ## headers
+#  Query pkg-config
+# -----------------------------------------------------------------------------
 
-  find_path(PROCPS_STATIC_INCLUDE_DIR proc/procps.h
-            HINTS ${PC_PROCPS_STATIC_INCLUDEDIR}
-                  ${PC_PROCPS_STATIC_INCLUDE_DIRS}
-            PATH_SUFFIXES libprocps procps
-            DOC "${desc_PROCPS_STATIC_INCLUDE_DIR}" )
+find_package(PkgConfig)
+set(pc "__procps_pc") 
+unset(${pc}_FOUND CACHE)
+pkg_check_modules(${pc} QUIET libprocps)
+if(NOT ${pc}_FOUND AND 
+   NOT (PROCPS_${libtype}_LIBRARY AND PROCPS_${libtype}_INCLUDE_DIR)
+  )
+  msg_verbose("W: pkg-config failed to find libprocps.")
+endif()
 
-  if(EXISTS "${PROCPS_STATIC_INCLUDE_DIR}/proc/procps.h")
-    verbose_message("I: include directory found: ${PROCPS_STATIC_INCLUDE_DIR}")
+
+#  Find headers
+# -----------------------------------------------------------------------------
+
+# force find_path if user set PROCPS_(STATIC_)INCLUDE_DIR to empty string
+if(NOT PROCPS_${libtype}_INCLUDE_DIR)
+  unset(PROCPS_${libtype}_INCLUDE_DIR CACHE)
+endif()
+
+find_path(PROCPS_${libtype}_INCLUDE_DIR
+          NAMES ${PROCPS_HEADERS}
+          HINTS ${${pc_vars_prefix}_INCLUDEDIR}
+                ${${pc_vars_prefix}_INCLUDE_DIRS}
+          PATH_SUFFIXES libprocps procps
+          DOC "${desc_PROCPS_${libtype}_INCLUDE_DIR}" )
+
+if(NOT PROCPS_${libtype}_INCLUDE_DIR)
+  error("Include directory of ${log_libname} library not found.")
+else()
+  msg_verbose("I: Include directory found: " ${PROCPS_${libtype}_INCLUDE_DIR})
+  set(found_headers TRUE)
+  foreach(header ${PROCPS_HEADERS})
+    if(NOT EXISTS "${PROCPS_${libtype}_INCLUDE_DIR}/${header}")
+      error("Header file \"${header}\" not found in include directory defined "
+        "by PROCPS_${libtype}_INCLUDE_DIR variable "
+        "('${PROCPS_${libtype}_INCLUDE_DIR}').")
+      set(found_headers FALSE)
+    else()
+      msg_verbose("I: Header file \"${header}\" found.")
+    endif()
+  endforeach()
+endif()
+
+
+#  Find library
+# -----------------------------------------------------------------------------
+
+# force find_library if user set PROCPS_(STATIC_)LIBRARY to empty string
+if(NOT PROCPS_${libtype}_LIBRARY)
+  unset(PROCPS_${libtype}_LIBRARY CACHE)
+endif()
+
+find_library(PROCPS_${libtype}_LIBRARY NAMES ${lib_names}
+             HINTS ${${pc_vars_prefix}_LIBDIR}
+                   ${${pc_vars_prefix}_LIBRARY_DIRS}
+                   DOC "${desc_PROCPS_${libtype}_LIBRARY}" )
+
+if(NOT PROCPS_${libtype}_LIBRARY)
+  error("Library ${log_libname} not found.")
+elseif(NOT EXISTS ${PROCPS_${libtype}_LIBRARY})
+  error("Library ${log_libname} defined in PROCPS_${libtype}_LIBRARY"
+        " ('${PROCPS_${libtype}_LIBRARY}') not found.")
+else()
+  set(found_lib TRUE)
+  msg_verbose("I: Library ${log_libname} found: " ${PROCPS_${libtype}_LIBRARY})
+endif()
+
+
+#  Find library version
+# -----------------------------------------------------------------------------
+
+if(found_lib)
+  unset(PROCPS_${libtype}_VERSION_STRING CACHE) # check eachtime
+
+  execute_process(
+              COMMAND "strings" "${PROCPS_${libtype}_LIBRARY}"
+              COMMAND "sed" "-n" "${ver_rexp}"
+              OUTPUT_VARIABLE PROCPS_${libtype}_VERSION_STRING
+              ERROR_QUIET )
+
+  STRING(REGEX REPLACE "(\r?\n)+$" "" # trim EOL
+         PROCPS_${libtype}_VERSION_STRING
+         "${PROCPS_${libtype}_VERSION_STRING}")
+  # store in cache
+  set(PROCPS_${libtype}_VERSION_STRING
+      "${PROCPS_${libtype}_VERSION_STRING}" CACHE INTERNAL "" )
+
+  if(PROCPS_${libtype}_VERSION_STRING)
+    msg_verbose("I: Version string of ${log_libname} found: "
+                    "${PROCPS_${libtype}_VERSION_STRING}")
   else()
-    verbose_message("W: proc/procps.h not found in include directory: "
-                    "${PROCPS_STATIC_INCLUDE_DIR}")
-    fail("Include directory not found.")
-  endif()
-
-  ## static library
-
-  set(CMAKE_FIND_LIBRARY_PREFIXES ${CMAKE_STATIC_LIBRARY_PREFIX})
-  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
-
-  find_library(PROCPS_STATIC_LIBRARY NAMES ${lib_names}
-               HINTS ${PC_PROCPS_STATIC_LIBDIR}
-                     ${PC_PROCPS_STATIC_LIBRARY_DIRS}
-                     DOC "${desc_PROCPS_STATIC_LIBRARY}" )
-
-  if(EXISTS ${PROCPS_STATIC_LIBRARY})
-    verbose_message("I: static library found: "
-                    ${PROCPS_STATIC_LIBRARY} )
-  else()
-    fail("Static library not found.")
-  endif()
-
-  ## library version
-
-  if(PROCPS_STATIC_LIBRARY)
-    execute_process(
-                COMMAND "strings" "${PROCPS_STATIC_LIBRARY}"
-                COMMAND "sed" "-n" "${ver_rexp}"
-                OUTPUT_VARIABLE PROCPS_STATIC_VERSION_STRING )
-    # trim EOL
-    STRING(REGEX REPLACE "(\r?\n)+$" ""
-           PROCPS_STATIC_VERSION_STRING "${PROCPS_STATIC_VERSION_STRING}")
-  endif()
-
-  if(PROCPS_STATIC_VERSION_STRING)
-    verbose_message("I: version string of ${_log_libname} found: "
-                    "${PROCPS_STATIC_VERSION_STRING}")
-  else()
-    set(_err "Version string of ${_log_libname} not found.")
+    set(found_lib FALSE)
+    set(_err "Version string of ${log_libname} not found.")
     if(PROCPS_REQUIRE_NG)
       set(_err ${_err} " The found library may be legacy procps but"
                        " procps-ng is required.")
+      error(${_err})
     endif()
-    fail(${_err})
   endif()
+  
+endif()
 
-  ## store result
-
-  if(PROCPS_STATIC_VERSION_STRING AND PROCPS_STATIC_LIBRARY)
-    set(_found_lib ON)
-  endif()
-  if(PROCPS_STATIC_INCLUDE_DIR)
-    set(_found_headers ON)
-  endif()
-
-  set(PROCPS_STATIC_LIBRARIES ${PROCPS_STATIC_LIBRARY} )
-  set(PROCPS_STATIC_INCLUDE_DIRS ${PROCPS_STATIC_INCLUDE_DIR} )
-
-  mark_as_advanced(PROCPS_VERSION_STRING)
-
-  ## setup for test compilations (CHECK_SYMBOL_EXISTS)
-
-  if(PROCPS_REQUIRE_SYMBOLS)
-    set(CMAKE_REQUIRED_INCLUDES ${PROCPS_STATIC_INCLUDE_DIRS})
-    set(CMAKE_REQUIRED_LIBRARIES ${PROCPS_STATIC_LIBRARIES})
-  endif()
-
-# -----------------------------------------------------------------------------
-#  Finding shared procps library and headers
-# -----------------------------------------------------------------------------
-
-else(PROCPS_STATIC)
-  message(STATUS "  ... for dynamic linkage.")
-
-  ## headers
-
-  find_path(PROCPS_INCLUDE_DIR proc/procps.h
-            HINTS ${PC_PROCPS_INCLUDEDIR} ${PC_PROCPS_INCLUDE_DIRS}
-            PATH_SUFFIXES libprocps procps)
-
-  if(EXISTS "${PROCPS_INCLUDE_DIR}/proc/procps.h")
-    verbose_message("I: include directory found: ${PROCPS_INCLUDE_DIR}")
-  else()
-    verbose_message("W: proc/procps.h not found in include directory: "
-                    "${PROCPS_INCLUDE_DIR}")
-    fail("Include directory not found.")
-  endif()
-
-  ## shared library
-
-  find_library(PROCPS_LIBRARY NAMES ${lib_names}
-               HINTS ${PC_PROCPS_LIBDIR} ${PC_PROCPS_LIBRARY_DIRS} )
-
-  if(EXISTS "${PROCPS_LIBRARY}")
-    verbose_message("I: shared library found: "
-                    ${PROCPS_LIBRARY} )
-  else()
-    fail("Shared library not found.")
-  endif()
-
-  ## library version
-
-  if(PROCPS_LIBRARY)
-    execute_process(
-                COMMAND "strings" "${PROCPS_LIBRARY}"
-                COMMAND "sed" "-n" "${ver_rexp}"
-                OUTPUT_VARIABLE PROCPS_VERSION_STRING )
-    # trim EOL
-    STRING(REGEX REPLACE "(\r?\n)+$" ""
-           PROCPS_VERSION_STRING "${PROCPS_VERSION_STRING}")
-  endif()
-
-  if(PROCPS_VERSION_STRING)
-    verbose_message("I: version string of ${_log_libname} found: "
-                    "${PROCPS_VERSION_STRING}" )
-  else()
-    set(_err "Version string of ${_log_libname} not found.")
-    if(PROCPS_REQUIRE_NG)
-      set(_err ${_err} " The found library may be legacy procps but"
-                       " procps-ng is required.")
-    endif()
-    fail(${_err})
-  endif()
-
-  ## store result
-
-  if(PROCPS_VERSION_STRING AND PROCPS_LIBRARY)
-    set(_found_lib ON)
-  endif()
-  if(PROCPS_INCLUDE_DIR)
-    set(_found_headers ON)
-  endif()
-
-  set(PROCPS_LIBRARIES ${PROCPS_LIBRARY} )
-  set(PROCPS_INCLUDE_DIRS ${PROCPS_INCLUDE_DIR} )
-
-  mark_as_advanced(PROCPS_INCLUDE_DIR PROCPS_LIBRARY PROCPS_VERSION_STRING)
-
-  ## setup for test compilations (CHECK_SYMBOL_EXISTS)
-
-  if(PROCPS_REQUIRE_SYMBOLS)
-    set(CMAKE_REQUIRED_INCLUDES ${PROCPS_INCLUDE_DIRS})
-    set(CMAKE_REQUIRED_LIBRARIES ${PROCPS_LIBRARIES})
-  endif()
-
-endif(PROCPS_STATIC)
 
 # -----------------------------------------------------------------------------
 #  End finding procps library and headers
 # -----------------------------------------------------------------------------
 
+check_failed()
+
+detect_changed_files(${libtype})
 
 
+endif(NOT PROCPS_CONFIGURED)
 # -----------------------------------------------------------------------------
-#  Begin checking for symbols and structures
+# Store result
 # -----------------------------------------------------------------------------
 
-## rerun checks if changes detected in include_dir or library path ##
+set(PROCPS_VERSION_STRING "${PROCPS_${libtype}_VERSION_STRING}")
+set(PROCPS_LIBRARIES ${PROCPS_${libtype}_LIBRARY} )
+set(PROCPS_INCLUDE_DIRS ${PROCPS_${libtype}_INCLUDE_DIR} )
 
-#print_procps_variables()
-
-# clean PROCPS_HAS_* variables if changes detected include_dir or library path
-if( (NOT "${_PROCPS_SAVED_LIBRARY}"
-         STREQUAL "${PROCPS_LIBRARY}") OR
-    (NOT "${_PROCPS_SAVED_INCLUDE_DIR}"
-         STREQUAL "${PROCPS_INCLUDE_DIR}") OR
-    (NOT "${_PROCPS_SAVED_VERSION_STRING}"
-         STREQUAL "${PROCPS_VERSION_STRING}") OR
-    (NOT "${_PROCPS_SAVED_STATIC_LIBRARY}"
-         STREQUAL "${PROCPS_STATIC_LIBRARY}") OR
-    (NOT "${_PROCPS_SAVED_STATIC_INCLUDE_DIR}"
-         STREQUAL "${PROCPS_STATIC_INCLUDE_DIR}") OR
-    (NOT "${_PROCPS_SAVED_STATIC_VERSION_STRING}"
-         STREQUAL "${PROCPS_STATIC_VERSION_STRING}") )
-  verbose_message("I: cleaning list of missing symbols; tests will be run.")
-  foreach(_symbol ${PROCPS_REQUIRE_SYMBOLS})
-    unset(PROCPS_HAS_${_symbol} CACHE)
-  endforeach()
+if(     Procps_FIND_VERSION
+        AND "${PROCPS_VERSION_STRING}" VERSION_LESS "${Procps_FIND_VERSION}"
+   OR (
+        Procps_FIND_VERSION AND Procps_FIND_VERSION_EXACT
+        AND NOT "${PROCPS_VERSION_STRING}" VERSION_EQUAL "${Procps_FIND_VERSION}"
+      )
+  )
+  finish()
 endif()
 
-# clean PROCPS_PROC_T_HAS_MEMBER_* variables if detected changes in include_dir
-if( (NOT "${_PROCPS_SAVED_INCLUDE_DIR}"
-         STREQUAL "${PROCPS_INCLUDE_DIR}") OR
-    (NOT "${_PROCPS_SAVED_VERSION_STRING}"
-         STREQUAL "${PROCPS_VERSION_STRING}") OR
-    (NOT "${_PROCPS_SAVED_STATIC_INCLUDE_DIR}"
-         STREQUAL "${PROCPS_STATIC_INCLUDE_DIR}") OR
-    (NOT "${_PROCPS_SAVED_STATIC_VERSION_STRING}"
-         STREQUAL "${PROCPS_STATIC_VERSION_STRING}") )
-  verbose_message("I: cleaning list of missing proc_t members;"
-                  " tests will be run.")
-  foreach(_member ${PROCPS_REQUIRE_PROC_T_MEMBERS})
-    unset(PROCPS_PROC_T_HAS_MEMBER_${_member} CACHE)
-  endforeach()
-endif()
+mark_as_advanced(${advanced_var_names})
 
-# save variables so we can detect changes
-set(_PROCPS_SAVED_LIBRARY "${PROCPS_LIBRARY}" CACHE INTERNAL "")
-set(_PROCPS_SAVED_INCLUDE_DIR "${PROCPS_INCLUDE_DIR}" CACHE INTERNAL "")
-set(_PROCPS_SAVED_VERSION_STRING "${PROCPS_VERSION_STRING}" CACHE INTERNAL "")
-set(_PROCPS_SAVED_STATIC_LIBRARY "${PROCPS_STATIC_LIBRARY}" CACHE INTERNAL "")
-set(_PROCPS_SAVED_STATIC_INCLUDE_DIR "${PROCPS_STATIC_INCLUDE_DIR}"
-    CACHE INTERNAL "")
-set(_PROCPS_SAVED_STATIC_VERSION_STRING "${PROCPS_STATIC_VERSION_STRING}"
-    CACHE INTERNAL "")
+save_files_stat(${libtype}) # after this only symbols or struct members tests
+                            # may fail 
 
-# test required symbols
-unset(PROCPS_MISSING_SYMBOLS)
-unset(PROCPS_MISSING_REQUIRED_SYMBOLS)
+# -----------------------------------------------------------------------------
+#  Begin testing symbols
+# -----------------------------------------------------------------------------
 
 if(PROCPS_CHECK_SYMBOLS)
-  verbose_message("I: checking libprocps for missing symbols.")
+  set(CMAKE_REQUIRED_INCLUDES ${PROCPS_INCLUDE_DIRS})
+  set(CMAKE_REQUIRED_LIBRARIES ${PROCPS_LIBRARIES})
+
+  if(PROCPS_CHANGED_LIBRARY OR PROCPS_CHANGED_INCLUDE_DIR)
+    foreach(_symbol ${PROCPS_CHECK_SYMBOLS})
+      unset(__procps_${libtype}_HAS_${_symbol} CACHE)
+    endforeach()
+    msg_verbose("I: Checking libprocps symbols.")
+  endif()
+
+  unset(PROCPS_MISSING_SYMBOLS)
+  unset(PROCPS_MISSING_REQUIRED_SYMBOLS)
+
   foreach(_symbol ${PROCPS_CHECK_SYMBOLS})
-    CHECK_SYMBOL_EXISTS("${_symbol}"
-            "proc/procps.h;proc/sysinfo.h;proc/pwcache.h;proc/readproc.h"
-            PROCPS_HAS_${_symbol} )
+    unset(PROCPS_HAS_${_symbol} CACHE)
+
+    if(DEFINED __procps_${libtype}_HAS_${_symbol})
+      set(PROCPS_HAS_${_symbol} ${__procps_${libtype}_HAS_${_symbol}}
+        CACHE INTERNAL "" )
+    else()
+      CHECK_SYMBOL_EXISTS("${_symbol}" "${PROCPS_HEADERS}"
+              PROCPS_HAS_${_symbol} )
+      set(__procps_${libtype}_HAS_${_symbol} ${PROCPS_HAS_${_symbol}}
+          CACHE INTERNAL "" )
+    endif()
+
     if(NOT PROCPS_HAS_${_symbol})
-      set(PROCPS_MISSING_SYMBOLS "${PROCPS_MISSING_SYMBOLS} ${_symbol}")
+      set(PROCPS_MISSING_SYMBOLS "${PROCPS_MISSING_SYMBOLS} ${_symbol}" )
       foreach(_required_symbol ${PROCPS_REQUIRE_SYMBOLS})
         if(${_required_symbol} STREQUAL ${_symbol})
           set(PROCPS_MISSING_REQUIRED_SYMBOLS
@@ -463,21 +729,50 @@ if(PROCPS_CHECK_SYMBOLS)
       endforeach()
     endif()
   endforeach()
+
 endif()
 
-# test required struct proc_t memberes
-unset(PROCPS_MISSING_PROC_T_MEMBERS)
-unset(PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS)
+# -----------------------------------------------------------------------------
+#  End testing symbols
+# -----------------------------------------------------------------------------
+
+
+
+# -----------------------------------------------------------------------------
+#  Begin testing proc_t members
+# -----------------------------------------------------------------------------
 
 if(PROCPS_CHECK_PROC_T_MEMBERS)
-  verbose_message("I: checking libprocps for missing members of proc_t.")
+  set(CMAKE_REQUIRED_INCLUDES ${PROCPS_INCLUDE_DIRS})
+  set(CMAKE_REQUIRED_LIBRARIES ${PROCPS_LIBRARIES})
+
+  if(PROCPS_CHANGED_LIBRARY OR PROCPS_CHANGED_INCLUDE_DIR)
+    foreach(_member ${PROCPS_CHECK_PROC_T_MEMBERS})
+      unset(__procps_${libtype}_PROC_T_HAS_MEMBER_${_member} CACHE)
+    endforeach()
+    msg_verbose("I: Checking libprocps proc_t members.")
+  endif()
+
+  unset(PROCPS_MISSING_PROC_T_MEMBERS)
+  unset(PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS)
+
   foreach(_member ${PROCPS_CHECK_PROC_T_MEMBERS})
-    CHECK_STRUCT_HAS_MEMBER("proc_t" "${_member}"
-            "proc/procps.h;proc/sysinfo.h;proc/pwcache.h;proc/readproc.h"
+    unset(PROCPS_PROC_T_HAS_MEMBER_${_member} CACHE)
+
+    if(DEFINED __procps_${libtype}_PROC_T_HAS_MEMBER_${_member})
+      set(PROCPS_PROC_T_HAS_MEMBER_${_member}
+          ${__procps_${libtype}_PROC_T_HAS_MEMBER_${_member}}
+          CACHE INTERNAL "" )
+    else()
+      CHECK_STRUCT_HAS_MEMBER("proc_t" "${_member}" "${PROCPS_HEADERS}"
             PROCPS_PROC_T_HAS_MEMBER_${_member} )
+      set(__procps_${libtype}_PROC_T_HAS_MEMBER_${_member}
+          ${PROCPS_PROC_T_HAS_MEMBER_${_member}} CACHE INTERNAL "" )
+    endif()
+
     if(NOT PROCPS_PROC_T_HAS_MEMBER_${_member})
       set(PROCPS_MISSING_PROC_T_MEMBERS
-              "${PROCPS_MISSING_PROC_T_MEMBERS} ${_member}")
+          "${PROCPS_MISSING_PROC_T_MEMBERS} ${_member}" )
       foreach(_required_member ${PROCPS_REQUIRE_PROC_T_MEMBERS})
         if(${_required_member} STREQUAL ${_member})
           set(PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS
@@ -486,57 +781,58 @@ if(PROCPS_CHECK_PROC_T_MEMBERS)
       endforeach()
     endif()
   endforeach()
+
 endif()
 
-# Output missing symbols and structures.
-# Send error and help message if required symbols and structures not found.
+# -----------------------------------------------------------------------------
+#  End testing proc_t members
+# -----------------------------------------------------------------------------
+
+
+
+# -----------------------------------------------------------------------------
+#  Begin outputing missing symbols and proc_t members.
+# -----------------------------------------------------------------------------
+# Send error and help message if required symbols and proc_t members not found.
+# -----------------------------------------------------------------------------
 
 if(PROCPS_MISSING_PROC_T_MEMBERS OR PROCPS_MISSING_SYMBOLS)
-  if(PROCPS_MISSING_PROC_T_MEMBERS)
+  if(PROCPS_MISSING_PROC_T_MEMBERS AND NOT Procps_FIND_QUIETLY)
     message(WARNING "libprocps struct proc_t missing members: "
             "${PROCPS_MISSING_PROC_T_MEMBERS}" )
   endif()
-  if(PROCPS_MISSING_SYMBOLS)
+  if(PROCPS_MISSING_SYMBOLS AND NOT Procps_FIND_QUIETLY)
     message(WARNING "libprocps missing symbols: ${PROCPS_MISSING_SYMBOLS}")
   endif()
 endif()
 
-if(PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS OR PROCPS_MISSING_REQUIRED_SYMBOLS)
-  if(PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS)
+if(PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS)
+  if(NOT Procps_FIND_QUIETLY)
     message(WARNING "libprocps struct proc_t MISSING REQUIRED MEMBERS: "
             "${PROCPS_MISSING_REQUIRED_PROC_T_MEMBERS}" )
   endif()
-  if(PROCPS_MISSING_REQUIRED_SYMBOLS)
+  error("Required proc_t members missing in libprocps.")
+endif()
+if(PROCPS_MISSING_REQUIRED_SYMBOLS AND NOT Procps_FIND_QUIETLY)
+  if(NOT Procps_FIND_QUIETLY)
     message(WARNING "libprocps MISSING REQUIRED SYMBOLS: "
             "${PROCPS_MISSING_REQUIRED_SYMBOLS}" )
   endif()
-  if(NOT PROCPS_STATIC)
-    fail("Required symbols missing in libprocps.")
-  else()
-    fail("Required symbols missing in libprocps.\n"
-         "Update libprocps to version that contains all required symbols.")
-  endif()
+  error("Required symbols missing in libprocps.")
 endif()
 
+check_failed()
+
 # -----------------------------------------------------------------------------
-#  End checking for symbols and structures
+#  End outputing missing symbols and proc_t members.
 # -----------------------------------------------------------------------------
 
 
+
 # -----------------------------------------------------------------------------
-#  Return results
+#  Return results (code steps here only if confugiration was successfull)
 # -----------------------------------------------------------------------------
 
-if(PROCPS_STATIC)
-  find_package_handle_standard_args(Procps
-                                    REQUIRED_VARS PROCPS_STATIC_LIBRARY
-                                                  PROCPS_STATIC_INCLUDE_DIR
-                                                  PROCPS_STATIC_VERSION_STRING
-                                    VERSION_VAR PROCPS_STATIC_VERSION_STRING )
-else()
-  find_package_handle_standard_args(Procps
-                                    REQUIRED_VARS PROCPS_LIBRARY
-                                                  PROCPS_INCLUDE_DIR
-                                                  PROCPS_VERSION_STRING
-                                    VERSION_VAR PROCPS_VERSION_STRING )
-endif()
+set(__procps_saved_OK TRUE CACHE INTERNAL "")
+
+finish()
