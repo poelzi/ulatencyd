@@ -387,18 +387,25 @@ function ulatency.tree_loaded(name)
   return __CGROUP_LOADED[name]
 end
 
---! @brief returns true if name is available
+--! @brief Tests whether given cgroup subsystem is available.
 --! @private @memberof ulatency
---! @param name name of subsystem to test
+--! @param name Name of subsystem to test.
+--! @return false | true | nil
+--! @retval nil   If the subsystem is not available in the Linux kernel.
+--! @retval false If the cgroup is available but disabled in kernel.
+--! @retval true  If the cgroup is available and enabled in kernel. 
+--! @public @memberof ulatency
+
 function ulatency.has_cgroup_subsystem(name)
   if not __CGROUP_HAS then
     ulatency.get_cgroup_subsystems()
   end
-  return (__CGROUP_HAS[name] == true)
+  return __CGROUP_HAS[name]
 end
 
---!@brief returns a table of available cgroup subsystems
+--!@brief Returns a table of available cgroup subsystems.
 --!@public @memberof ulatency
+
 function ulatency.get_cgroup_subsystems()
   if __CGROUP_AVAIL then
     return __CGROUP_AVAIL
@@ -406,10 +413,12 @@ function ulatency.get_cgroup_subsystems()
   __CGROUP_AVAIL = {}
   __CGROUP_HAS = {}
   for line in io.lines("/proc/cgroups") do 
-    if string.sub(line, 1, 2) ~= "#" then
-      local var = string.gmatch(line, "(%w+)%s+.+")()
-      __CGROUP_AVAIL[#__CGROUP_AVAIL+1] = var
-      __CGROUP_HAS[var] = true
+    if string.sub(line, 1, 1) ~= "#" then
+      local subsys, enabled = line:match("^([%w_]+).*(%d)$")
+      if subsys ~= nil then
+        __CGROUP_AVAIL[#__CGROUP_AVAIL+1] = subsys
+        __CGROUP_HAS[subsys] = (enabled == "1" and true or false)
+      end
     end
   end
   return __CGROUP_AVAIL
