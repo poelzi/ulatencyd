@@ -502,13 +502,15 @@ if string.sub(CGROUP_ROOT, -1) ~= "/" then
 end
 CGROUP_PRIVATE_ROOT = CGROUP_ROOT .. "ulatencyd/"
 
--- test if a cgroups is mounted
-local function is_mounted(mnt_pnt)
-  if string.sub(mnt_pnt, #mnt_pnt) == "/" then
-    mnt_pnt = string.sub(mnt_pnt, 1, #mnt_pnt-1)
+-- test if path is mounted
+local function is_mounted(path)
+  if string.sub(path, #path) == "/" then
+    path = string.sub(path, 1, #path-1)
   end
   for line in io.lines("/proc/mounts") do
-    if string.find(line, mnt_pnt.." ") then
+                  --fixme handle octal codes (like \040 for space)
+    local mnt = line:match("^[^%s]+%s+([^%s]+)%s+")
+    if mnt == path then
       return true
     end
   end
