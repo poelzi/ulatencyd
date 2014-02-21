@@ -517,7 +517,51 @@ local function is_mounted(path)
   return false
 end
 
--- try mounting the mountpoints
+-- return path (or nil) where is mounted cgroup hierarchy of given subsystem
+local function get_subsys_mount_point(subsys)
+  for line in io.lines("/proc/mounts") do
+                        --fixme handle octal codes (like \040 for space)
+    local mnt, opts = line:match("^[^%s]+%s+([^%s]+)%s+cgroup%s+([^%s]+)")
+    if mnt and string.find(","..opts..",", ","..subsys..",") then
+      return mnt
+    end
+  end
+  return nil
+end
+
+-- return table of subsystems mounted in given path
+local function get_mount_point_subsystems(path)
+  if string.sub(path, #path) == "/" then
+    path = string.sub(path, 1, #path-1)
+  end
+  for line in io.lines("/proc/mounts") do
+    local mnt = line:match("^[^%s]+%s+([^%s]+)%s+")
+    if mnt == path then
+
+                      ---fixme handle octal codes (like \040 for space)
+      local opts = line:match("^[^%s]+%s+[^%s]+%s+cgroup%s+([^%s]+)")
+      rv = {}
+      if opts then
+        local mounted_subsystems = string.split(opts, ",")
+        for _, known_subsys in pairs(CGROUP_SUBSYSTEMS) do
+          if ulatency.has_cgroup_subsystem(known_subsys) then
+            for _, mnt_subsys in pairs(mounted_subsystems) do
+              if mnt_subsys == known_subsys then
+                rv[#rv+1] = mnt_subsys
+              end
+            end
+          end
+        end
+      end
+      return rv
+
+    end
+  end
+  return nil
+end
+
+-- try to mount CGROUP_ROOT
+
 if not is_mounted(CGROUP_ROOT) then
   -- try mounting a tmpfs there
   mkdirp(CGROUP_ROOT)
@@ -529,6 +573,9 @@ if not is_mounted(CGROUP_ROOT) then
     ulatency.log_error("can't mount: "..CGROUP_ROOT)
   end
 end
+
+-- create CGROUP_PRIVATE_ROOT
+
 if posix.access(CGROUP_PRIVATE_ROOT) ~= 0 then
   if not mkdirp(CGROUP_PRIVATE_ROOT) then
     ulatency.log_error("can't create directory for ulatencyd private cgroup hierarchies: "..CGROUP_PRIVATE_ROOT)
@@ -536,6 +583,7 @@ if posix.access(CGROUP_PRIVATE_ROOT) ~= 0 then
 end
 
 -- disable the autogrouping
+
 if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
   ulatency.log_info("disable sched_autogroup in linux kernel")
   ulatency.save_sysctl("kernel.sched_autogroup_enabled", "0")
@@ -543,70 +591,272 @@ end
 
 ulatency.log_info("available cgroup subsystems: "..table.concat(ulatency.get_cgroup_subsystems(), ", "))
 
--- mount cgroup hierarchies
+
 local __found_one_group = false
 
-local function mount_cgroup(subsys, private)
-  local rv = false
-  local subsys_path = CGROUP_ROOT..subsys
-  local private_path = CGROUP_PRIVATE_ROOT..subsys
-  local mount_path = private and private_path or subsys_path
-  if is_mounted(mount_path) then
-    ulatency.log_info("mount point "..mount_path.." is already mounted")
-    if not private then
-      __CGROUP_LOADED[subsys] = true
-      __found_one_group = true
-    end
-    rv = true
-  else
-    mkdirp(mount_path)
-    local options = private and  "none,name=ulatencyd."..subsys or subsys
-    -- we mount private hierarchies with the fake device (first column in /proc/mounts)
-    -- corresponding to the directory where hierarchy with the real cgroup subsystem controller
-    -- is mounted. This way the userspace scripts (e.g. ulatency) are able to map
-    -- our private hierarchy to the real one.
-    local device = private and subsys_path or "none"
-    local prog = "/bin/mount -n -t cgroup -o "..options.." "..device.." "..mount_path.."/"
-    ulatency.log_info("mount cgroups: "..prog)
-    fd = io.popen(prog, "r")
-    print(fd:read("*a"))
-    if not is_mounted(mount_path) then
-      if private then
-        ulatency.log_error("can't mount private cgroup: "..mount_path)
-      else
-        ulatency.log_warning("can't mount: "..mount_path..", disabling subsystem.")
+local function setup_cgroups_hierarchy(subsys)
+  local wanted_mountpoint = CGROUP_ROOT..subsys
+  local real_mountpoint = get_subsys_mount_point(subsys) -- if already mounted
+
+  -- track if we created mountpoint, symlink or mounted the subsystem
+  -- hierarchy to rembeber we should revert these actions, if subsequent
+  -- mounting of private hierarchy will fail.
+  local mounted = false
+  local created_mountpoint = false
+  local created_symlink = false
+
+  -- log shortcuts
+  local function log_info(msg)
+    ulatency.log_info("setup "..subsys..": "..msg)
+  end
+  local function log_warning(msg)
+    ulatency.log_warning("setup "..subsys..": "..msg)
+  end
+
+  log_info(string.format(
+        "Setup hierarchy of control groups for %s subsystem.", subsys))
+
+  if (real_mountpoint) then
+    local mounted_subsystems = get_mount_point_subsystems(real_mountpoint)
+    if mounted_subsystems then
+      for _, mnt_subsys in ipairs(mounted_subsystems) do
+        if __CGROUP_LOADED[mnt_subsys] then
+          log_warning(string.format(
+                "This subsystem is surprisingly already mounted in hierarchy"..
+                " shared with another subsystem (%s).",
+                mnt_subsys))
+          log_warning(
+                "Ulatencyd supports only one subsystem per cgroups"..
+                " hierarchy. If you REALLY need this type of setup, for a"..
+                " price of unoptimal scheduling, contact ulatencyd authors.")
+          return false
+        end
       end
-    else
-      __CGROUP_LOADED[subsys] = true
-      __found_one_group = true
-      rv = true
     end
   end
-  return rv
+
+  -- if cgroup is already mounted as we need, skip remaining checks
+  if (real_mountpoint == wanted_mountpoint) then
+    log_info("Hierarchy already mounted in expected "..wanted_mountpoint..".")
+
+  -- if hierarchy is already mounted but in unexpected mount point,
+  -- check if we can use existent symlink to it or create new one
+  elseif (real_mountpoint and real_mountpoint ~= wanted_mountpoint) then
+    log_info(string.format(
+          "Hierarchy surprisingly already mounted in %s, trying symbolic link.",
+          real_mountpoint))
+    -- check if symlink exists
+    local prog = string.format("/bin/readlink -eqn '%s'", wanted_mountpoint)
+    local fd = io.popen(prog, "r")
+    local target = fd:read("*a")
+    fd:close()
+    -- if symlink already exists, check if it links to hierarchy mount point
+    if #target > 0 and target == real_mountpoint then
+      log_info(string.format(
+            "Using existing symbolic link %s.", wanted_mountpoint))
+    else
+    -- create symbolic link (this will fail if file or directory of same name
+    -- already exists, so we need not to check these conditions
+      local target = real_mountpoint:find(CGROUP_ROOT, 1, true) == 1
+                and real_mountpoint:sub(#CGROUP_ROOT+1) .. "/"
+                or real_mountpoint .. "/"
+      local ok, errstr = posix.link(
+            target,
+            wanted_mountpoint, true)
+      if (not ok) then
+        log_warning(string.format(
+              "Cannot create symbolic link %s to %s : %s",
+              wanted_mountpoint, target, errstr))
+        return false
+      else
+        created_symlink = true
+        log_info(string.format(
+              "Using created symbolic link %s.",
+              wanted_mountpoint, target))
+      end
+    end
+
+  -- if hierarchy is not mounted then mount it...
+  else
+  -- but first check that the mount point is not used.
+  -- there may be even another subsystem!
+    if is_mounted(wanted_mountpoint) then
+      log_warning(string.format(
+            "Surprisingly there is something already mounted in %s! Giving up.",
+            wanted_mountpoint))
+      return false
+    end
+    -- create mount point
+    if not posix.access(wanted_mountpoint, "f") then
+      local ok, errstr = mkdirp(wanted_mountpoint)
+      if not ok then
+        log_warning(string.format(
+              "Directory %s cannot be created: %s", wanted_mountpoint, errstr))
+        return false
+      end
+      created_mountpoint = true
+    end
+    -- mount hierarchy
+    local options = subsys
+    local device = "none"
+    local prog = string.format("/bin/mount -n -t cgroup -o %s %s %s/ 2>&1",
+                               options, device, wanted_mountpoint)
+    log_info(string.format(
+          "Mounting hierachy: \"%s\"", prog))
+    local fd = io.popen(prog, "r")
+    local output = fd:read("*a"):rtrim()
+    fd:close()
+    if #output > 0 then
+      log_warning(output)
+    end
+    if is_mounted(wanted_mountpoint) then
+      mounted = true
+    else
+      log_warning("Cannot mount cgroups hierarchy.")
+      if (created_mountpoint) then -- cleanup
+        log_info("Reverting changes we have done:")
+        log_info("rm "..wanted_mountpoint)
+        os.remove(wanted_mountpoint)
+      end
+      return false
+    end
+  end
+
+  -- check if we have permissions to access the hierarchy,
+  -- we shouldn't have if it is symlink created by a regular user
+  local access, err_msg = posix.access(wanted_mountpoint, "rwx")
+  if not access then
+    log_warning("Cannot access hierarchy: "..err_msg)
+    return false
+  end
+
+  --
+  -- Mount ulatencyd private hierachy.
+  --
+
+  local priv_subsys = "name=ulatencyd."..subsys
+  local wanted_priv_mountpoint = CGROUP_PRIVATE_ROOT..subsys
+  local real_priv_mountpoint = get_subsys_mount_point(priv_subsys)
+  local failed = false
+  local priv_mounted = false
+
+  -- check if the private hierarchy is not already mounted
+  if (real_priv_mountpoint == wanted_priv_mountpoint) then
+    priv_mounted = true
+    log_info(string.format(
+          "Private hierarchy already mounted in expected %s.",
+          wanted_mountpoint))
+
+  elseif (real_priv_mountpoint and
+          real_priv_mountpoint ~= wanted_priv_mountpoint)
+  then
+    failed = true
+    log_warning(string.format(
+          "Private hierarchy surprisingly already mounted in %s! Giving up.",
+          real_priv_mountpoint))
+  end
+
+  -- check that the mount point is not used.
+  -- there may be even another subsystem!
+  if not failed and not priv_mounted and is_mounted(wanted_priv_mountpoint) then
+    log_warning(string.format(
+          "Surprisingly there is already something mounted in %s! Giving up.",
+          wanted_priv_mountpoint))
+    failed = true
+  end
+
+  if not failed and not priv_mounted then
+    -- create mount point
+    if not posix.access(wanted_priv_mountpoint, "f") then
+      local ok, errstr = mkdirp(wanted_priv_mountpoint)
+      if not ok then
+        log_warning(string.format(
+              "Directory %s cannot be created: %s",
+              wanted_priv_mountpoint, errstr))
+        failed = true
+      end
+    end
+
+    if (not failed) then
+      local options = "none,name=ulatencyd."..subsys
+      -- we mount private hierarchies with the fake device (first column in /proc/mounts)
+      -- corresponding to the directory where hierarchy with the real cgroup subsystem controller
+      -- is mounted. This way the userspace scripts (e.g. ulatency) are able to map
+      -- our private hierarchy to the real one.
+      local device = wanted_mountpoint
+      local prog = string.format("/bin/mount -n -t cgroup -o %s %s %s/ 2>&1",
+                                 options, device, wanted_priv_mountpoint)
+      log_info(string.format(
+          "Mounting private hierachy: \"%s\"", prog))
+      local fd = io.popen(prog, "r")
+      local output = fd:read("*a"):rtrim()
+      fd:close()
+      if #output > 0 then
+        log_warning(output)
+      end
+      if not is_mounted(wanted_priv_mountpoint) then
+        log_warning("Cannot mount private hierarchy.")
+        failed = true
+      end
+    end
+  end
+
+  if (failed) then
+    log_info("Reverting changes we have done:")
+    -- cleanup
+    log_info("rmdir "..wanted_priv_mountpoint)
+    os.remove(wanted_priv_mountpoint)
+    if (mounted) then
+      local prog = "/bin/umount "..wanted_mountpoint
+      log_info(prog)
+      io.popen(prog, "r")
+    end
+    if (created_mountpoint or created_symlink) then
+      log_info("rm "..wanted_mountpoint)
+      os.remove(wanted_mountpoint)
+    end
+    return false
+  end
+
+  __CGROUP_LOADED[subsys] = true
+  __found_one_group = true
+  return true
 end
+
 
 for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
   if ulatency.has_cgroup_subsystem(subsys) then
-    if mount_cgroup(subsys, false) then
-      mount_cgroup(subsys, true)
+    if setup_cgroups_hierarchy(subsys) then
       local path = CGROUP_ROOT..subsys;
       local fp = io.open(path.."/release_agent", "r")
-      local ragent = fp:read("*a")
+      local ragent = fp:read("*a"):rtrim()
       fp:close()
       -- we only write a release agent if not already one. update if it looks like
       -- a ulatencyd release agent
-      if ragent == "" or ragent == "\n" or string.sub(ragent, -22) == '/ulatencyd_cleanup.sh' then
+      if ragent == "" or ragent == "\n" or string.sub(ragent, -21) == '/ulatencyd_cleanup.sh' then
         sysfs_write(path.."/release_agent", ulatency.release_agent)
+        sysfs_write(path.."/notify_on_release", "1")
+      else
+        ulatency.log_info("setup "..subsys..": Foreign released agent "..
+                    "already registered: "..ragent)
       end
-      sysfs_write(path.."/notify_on_release", "1")
+      ulatency.log_info("setup "..subsys..": Done.")
+    else
+      ulatency.log_warning("setup "..subsys..": Subsystem disabled.")
     end
+  elseif ulatency.has_cgroup_subsystem(subsys) == nil then
+    ulatency.log_info(
+                "setup "..subsys..": Subsystem not found, disabling.")
   else
-    ulatency.log_info("no cgroups subsystem "..subsys.." found, disabling subsystem.")
+    ulatency.log_warning(
+                "setup "..subsys..": Subsystem supported by kernel, but"..
+                " currently disabled. It may be enabled with a boot"..
+                " time parameter of Linux kernel.")
   end
 end
 
 if not __found_one_group then
-  ulatency.log_error("could not found one cgroup to mount.")
+  ulatency.log_error("Could not found any cgroup to mount.")
 end
 __found_one_group = nil
 
