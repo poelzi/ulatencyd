@@ -48,6 +48,10 @@ function ulatency.log_warning(msg)
   ulatency.log(ulatency.LOG_LEVEL_WARNING, msg)
 end
 --! @public @memberof ulatency
+function ulatency.log_message(msg)
+  ulatency.log(ulatency.LOG_LEVEL_MESSAGE, msg)
+end
+--! @public @memberof ulatency
 function ulatency.log_error(msg)
   ulatency.log(ulatency.LOG_LEVEL_ERROR, msg)
 end
