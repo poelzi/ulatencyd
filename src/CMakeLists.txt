@@ -33,11 +33,10 @@ configure_file(ulatencyd_cleanup.sh.tmpl ulatencyd_cleanup.sh)
 
 install(TARGETS ulatencyd 
         RUNTIME DESTINATION sbin)
-install(FILES core.lua
-        DESTINATION lib/ulatencyd)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ulatencyd_cleanup.sh
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ 
                     GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
         DESTINATION lib/ulatencyd)
-
-
+install(DIRECTORY lua
+        DESTINATION lib/ulatencyd
+        FILES_MATCHING PATTERN "*.lua")

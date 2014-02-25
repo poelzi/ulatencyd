@@ -25,6 +25,9 @@ ulatency = {}
 ulatency.version="VERSION"
 --! @public @memberof ulatency
 ulatency.release_agent = "/PATH/TO/RELEASEAGENT"
+--! Directory with lua core files (like core.lua). Defined on compile time.
+--! @public @memberof ulatency
+ulatency.path_core_directory = "${CONFIG_PREFIX}/ulatencyd/lua"
 --! The rules directory.
 --! This is defined on compile time. Defaults to ${CONFIG_PREFIX}/ulatencyd/rules.
 --! @bug The rules directory may be changed via `-r` parameter when invoking ulatencyd,
@@ -521,6 +524,13 @@ end
 --! See similar ulatency.fallback_quit() that will dispatch pending main loop events.
 --! @public @memberof ulatency
 function ulatency.die(exit_code)
+end
+
+--! Load and execute the lua file.
+--! @param filename The file inside or relative to ulatency.path_core_directory
+--! @return boolean TRUE on success.
+--! @public @memberof ulatency
+function ulatency.load_core_file(filename)
 end
 
 --! Load the rule file.

@@ -2027,7 +2027,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
         if((sb.st_mode & S_IFMT) != S_IFREG)
             goto next;
 
-        if(load_lua_rule_file(lua_main_state, rpath) && fatal)
+        if(load_lua_file(lua_main_state, rpath) && fatal)
           abort();
     next:
         g_free(rule_name);
@@ -2210,8 +2210,9 @@ int core_init() {
   // FIXME make it configurable
   scheduler_set(&LUA_SCHEDULER);
 
-  if(load_lua_rule_file(lua_main_state, QUOTEME(LUA_CORE_FILE)))
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
+  if(load_lua_file(lua_main_state, QUOTEME(LUA_CORE_DIR) "/bootstrap.lua"))
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,
+        "Can't load " QUOTEME(LUA_CORE_DIR) "/bootstrap.lua");
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "core initialized");
   if(delay)

@@ -50,7 +50,7 @@
 //static proc_t *push_proc_t (lua_State *L);
 static u_proc *push_u_proc (lua_State *L, u_proc *proc);
 static int docall (lua_State *L, int narg, int nresults);
-int load_lua_rule_file(lua_State *L, const char *name);
+int load_lua_file(lua_State *L, const char *name);
 
 void stackdump_g(lua_State* l)
 {
@@ -2116,6 +2116,21 @@ static int l_get_time (lua_State *L) {
   return 1;
 }
 
+static int user_load_lua_core_file(lua_State *L) {
+  char *full, *full2;
+  const char *name = luaL_checkstring(L, 1);
+  full = g_strconcat(QUOTEME(LUA_CORE_DIR), "/", name, NULL);
+  full2 = realpath(full, NULL);
+  if(!full2) {
+    g_warning("load_core_file: realpath failed for %s", full);
+    g_free(full);
+    return 0;
+  }
+  lua_pushboolean(L, !load_lua_file(L, full2));
+  g_free(full);
+  g_free(full2);
+  return 1;
+}
 
 static int user_load_lua_rule_file(lua_State *L) {
   char *full, *full2;
@@ -2129,11 +2144,11 @@ static int user_load_lua_rule_file(lua_State *L) {
       g_free(full);
       return 0;
     }
-    lua_pushboolean(L, !load_lua_rule_file(L, full2));
+    lua_pushboolean(L, !load_lua_file(L, full2));
     g_free(full);
     g_free(full2);
   } else {
-    lua_pushboolean(L, !load_lua_rule_file(L, name));
+    lua_pushboolean(L, !load_lua_file(L, name));
   }
   return 1;
 }
@@ -2287,6 +2302,7 @@ static const luaL_reg R[] = {
   {"get_time", l_get_time},
   {"fallback_quit", l_fallback_quit},
   {"die", l_die},
+  {"load_core_file", user_load_lua_core_file},
   {"load_rule", user_load_lua_rule_file},
   {"load_rule_directory", user_load_rule_directory},
   {"process_update", l_process_update},
@@ -2324,6 +2340,7 @@ LUALIB_API int luaopen_ulatency(lua_State *L) {
   // module version
   PUSH_STR(version, QUOTEME(VERSION))
   PUSH_STR(release_agent, QUOTEME(RELEASE_AGENT))
+  PUSH_STR(path_core_directory, QUOTEME(LUA_CORE_DIR))
   PUSH_STR(path_rules_directory, QUOTEME(RULES_DIRECTORY))
   PUSH_STR(path_config_directory, QUOTEME(CONFIG_PATH))
 
@@ -2478,7 +2495,7 @@ static int docall (lua_State *L, int narg, int nresults) {
 
 
 
-int load_lua_rule_file(lua_State *L, const char *name) {
+int load_lua_file(lua_State *L, const char *name) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "load %s", name);
   if(luaL_loadfile(L, name)) {
     report(L, 1);
