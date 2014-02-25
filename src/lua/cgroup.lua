@@ -289,13 +289,19 @@ function CGroup:commit()
   local pids = rawget(self, "new_tasks")
   if #pids > 0 then
     local t_file = self:path("tasks")
-    local fp = io.open(t_file, "w")
-    if fp then
+    local fp, errmsg = io.open(t_file, "w")
+    if fp == nil then
+      ulatency.log_warning("Cannot add new task(s) to cgroup: "..errmsg)
+    else
       fp:setvbuf("no")
+
+      ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
+
+      -- move PIDs to cgroup
       for i, pid in ipairs(pids) do
         local ok, err, err_code = fp:write(tostring(pid)..'\n')
         if not ok then
-          if not ulatency.is_pid_alive(pid) then --suppres warning if the task is already dead
+          if ulatency.is_pid_alive(pid) then --suppress warning if the task is already dead
             sysfs_write_error(t_file, tostring(pid), err, err_code)
           end
         else
@@ -305,7 +311,7 @@ function CGroup:commit()
           end
         end
       end
-      ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
+
       rawset(self, "new_tasks", {})
       fp:close()
     end

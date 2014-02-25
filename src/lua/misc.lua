@@ -79,6 +79,7 @@ function sysfs_write_error(filepath, value, err, err_code)
       if cgr then
         -- error while adding task to a cgroup
         if file == "tasks" then
+          local proc = ulatency.get_pid(value)
           -- no such process; ignore this error
           if err_code == 3 then
             return
@@ -95,8 +96,10 @@ function sysfs_write_error(filepath, value, err, err_code)
             end
           end
           -- other error
-          ulatency.log_warning(
-            string.format("Task (tid: %s) couldn't be moved to %s (%d: %s)", tostring(value), tostring(cgr), err_code, err))
+          ulatency.log_warning(string.format(
+                "Task (tid: %s, cmdfile: %s, exe: %s) couldn't be moved to %s (%d: %s)",
+                tostring(value), proc.cmdfile or "NONE", proc.exe or 'NONE',
+                tostring(cgr), err_code, err))
           return
         end
       end
