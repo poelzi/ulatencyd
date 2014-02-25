@@ -160,7 +160,7 @@ def get_process_data(pid):
         if not os.path.exists(path):
             return None
         fp = open(path)
-        rv["cmdline"] = fp.read().split("\0")[:-1]
+        rv["cmdline"] = unicode(fp.read(), "utf-8").split("\0")[:-1]
         fp.close()
     except OSError:
         return None
