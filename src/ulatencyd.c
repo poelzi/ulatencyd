@@ -265,6 +265,9 @@ static void log_file_handler (const gchar    *log_domain,
 
   write (log_fd, string, strlen (string));
   g_free (string);
+
+  if (is_fatal)
+    g_log_default_handler(log_domain, log_level, message, unused_data);
 }
 
 static void close_logfile() {
