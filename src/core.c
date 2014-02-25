@@ -543,7 +543,15 @@ gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
 
   for(i = 0; lines[i]; i++) {
       char **vals;
-      vals = g_strsplit (lines[i], ":", 3); // or is regex ^[0-9]+:(.+):(.+) needed?
+      /*
+       * Ulatencyd will not run with multiple subsystems mounted in single
+       * hierarchy, so assume in /proc/<pid>/cgroup there is always only one
+       * subsys_name on each line <hierarchy_number>:<subsys_name>:<cgroup>
+       *
+       * Another approach is to use hierarchy_number as index into hash
+       * table generated from /proc/cgroups. Would it be faster?
+       */
+      vals = g_strsplit (lines[i], ":", 3);
       if (vals != NULL && g_strv_length(vals) == 3) {
         g_hash_table_insert (cgroups, g_strdup (vals[1]), g_strdup (vals[2]));
         if (cgroups_origin)
