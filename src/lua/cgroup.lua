@@ -55,15 +55,14 @@ CGroupMeta = { __index = CGroup, __tostring = CGroup_tostring}
 --! @public @memberof CGroup
 function CGroup.new(name, init, tree)
   tree = tree or "cpu"
-  if CGROUP_DEFAULT[tree] then
-    cinit = table.copy(CGROUP_DEFAULT[tree])
-  else
-    cinit = {}
-  end
+  local default = (name == "") and
+                  CGROUP_ROOT_DEFAULT[tree] or CGROUP_DEFAULT[tree]
+  local cinit = default and table.copy(default) or {}
   uncommited=table.merge(cinit, init or {})
   rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={},
                       tree=tree, adjust={}, used=false}, CGroupMeta)
   _CGroup_Cache[tree..'/'..name] = rv
+  ulatency.log_sched("New cgroup created: "..tostring(rv))
   return rv
 end
 

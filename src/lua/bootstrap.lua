@@ -399,6 +399,15 @@ end -- do
 -------------------------------------------------------------------------------
 
 
+-- setup root cgroup for each subsystem
+
+for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
+  if ulatency.tree_loaded(subsys) then
+    CGroup.new("", nil, subsys):commit()
+  end
+end
+
+
 -- disable the autogrouping
 
 if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
