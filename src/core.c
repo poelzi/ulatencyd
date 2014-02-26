@@ -2135,7 +2135,7 @@ int u_dbus_setup();
 int core_init() {
   // load config
   int i;
-  iteration = 1;
+  iteration = 0;
   filter_list = NULL;
 
   smp_num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
