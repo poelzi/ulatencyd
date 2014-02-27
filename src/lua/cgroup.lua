@@ -376,7 +376,11 @@ function CGroup.create_isolation_group(proc, suffix, mappings, include_children,
   end
 
   local block = block_scheduler or 1
-  local proc_fnc = function(proc) if fnc then fnc(proc) end; proc:set_block_scheduler(block) end
+  local block_reason = "it is flagged for isolation in cgroup "..cgr_name
+  local proc_fnc = function(proc)
+    if fnc then fnc(proc) end
+    proc:set_block_scheduler(block, block_reason)
+  end
   if include_children then
     proc:apply(proc_fnc)
   else

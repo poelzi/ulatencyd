@@ -149,7 +149,7 @@ do
           -- not movable, but I could not find the pattern, therefore they are
           -- detected here
           if in_root_cgroups then
-            proc:set_block_scheduler(1)
+            proc:set_block_scheduler(1, "the pid is unmovable kernel task")
             info[#info+1] = "This is probably kernel unmovable task"..
                   " and will not be scheduled again."
             log_level = ulatency.LOG_LEVEL_SCHED

@@ -818,14 +818,25 @@ static int u_proc_get_n_nodes (lua_State *L) {
 }
 
 static int u_proc_set_block_scheduler (lua_State *L) {
+  const char *reason;
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
+  reason = lua_tostring (L, 3); // optional reason
 
   if(!U_PROC_IS_VALID(proc))
     return 0;
 
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "block_scheduler set to: %d by %s", value, "(FIXME)");
   proc->block_scheduler = value;
+
+  if (reason) {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,
+        "pid %d (cmd: %s): block_scheduler set to %d because %s.",
+        proc->pid, proc->proc->cmd, value, reason);
+  } else {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,
+        "pid %d (cmd: %s): block_scheduler set to %d",
+        proc->pid, proc->proc->cmd, value);
+  }
   
   return 0;
 }

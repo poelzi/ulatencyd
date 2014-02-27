@@ -32,7 +32,7 @@ Isolate = {
       if flg.reason and flg.reason ~= "" then
         CGroup.create_isolation_group(proc, flg.reason, self.RULES[flg.reason] or {}, false, flg.threshold)
       else
-        proc:set_block_scheduler(flg.threshold)
+        proc:set_block_scheduler(flg.threshold, "it is flagged for isolation")
       end
     end
     rv = ulatency.filter_rv(ulatency.FILTER_STOP)

@@ -58,6 +58,7 @@ end
 --! - A value greater then 1 will cause
 --!   Scheduler skips the process even when doing final cleanup, caused by ulatencyd daemon shutdown. This will make
 --!   the process **never** being moved from its cgroup.
+--! @param reason string <optional> Reason attached to the log message.
 --! @remark Particular, if you have a process you want to be never moved to other cgroup, setup a cgroup, move the
 --! process to it and call `U_PROC:set_block_scheduler(1)`.
 --! @remark If you have a process you want to stay in its cgroup forever, e.g. a process that creates its private
@@ -65,7 +66,7 @@ end
 --! @remark You may put processes to isolation with `CGroup.create_isolation_group()` or label them with
 --! @link __ISOLATE_FLAG isolate flag@endlink.
 --! @public @memberof U_PROC
-function U_PROC:set_block_scheduler(value)
+function U_PROC:set_block_scheduler(value, reason)
 end
 
 --! @brief Sets the fake PGID of the process #U_PROC.
