@@ -348,7 +348,7 @@ function CGroup.create_isolation_group(proc, suffix, mappings, include_children,
 
   local tasks = proc:get_current_task_pids()
   if not tasks then return end --process is already dead
-  local cgr_name = "iso_"..suffix or tostring(pid)
+  local cgr_name = "iso_"..(suffix or tostring(pid))
   for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
     if ulatency.tree_loaded(subsys) then
       -- create isolation cgroup
