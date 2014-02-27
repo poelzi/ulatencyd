@@ -931,14 +931,17 @@ static int u_proc_set_oom_score (lua_State *L) {
 }
 
 static int u_proc_get_oom_score (lua_State *L) {
+  int rv;
   u_proc *proc = check_u_proc(L, 1);
 
   if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
-  lua_pushinteger(L, !get_oom_killer(proc->pid));
-
-  return 1;
+  if ((rv = get_oom_killer(proc->pid)) != -1) {
+    lua_pushinteger(L, rv);
+    return 1;
+  }
+  return 0;
 }
 
 static int u_proc_ioprio_set (lua_State *L) {

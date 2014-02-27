@@ -91,7 +91,7 @@ end
 
 --! @brief Get the number the oom-killer score is adjusted for #U_PROC.
 --! @return a number
---! @retval 0 If failed.
+--! @retval nil If failed.
 --! @see `U_PROC::set_oom_score()`
 --! @public @memberof U_PROC
 function U_PROC:get_oom_score()
