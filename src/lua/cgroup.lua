@@ -364,8 +364,13 @@ function CGroup.create_isolation_group(proc, suffix, mappings, include_children,
           mapping.adjust_new(ng, proc)
         end
         ng:commit()
-        ulatency.log_info(string.format('isolation group %s created.', ng:path()))
+        ulatency.log_info(string.format('Isolation group %s created.', ng:path()))
       end
+      ulatency.log_sched(string.format(
+              'Move pid %d, cmdfile %s, exe %s" with tasks %s to isolation group %s.',
+               proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE",
+               table.concat(tasks,','),
+               ng:path()))
       ng:run_adjust(proc)
       ng:add_task_list(proc.pid, tasks)
       if include_children then
