@@ -250,6 +250,7 @@ end
 --! @brief Gets I/O scheduling class and priority of process #U_PROC.
 --! @return priority, class Priority and scheduling class number
 --! @retval 0, 0 If reading of values failed.
+--! @retval nil if #U_PROC is dead
 --! @see `U_PROC::set_ioprio()`
 --! @see `man 2 ioprio_get`
 --! @see lua_PROC_SCHED
