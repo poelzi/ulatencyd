@@ -223,9 +223,9 @@ end
 --! Returns process `U_PROC` with `pid`.
 --! @param pid A PID of the process to return.
 --! @param include_tasks (optional, default FALSE) If TRUE and `U_PROC` with `pid` not found, return
---! the thread leader of the task `pid`.
+--! the thread leader of the task which tid = `pid`.
 --! @retval `U_PROC` If process with `pid` exists in ulatency #processes table.
---! @retval 0 If process with `pid` does not exists in ulatency #processes table.
+--! @retval nil If process with `pid` does not exists in ulatency #processes table.
 --! @public @memberof ulatency
 function ulatency.get_pid(pid, include_tasks)
 end
@@ -233,7 +233,7 @@ end
 --! Returns `#U_TASK` with `tid`.
 --! @param tid A TID of the task to return.
 --! @retval `#U_TASK` instance if a task with `tid` exists in ulatency internal `#tasks` table.
---! @retval 0 If a task with `tid` does not exists in ulatency `#tasks` table.
+--! @retval nil If a task with `tid` does not exists in ulatency `#tasks` table.
 --! @public @memberof ulatency
 function ulatency.get_tid(tid)
 end
