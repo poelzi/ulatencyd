@@ -32,10 +32,11 @@ posix = require("posix")
 
 --! @brief Recursively creates a directory.
 --! @param path Full path of the new directory.
+--! @param quiet If true, do not log errors
 --! @return boolean
---! @retval 0 if the directory was successfully created.
+--! @retval 0 if the directory was successfully created or already exists
 --! @retval nil, errstr, errno if creation of some directory along the `path` failed.
-function mkdirp(path)
+function mkdirp(path, quiet)
   if not posix.access(path, "f") then
     local parts = path:split("/")
     for i,v in ipairs(parts) do
@@ -45,9 +46,10 @@ function mkdirp(path)
                   -- (e.g /sys/fs/cgroup/cpu) is a symlink not created by root
         local ok, errstr, errno = posix.mkdir(name)
         if not ok then
-          cg_log(string.format(
-                "mkdirp(%s): Can't create directory: %s",
-                path, errstr))
+          if not quiet then
+            cg_log(string.format(
+                  "mkdirp(%s): Can't create directory: %s", path, errstr ))
+          end
           return nil, errstr, errno
         end
       end
@@ -251,7 +253,6 @@ function sysfs_write(path, value, quiet)
 
   return ok, err, err_code
 end
-
 
 function re_from_table(tab)
   return table.concat(tab, "|")
