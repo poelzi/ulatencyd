@@ -134,16 +134,32 @@ function CGroup:parent()
   return CGroup.new(name)
 end
 
+--! Get value of cgroup parameter `key`.
+--! @param key Name of the cgroup parameter.
+--! @param raw If true then always read the current value from file `key`.
+--! @param row_format If `raw` is true then this specifies the format for
+--! file:read(). If nil given, the default format "*l" is used.
+--! @retval value of `key`
+--! @retval nil If no data could be read with specified `raw_format`.
+--! @retval nil, errstr, errno If the `key` file cannot be opened.
 --! @public @memberof CGroup
-function CGroup:get_value(key, raw)
-  uncommited = rawget(self, "uncommited")
-  if uncommited[key] and not raw then
-    return uncommited[key]
+function CGroup:get_value(key, raw, raw_format)
+  if not raw then
+    local uncommited = rawget(self, "uncommited")
+    if uncommited[key] then
+      return uncommited[key]
+    end
   end
   local path = self:path(key)
-  if posix.access(path) == 0 then
-    local fp = io.open(path, "r")
-    return fp:read("*a"):rtrim()
+  local ok, errstr, errno = posix.access(path)
+  local fp
+  if ok then
+    fp, errstr, errno = io.open(path, "r")
+    if fp then
+      return fp:read(raw_format or "*l")
+    end
+  else
+    return nil, errstr, errno
   end
 end
 
