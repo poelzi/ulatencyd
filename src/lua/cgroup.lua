@@ -284,53 +284,72 @@ function CGroup:remove()
   return rv
 end
 
+
+--! @retval true
+--! @retval nil, errstr, errno
 --! @public @memberof CGroup
-function CGroup:commit()
-  mkdirp(self:path())
-  mkdirp(self:private_path())
+function CGroup:commit(quiet)
+  local ok, errstr, errno
+
+  ok, errstr, errno = mkdirp(self:path(), quiet)
+  if ok then
+    ok, errstr, errno = mkdirp(self:private_path(), quiet)
+  end
+  if not ok then
+    return nil, errstr, errno
+  end
+
+  local quiet_param = quiet
   local uncommited = rawget(self, "uncommited")
   for k, v in pairs(uncommited) do
-    local par = string.sub(k, 1, 1)
-    if par == '?' then
+    if string.sub(k, 1, 1) == '?' then
+      quiet_param = true
       k = string.sub(k, 2)
-    else
-      par = nil
     end
     local path = self:path(k)
-    if sysfs_write(path, v, par == '?') or par == '?' then
+    ok, errstr, errno = sysfs_write(path, v, quiet_param)
+    if ok or quiet_param then
       uncommited[k] = nil
     end
   end
+
   local pids = rawget(self, "new_tasks")
   if #pids > 0 then
     local t_file = self:path("tasks")
-    local fp, errmsg = io.open(t_file, "w")
+    local fp, t_errstr, t_errno = io.open(t_file, "w")
     if fp == nil then
-      ulatency.log_warning("Cannot add new task(s) to cgroup: "..errmsg)
-    else
-      fp:setvbuf("no")
+      if not quiet then
+        ulatency.log_warning(string.format(
+              "Cannot add new task(s) to %s: (%d) %s",
+               tostring(self), t_errno, t_errstr ))
+        end
+        return nil, t_errstr, t_errno
+    end
 
-      ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
+    ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
 
-      -- move PIDs to cgroup
-      for i, pid in ipairs(pids) do
-        local ok, err, err_code = fp:write(tostring(pid)..'\n')
-        if not ok then
-          if ulatency.is_pid_alive(pid) then --suppress warning if the task is already dead
-            sysfs_write_error(t_file, tostring(pid), err, err_code)
-          end
-        else
-          local proc = ulatency.get_pid(pid)
-          if proc then
-            proc:set_cgroup(self.tree, "/".. self.name)
-          end
+    -- move PIDs to cgroup
+    fp:setvbuf("no")
+    for i, pid in ipairs(pids) do
+      local t_ok, t_errstr, t_errno = fp:write(tostring(pid)..'\n')
+      if not t_ok then
+        if not quiet and ulatency.is_pid_alive(pid) then
+          sysfs_write_error(t_file, tostring(pid), t_errstr, t_errno)
+        end
+        ok, errstr, errno = t_ok, t_errstr, t_errno
+      else
+        local proc = ulatency.get_pid(pid)
+        if proc then
+          proc:set_cgroup(self.tree, "/".. self.name)
         end
       end
-
-      rawset(self, "new_tasks", {})
-      fp:close()
     end
+
+    rawset(self, "new_tasks", {})
+    fp:close()
   end
+
+  return ok and true or nil, errstr, errno
 end
 
 --! @public @memberof CGroup
