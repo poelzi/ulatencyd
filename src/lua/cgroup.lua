@@ -58,9 +58,9 @@ function CGroup.new(name, init, tree)
   local default = (name == "") and
                   CGROUP_ROOT_DEFAULT[tree] or CGROUP_DEFAULT[tree]
   local cinit = default and table.copy(default) or {}
-  uncommited=table.merge(cinit, init or {})
-  rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={},
-                      tree=tree, adjust={}, used=false}, CGroupMeta)
+  local uncommited = table.merge(cinit, init or {})
+  local rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={},
+                            tree=tree, adjust={}, used=false}, CGroupMeta)
   _CGroup_Cache[tree..'/'..name] = rv
   ulatency.log_sched("New cgroup created: "..tostring(rv))
   return rv
