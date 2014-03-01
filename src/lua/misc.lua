@@ -236,9 +236,11 @@ end -- do
 
 --! @brief Write string to a file under SYSFS
 function sysfs_write(path, value, quiet)
-  local ok, err, err_code = false, nil, nil
-  local fp = io.open(path, "w")
-  if fp then
+  local ok = nil
+  local fp, err, err_code = io.open(path, "w")
+  if not fp and not quiet then
+    sysfs_write_error(path, value, err, err_code)
+  else
     fp:setvbuf("no")
     ok, err, err_code = fp:write(value)
     if not ok and not quiet then
