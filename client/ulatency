@@ -28,7 +28,7 @@ VERSION = '0.2'
 DEFAULT_TREE = "cpu"
 CGROUP_MOUNTS = {}
 PRIVATE_CGROUP_NAMES = []
-GROUP_VALUES = ["cpu.shares",
+GROUP_VALUES = ["cpu.shares", "cpu.rt_runtime_us",
                 "cpuset.cpus", "cpuset.cpu_exclusive",
                 "memory.limit_in_bytes", "memory.memsw.limit_in_bytes",
                 "memory.swappiness", "blkio.weight", "freezer.state"]
