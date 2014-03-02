@@ -24,42 +24,134 @@
 -------------------------------------------------------------------------------
 
 
+--! @name enabled log levels
+--! @{
+
+--! @ingroup lua_LOGGING
+LOG_ERROR     = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_ERROR
+LOG_CRITICAL  = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_CRITICAL
+LOG_WARNING   = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_WARNING
+LOG_MESSAGE   = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_MESSAGE
+LOG_INFO      = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_INFO
+LOG_DEBUG     = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_DEBUG
+LOG_SCHED     = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_SCHED
+LOG_TRACE     = ulatency.LOG_LEVEL >= ulatency.LOG_LEVEL_TRACE
+--! @}
+
+
+--! @name log functions
+--! @{
+
+--! @ingroup lua_LOGGING
+
+--! Log an error or message with severity `log_level`.
+--! @param log_level severity level, you may use one of following constants:
+--! - ulatency.LOG_LEVEL_ERROR
+--! - ulatency.LOG_LEVEL_CRITICAL
+--! - ulatency.LOG_LEVEL_WARNING
+--! - ulatency.LOG_LEVEL_MESSAGE
+--! - ulatency.LOG_LEVEL_INFO
+--! - ulatency.LOG_LEVEL_DEBUG
+--! - ulatency.LOG_LEVEL_SCHED
+--! - ulatency.LOG_LEVEL_TRACE
+--! @param ... Aguments passed through `string.format(...)`; the message is
+--! logged only if its severity is lower or equal `ulatency.LOG_LEVEL`
+--! @note You may use following shortcut functions:
+--! - ulatency.log_trace(...)
+--! - ulatency.log_sched(...)
+--! - ulatency.log_debug(...)
+--! - ulatency.log_info(...)
+--! - ulatency.log_warning(...)
+--! - ulatency.log_error(...)
+--! - ulatency.log_critical(...)
+--! @public @memberof ulatency
+function ulatency.log(log_level, ...)
+  if log_level <= ulatency.LOG_LEVEL then
+    ulatency._log(log_level, string.format(...))
+  end
+end
+--! @} End of "log functions"
+
+
 --! @name logging shortcuts
 --! @{
 
---! @public @memberof ulatency
-function ulatency.log_trace(msg)
-  ulatency.log(ulatency.LOG_LEVEL_TRACE, msg)
+--! @ingroup lua_LOGGING
+--! A convenience function to log a trace message.
+function u_trace(...)
+  ulatency.log(ulatency.LOG_LEVEL_TRACE, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_sched(msg)
-  ulatency.log(ulatency.LOG_LEVEL_SCHED, msg)
+--! A convenience function to log a sched message.
+function u_sched(...)
+  ulatency.log(ulatency.LOG_LEVEL_SCHED, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_debug(msg)
-  ulatency.log(ulatency.LOG_LEVEL_DEBUG, msg)
+--! A convenience function to log a debug message.
+function u_debug(...)
+  ulatency.log(ulatency.LOG_LEVEL_DEBUG, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_info(msg)
-  ulatency.log(ulatency.LOG_LEVEL_INFO, msg)
+--! A convenience function to log an info message.
+function u_info(...)
+  ulatency.log(ulatency.LOG_LEVEL_INFO, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_warning(msg)
-  ulatency.log(ulatency.LOG_LEVEL_WARNING, msg)
+--! A convenience function to log a normal message.
+function u_message(...)
+  ulatency.log(ulatency.LOG_LEVEL_MESSAGE, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_message(msg)
-  ulatency.log(ulatency.LOG_LEVEL_MESSAGE, msg)
+--! A convenience function to log a warning.
+function u_warning(...)
+  ulatency.log(ulatency.LOG_LEVEL_WARNING, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_error(msg)
-  ulatency.log(ulatency.LOG_LEVEL_ERROR, msg)
+--! A convenience function to log a critical warning.
+function u_critical(...)
+  ulatency.log(ulatency.LOG_LEVEL_CRITICAL, ...)
 end
---! @public @memberof ulatency
-function ulatency.log_critical(msg)
-  ulatency.log(ulatency.LOG_LEVEL_CRITICAL, msg)
+--! A convenience function to log an error and quit ulatencyd.
+function u_error(...)
+  ulatency.log(ulatency.LOG_LEVEL_ERROR, ...)
 end
 --! @} End of "logging shortcuts"
+
+
+--! @name deprecated logging shortcuts
+--! @{
+
+--! @ingroup lua_LOGGING
+--! @public @memberof ulatency
+function ulatency.log_trace(...)
+  ulatency.log(ulatency.LOG_LEVEL_TRACE, ...)
+end
+--! @public @memberof ulatency
+function ulatency.log_sched(...)
+  ulatency.log(ulatency.LOG_LEVEL_SCHED, ...)
+end
+--! @public @memberof ulatency
+function ulatency.log_debug(...)
+  ulatency.log(ulatency.LOG_LEVEL_DEBUG, ...)
+end
+--! @public @memberof ulatency
+function ulatency.log_info(...)
+  ulatency.log(ulatency.LOG_LEVEL_INFO, ...)
+end
+--! @public @memberof ulatency
+function ulatency.log_message(...)
+  ulatency.log(ulatency.LOG_LEVEL_MESSAGE, ...)
+end
+--! @public @memberof ulatency
+function ulatency.log_warning(...)
+  ulatency.log(ulatency.LOG_LEVEL_WARNING, ...)
+end
+--! @deprecated
+--! @public @memberof ulatency
+function ulatency.log_error(...)
+  ulatency.log(ulatency.LOG_LEVEL_ERROR, ...)
+end
+--! @public @memberof ulatency
+function ulatency.log_critical(...)
+  ulatency.log(ulatency.LOG_LEVEL_CRITICAL, ...)
+end
+--! @}
+
+
 
 --! @brief Quits the ulatencyd daemon with scheduler cleanup.
 --! @param flag (optional) A flag you believe will cause the scheduler cleanup, or properties of such flag. This flag

@@ -43,9 +43,11 @@ ulatency.path_config_directory = "/PATH/TO/CONFIG"
 ulatency.smp_num_cpus = 23
 --! @} End of "misc"
 
---! @name glib log level
---! @memberof ulatency
+
+--! @name log levels
 --! @{
+
+--! @ingroup lua_LOGGING
 
 --! @public @memberof ulatency
 ulatency.LOG_LEVEL_ERROR =  G_LOG_LEVEL_ERROR
@@ -63,6 +65,12 @@ ulatency.LOG_LEVEL_DEBUG = G_LOG_LEVEL_DEBUG
 ulatency.LOG_LEVEL_SCHED = U_LOG_LEVEL_SCHED
 --! @public @memberof ulatency
 ulatency.LOG_LEVEL_TRACE = U_LOG_LEVEL_TRACE
+--! Current log level; only messages with equal or lower level will be logged.
+--! Default level is `G_LOG_LEVEL_MESSAGE`; user may increase/decrease the level
+--! by passing `-v`/`-q` options to ulatencyd.
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL = U_log_level
+
 --! @}
 
 --! @name Return values of Filter:check()
@@ -468,11 +476,13 @@ end
 
 -------------------------------------------------------
 
---! @name misc
+--! @name low level logging API
 --! @{
 
+--! @ingroup lua_LOGGING
+
 --! Log message `msg` with severity `level`.
---! @param level glib log level, you may use one of following constants:
+--! @param level ulatency log level, you may use one of following constants:
 --! - ulatency.LOG_LEVEL_ERROR
 --! - ulatency.LOG_LEVEL_CRITICAL
 --! - ulatency.LOG_LEVEL_WARNING
@@ -482,17 +492,20 @@ end
 --! - ulatency.LOG_LEVEL_SCHED
 --! - ulatency.LOG_LEVEL_TRACE
 --! @param msg A message to log.
---! You can use following shortcut functions:
---! - ulatency.log_trace(msg)
---! - ulatency.log_sched(msg)
---! - ulatency.log_debug(msg)
---! - ulatency.log_info(msg)
---! - ulatency.log_warning(msg)
---! - ulatency.log_error(msg)
---! - ulatency.log_critical(msg)
+--! @note
+--! You must use this function if you want to log something before
+--! `ulatency.lua` loaded. Otherwise use `ulatency.log()` or one of
+--! shortcut functions, e.g. `u_warning()`.
 --! @public @memberof ulatency
-function ulatency.log(level, msg)
+function ulatency._log(level, msg)
 end
+
+--! @} End of "low level API to C functions"
+
+-------------------------------------------------------
+
+--! @name misc
+--! @{
 
 --! Returns the real user ID of the calling process.
 --! @see man 2 getuid

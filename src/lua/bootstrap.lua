@@ -36,7 +36,7 @@ for _, module in ipairs
   }
 do
   if not ulatency.load_core_file(module..".lua") then
-    ulatency.log(ulatency.LOG_LEVEL_ERROR, string.format(
+    ulatency._log(ulatency.LOG_LEVEL_ERROR, string.format(
           "bootstrap: Can't required load %s.lua", module ))
   end
 end
@@ -46,7 +46,7 @@ end
 
 if(not ulatency.load_rule("../cgroups.conf")) then
   if(not ulatency.load_rule("../conf/cgroups.conf")) then
-    ulatency.log_error("can't load cgroups.conf")
+    u_error("can't load cgroups.conf")
   end
 end
 
@@ -58,7 +58,7 @@ do
   local good = { sysfs=true, debugfs=true }
 
   if not fp then
-    ulatency.log_error("/proc/mounts could not be opened.")
+    u_error("/proc/mounts could not be opened.")
   end
   for line in fp:lines() do
     local chunks = string.split(line, " ")
@@ -70,7 +70,7 @@ do
 end
 
 if not ulatency.mountpoints["sysfs"] then
-  ulatency.log_error("sysfs is not mounted.")
+  u_error("sysfs is not mounted.")
 end
 
 
@@ -78,11 +78,11 @@ end
 
 if ulatency.get_uid() > 0 or 
    ulatency.get_config("logging", "disable_cgroup") == "true" then
-  ulatency.log_info("disable cgroups error logging. not running as root")
+  u_info("disable cgroups error logging. not running as root")
   function cg_log(...)
   end
 else
-  cg_log = ulatency.log_warning
+  cg_log = u_warning
 end
 
 
@@ -91,7 +91,7 @@ end
 --  Begin setup of cgroups subsystems
 -------------------------------------------------------------------------------
 
-ulatency.log_message("Available cgroup subsystems: "..
+u_message("Available cgroup subsystems: %s",
                    table.concat(ulatency.get_cgroup_subsystems(), ", "))
 
 if string.sub(CGROUP_ROOT, -1) ~= "/" then
@@ -161,12 +161,16 @@ end
 
 
 local function log_info(subsys, ...)
-  ulatency.log_info("Setup ".. subsys ..": "..string.format(...))
+  if LOG_INFO then
+    u_info("Setup ".. subsys ..": "..string.format(...))
+  end
 end
 
 
 local function log_warning(subsys, ...)
-  ulatency.log_warning("Setup ".. subsys ..": "..string.format(...))
+  if LOG_WARNING then
+    u_warning("Setup ".. subsys ..": "..string.format(...))
+  end
 end
 
 
@@ -293,21 +297,21 @@ do
   if not is_mounted(CGROUP_ROOT) then
     local ok, errstr = mkdirp(CGROUP_ROOT)
     if not ok then
-      ulatency.log_error(string.format(
+      u_error(
             "Can't create directory for cgroups root %s: %s",
-            CGROUP_ROOT, errstr ))
+            CGROUP_ROOT, errstr )
       return false
     end
     local prog = "/bin/mount -n -t tmpfs none "..CGROUP_ROOT.."/"
-    ulatency.log_info("Mount cgroups root: "..prog)
+    u_info("Mount cgroups root: %s", prog)
     local fd = io.popen(prog, "r")
     local output = fd:read("*a"):rtrim()
     fd:close()
     if #output > 0 then
-      ulatency.log_warning(output)
+      u_warning(output)
     end
     if not is_mounted(CGROUP_ROOT) then
-      ulatency.log_error("Cannot mount: "..CGROUP_ROOT)
+      u_error("Cannot mount: %s", CGROUP_ROOT)
     end
   end
 
@@ -315,9 +319,9 @@ do
   if posix.access(CGROUP_PRIVATE_ROOT) ~= 0 then
     local ok, errstr = mkdirp(CGROUP_PRIVATE_ROOT)
     if not ok then
-      ulatency.log_error(string.format(
+      u_error(
             "Can't create directory for ulatencyd private cgroups"..
-            " hierarchies %s: %s", CGROUP_PRIVATE_ROOT, errstr ))
+            " hierarchies %s: %s", CGROUP_PRIVATE_ROOT, errstr )
     end
   end
 
@@ -329,16 +333,16 @@ do
       local mounted_subsystems =
             get_mount_point_subsystems(mount_point)
       if mounted_subsystems and #mounted_subsystems > 1 then
-        ulatency.log_warning(string.format(
+        u_warning(
               "Multiple cgroup subsystems (%s) mounted in"..
               " single hierarchy (%s/).",
-              table.concat(mounted_subsystems, ","), mount_point ))
+              table.concat(mounted_subsystems, ","), mount_point )
         crippled_subsystems = true
       end
     end
   end
   if (crippled_subsystems) then
-    ulatency.log_error(
+    u_error(
           "Multiple cgroup subsystems are mounted in single hierarchy."..
           "\nPlease, fix the application which mounted them."..
           "\nSee https://github.com/poelzi/ulatencyd/issues/49" )
@@ -379,19 +383,19 @@ do
         end
       else
         log_warning(subsys, "Subsystem disabled.")
-        ulatency.log_error(string.format(
+        u_error(
               "Error occurred while trying to mount"..
-              " available cgroup subsystem \"%s\".", subsys ))
+              " available cgroup subsystem \"%s\".", subsys )
       end
     end
   end
 
   if not found_one_group then
-    ulatency.log_error("Could not found any cgroup subsystem to mount.")
+    u_error("Could not found any cgroup subsystem to mount.")
   end
 
-  ulatency.log_message(
-        "Loaded cgroup subsystems: "..table.concat(loaded_subsystems, ", "))
+  u_message(
+        "Loaded cgroup subsystems: %s", table.concat(loaded_subsystems, ", "))
 end -- do
 
 -- setup defaults parameters for the root cgroup inside each subsystem
@@ -412,7 +416,7 @@ CGroup.init_key_ranges(true)
 -- disable the autogrouping
 
 if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
-  ulatency.log_info("disable sched_autogroup in linux kernel")
+  u_info("disable sched_autogroup in linux kernel")
   ulatency.save_sysctl("kernel.sched_autogroup_enabled", "0")
 end
 

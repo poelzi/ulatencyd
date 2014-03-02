@@ -14,7 +14,6 @@
 
 require("posix")
 
-
 --------------------------------------------------------------
 -------------------- mappings parsing ------------------------
 
@@ -293,7 +292,8 @@ end
 --! @public @memberof Scheduler
 function Scheduler:register_after_hook( id, func )
   self._after_hooks[id] = func
-  ulatency.log_debug('Scheduler: registering after-callback with id: '..tostring(id))
+  if LOG_DEBUG then u_debug(
+        'Scheduler: registering after-callback with id: %s', tostring(id)) end
 end
 
 --! @brief Runs registered callbacks after the scheduling is finished.
@@ -302,7 +302,9 @@ end
 function Scheduler:_run_after_hooks()
   local callbacks = self._after_hooks
   for id,cb in pairs(callbacks) do
-    ulatency.log_debug('Scheduler: run registered after-callback with id: '..tostring(id))
+    if LOG_DEBUG then u_debug(
+          'Scheduler: run registered after-callback with id: %s',
+          tostring(id)) end
     if not cb() then callbacks[id]=nil end
   end
 end
@@ -338,7 +340,9 @@ function Scheduler:all()
   -- list only changed processes
   self:_init_run()
 
-  ulatency.log_debug("scheduler filter:".. tostring(self.C_FILTER))
+  if LOG_DEBUG then u_debug(
+        "scheduler filter: %s", tostring(self.C_FILTER)) end
+
   for k,proc in ipairs(ulatency.list_processes(self.C_FILTER)) do
     --print("sched", proc, proc.cmdline)
     self:_one(proc, false)
@@ -384,20 +388,20 @@ function Scheduler:_quit(flag)
     ulatency.del_flag(flag)
     if flag.name == "quit" then
       -- cleanup cgroups
-      ulatency.log_info("scheduler: cleaning up")
+      u_info("scheduler: cleaning up")
       if self:load_config("cleanup") then
         self.PROC_BLOCK_THRESHOLD = 2   --cleanup cgroups with blocked processes
         ulatency.set_flags_changed(1)
         self:all() -- cleanup round with "cleanup" scheduler config
       else
-        ulatency.log_warning("Could not switch to cleanup mapping. CGroups are not cleaned up!")
+        u_warning("Could not switch to cleanup mapping. CGroups are not cleaned up!")
       end
     end
   end
   self:cgroups_cleanup(true)
   -- restore the autogrouping
   if posix.access("/proc/sys/kernel/sched_autogroup_enabled") == 0 then
-    ulatency.log_info("restoring sched_autogroup in linux kernel")
+    u_info("restoring sched_autogroup in linux kernel")
     ulatency.restore_sysctl("kernel.sched_autogroup_enabled")
   end
   ulatency.die(flag.threshold or flag.name == "suspend" and 1 or 0)
@@ -408,21 +412,21 @@ function Scheduler:load_config(name)
   if not name then
     name = ulatency.get_config("scheduler", "mapping")
     if not name then
-      ulatency.log_error("no default scheduler config specified in config file")
+      u_error("no default scheduler config specified in config file")
     end
   end
-  ulatency.log_info("Scheduler use mapping: "..name)
+  u_info("Scheduler use mapping: %s", name)
   local mapping_name = "SCHEDULER_MAPPING_"..string.upper(name)
   MAPPING = getfenv()[mapping_name]
   if not MAPPING then
     if not self.MAPPING then
-      ulatency.log_error("invalid mapping: "..mapping_name)
+      u_error("invalid mapping: %s", mapping_name)
     else
-      ulatency.log_warning("invalid mapping: "..mapping_name)
+      u_warning("invalid mapping: %s", mapping_name)
     end
     return false
   end
-  ulatency.log_debug("use scheduler map \n" .. to_string(MAPPING))
+  if LOG_DEBUG then u_debug("use scheduler map \n%s", to_string(MAPPING)) end
   self.MAPPING = MAPPING
   self.CONFIG_NAME = name
 
@@ -449,15 +453,13 @@ function Scheduler:load_config(name)
       if rule.param then
         for param, val in pairs(rule.param) do
           rule.param[param] = CGroup.get_recalc_value(subsys, param, val)
-          if val and tostring(val) ~= tostring(rule.param[param]) then
-            ulatency.log_debug(string.format(
-                  "mapping %s[%s], rule %s: "..
-                  "Adjust cgroup parameter %s from %s to %s.",
-                  self.CONFIG_NAME, subsys, rule_path,
-                  param,
-                  val, rule.param[param] or "nil" ))
-          end
-          if val and not rule.param[param] then
+          if LOG_DEBUG and
+             val and tostring(val) ~= tostring(rule.param[param]) then u_debug(
+                "mapping %s[%s], rule %s: "..
+                "Adjust cgroup parameter %s from %s to %s.",
+                self.CONFIG_NAME, subsys, rule_path,
+                param, val, rule.param[param] or "nil" ) end
+          if LOG_WARNING and val and not rule.param[param] then
             -- remember omitted parameters
             local key = "subsys "..subsys..", param "..param
             omitted_params[key] = omitted_params[key] or {}
@@ -481,15 +483,15 @@ function Scheduler:load_config(name)
   end
 
   -- log omitted cgroup parameters
-  do
+  if LOG_WARNING then
     local output = {}
     for key, vals in pairs(omitted_params) do
       output[#output+1] = key..': '..table.concat(vals, "; ")
     end
     if #output > 0 then
       output = table.concat(output, "\n")
-      ulatency.log_warning(
-            "Some cgroup parameters were omitted from the mapping:\n"..output )
+      u_warning(
+            "Some cgroup parameters were omitted from the mapping:\n%s", output)
     end
   end
 
@@ -519,8 +521,10 @@ function Scheduler:_one(proc, single)
 
   local group
   if proc.block_scheduler >= self.PROC_BLOCK_THRESHOLD then
-    ulatency.log_debug(string.format("Scheduler:one(): pid %d skipped (proc.block_scheduler=%d, block threshold=%d)",
-                                    proc.pid, proc.block_scheduler, self.PROC_BLOCK_THRESHOLD))
+    if LOG_DEBUG then u_debug(
+          "Scheduler:one(): pid %d skipped "..
+          "(proc.block_scheduler=%d, block threshold=%d)",
+          proc.pid, proc.block_scheduler, self.PROC_BLOCK_THRESHOLD) end
   else
     for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
       map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
@@ -530,9 +534,11 @@ function Scheduler:_one(proc, single)
         local cgr_path = proc:get_cgroup(subsys)
         if not cgr_path then
           if ulatency.is_pid_alive(proc.pid) then
-            ulatency.log_warning(string.format(
-              "no cgroup for process, assuming '/' - subsys: %s, pid: %d, cmdfile: %s, exe: %s",
-              subsys, proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE"))
+            if LOG_WARNING then u_warning(
+                  "no cgroup for process, assuming '/' - "..
+                  "subsys: %s, pid: %d, cmdfile: %s, exe: %s",
+                  subsys, proc.pid, proc.cmdfile or "NONE",
+                  proc.exe or "NONE") end
             cgr_path = '/'
           else
             -- process is already dead
@@ -541,8 +547,12 @@ function Scheduler:_one(proc, single)
           end
         end
         if CGroup.is_foreign(subsys, cgr_path) then
-          ulatency.log_info(string.format("scheduler subsys %s: skippping %s (pid: %d) because its cgroup %s is foreign",
-            subsys, proc.cmdfile or "unknown", proc.pid, subsys..cgr_path))
+          if LOG_INFO then u_info(
+                "scheduler subsys %s: skipping %s (pid: %d) "..
+                "because its cgroup %s is foreign",
+                subsys, proc.cmdfile or "unknown", proc.pid,
+                subsys..cgr_path)
+          end
         else
 
           local mappings = run_list(proc, map)
@@ -562,8 +572,8 @@ function Scheduler:_one(proc, single)
               group:add_task_list(proc.pid, tasks)
               group:commit()
             end
-          else
-            ulatency.log_debug("no group found for: "..tostring(proc).." subsystem:"..tostring(subsys))
+          elseif LOG_DEBUG then u_debug(
+                "no group found for: %s subsystem %s", tostring(proc), subsys)
           end
         end
       end
@@ -629,7 +639,7 @@ end
 -- cgroups cleanup
 local CGROUPS_CLEANUP_SCHEDULED = false
 local function _cgroups_cleanup()
-  ulatency.log_debug("Scheduler: cleaning cgroups.")
+  if LOG_DEBUG then u_debug("Scheduler: cleaning cgroups.") end
   local to_preserve, to_remove = {}, {}
   local groups = CGroup.get_groups()
   CGROUPS_CLEANUP_SCHEDULED = false
@@ -665,7 +675,7 @@ end
 -- full cleanup (need to be executed only once on daemon start)
 -- called from Scheduler:_init()
 function cgroups_cleanup_full()
-  ulatency.log_debug("cleaning all cgroups")
+  u_debug("cleaning all cgroups")
   for _, subsys in ipairs(ulatency.get_cgroup_subsystems()) do
     local priv_root = CGROUP_PRIVATE_ROOT..subsys..'/'
     local root = CGROUP_ROOT..subsys..'/'
@@ -687,8 +697,8 @@ function cgroups_cleanup_full()
         end
 
         if cleared then
-          if (posix.rmdir(priv_dir)) then
-            ulatency.log_debug("removed unused cgroup: "..dir)
+          if posix.rmdir(priv_dir) and LOG_DEBUG then
+            u_debug("removed unused cgroup: %s", dir)
           end
         end
 

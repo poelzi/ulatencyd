@@ -53,8 +53,8 @@ static gchar *config_file = QUOTEME(CONFIG_PATH)"/ulatencyd.conf";
 static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);
 static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
-static gint verbose = 1<<5;
 static char *mount_point;
+gint U_log_level = G_LOG_LEVEL_MESSAGE; //!< Current log level
 static char *log_file = NULL;
 int          log_fd = -1;
 
@@ -77,7 +77,7 @@ static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpoint
   if(value) {
     i = atoi(value);
   }
-  verbose = verbose << i;
+  U_log_level = U_log_level << i;
   return TRUE;
 }
 
@@ -86,7 +86,7 @@ static gboolean opt_quiet(const gchar *option_name, const gchar *value, gpointer
   if(value) {
     i = atoi(value);
   }
-  verbose = verbose >> i;
+  U_log_level = U_log_level >> i;
   return TRUE;
 }
 
@@ -293,7 +293,7 @@ static int open_logfile(char *file) {
 static void filter_log_handler(const gchar *log_domain, GLogLevelFlags log_level,
                         const gchar *message, gpointer unused_data) {
 
-  if(log_level <= verbose) {
+  if(log_level <= U_log_level) {
     if(log_fd != -1)
       log_file_handler(log_domain, log_level, message, unused_data);
     else

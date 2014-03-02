@@ -47,8 +47,7 @@ function mkdirp(path, quiet)
         local ok, errstr, errno = posix.mkdir(name)
         if not ok then
           if not quiet then
-            cg_log(string.format(
-                  "mkdirp(%s): Can't create directory: %s", path, errstr ))
+            cg_log("mkdirp(%s): Can't create directory: %s", path, errstr)
           end
           return nil, errstr, errno
         end
@@ -199,8 +198,8 @@ do
       end
 
       -- print error
-      if proc then
-        ulatency.log(log_level, string.format(
+      if proc and ulatency.LOG_LEVEL >= log_level then
+        ulatency.log(log_level,
               "Process (PID:%s, ppid:%s, euid:%s, egid:%s, cmd:%s, "..
               "cmdfile:%s, exe:%s, cgr:%s%s) couldn't be moved to %s (%d:%s)%s",
               tostring(value), proc.ppid or "?",
@@ -209,9 +208,9 @@ do
               proc:get_cgroup(subsys) or "?",
               #props > 0 and ", "..table.concat(props,", ") or "",
               tostring(cgr), err_code, err,
-              #info > 0 and " "..table.concat(info," ") or "" ))
-      else
-        ulatency.log(log_level, string.format(
+              #info > 0 and " "..table.concat(info," ") or "" )
+      elseif ulatency.LOG_LEVEL >= log_level then
+        ulatency.log(log_level,
               "Task (TID:%s, ppid:%s, euid:%s, egid:%s, cmd:%s%s)"..
               " couldn't be moved to %s (%d:%s)%s",
               tostring(value), task.ppid or "?",
@@ -219,7 +218,7 @@ do
               task and task.cmd or "?",
               #props > 0 and ", "..table.concat(props,", ") or "",
               tostring(cgr), err_code, err,
-              #info > 0 and " "..table.concat(info," ") or "" ))
+              #info > 0 and " "..table.concat(info," ") or "" )
       end
       return
     end -- cgr and file == "tasks"
@@ -229,9 +228,9 @@ do
     ----------------------------------------------------------------------------
 
     -- other error
-    ulatency.log_warning(string.format(
+    if LOG_WARNING then u_warning(
           "Can't write string '%s' into %s: (%d) %s",
-          tostring(value), filepath, err_code,err ))
+          tostring(value), filepath, err_code,err ) end
   end -- sysfs_write_error
 
 end -- do

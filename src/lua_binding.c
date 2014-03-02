@@ -2311,7 +2311,7 @@ static const luaL_reg R[] = {
   {"search_uid_env", l_search_uid_env},
   // misc
   {"filter_rv",  l_filter_rv},
-  {"log",  l_log},
+  {"_log",  l_log},
   {"get_uid", l_get_uid},
   {"get_time", l_get_time},
   {"fallback_quit", l_fallback_quit},
@@ -2370,6 +2370,7 @@ LUALIB_API int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_DEBUG, G_LOG_LEVEL_DEBUG)
   PUSH_INT(LOG_LEVEL_SCHED, U_LOG_LEVEL_SCHED)
   PUSH_INT(LOG_LEVEL_TRACE, U_LOG_LEVEL_TRACE)
+  PUSH_INT(LOG_LEVEL, U_log_level)
   
   // filter flags
   PUSH_INT(FILTER_STOP, FILTER_STOP)

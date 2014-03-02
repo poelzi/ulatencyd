@@ -49,6 +49,7 @@
                                U_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
+extern gint U_log_level; //!< Current log level
 
 #define VERSION 0.5.0+exp0.6.0-pre1
 

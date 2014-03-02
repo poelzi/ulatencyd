@@ -62,7 +62,7 @@ function CGroup.new(name, init, tree)
   local rv = setmetatable( {name=name, uncommited=uncommited, new_tasks={},
                             tree=tree, adjust={}, used=false}, CGroupMeta)
   _CGroup_Cache[tree..'/'..name] = rv
-  ulatency.log_sched("New cgroup created: "..tostring(rv))
+  if LOG_SCHED then u_sched("New cgroup created: %s", tostring(rv)) end
   return rv
 end
 
@@ -267,16 +267,14 @@ local function _rmdir(path)
     return true
   end
   local rv,error=posix.rmdir(path)
-  if not rv then
-    ulatency.log_debug(error)
-  end
+  if not rv and LOG_DEBUG then u_debug(error) end
   return rv
 end
 
 --! @public @memberof CGroup
 
 function CGroup:remove()
-  ulatency.log_debug(string.format("CGroup:remove('%s')", self:path()))
+  if LOG_DEBUG then u_debug("CGroup:remove('%s')", self:path()) end
   local rv = _rmdir(self:path())
   if rv then
     _rmdir(self:private_path())
@@ -318,15 +316,14 @@ function CGroup:commit(quiet)
     local t_file = self:path("tasks")
     local fp, t_errstr, t_errno = io.open(t_file, "w")
     if fp == nil then
-      if not quiet then
-        ulatency.log_warning(string.format(
+      if not quiet and LOG_WARNING then u_warning(
               "Cannot add new task(s) to %s: (%d) %s",
-               tostring(self), t_errno, t_errstr ))
-        end
-        return nil, t_errstr, t_errno
+               tostring(self), t_errno, t_errstr) end
+      return nil, t_errstr, t_errno
     end
 
-    ulatency.log_sched("Move to "..tostring(self).." tasks: "..table.concat(pids, ","))
+    if LOG_SCHED then u_sched(
+          "Move to %s, tasks: %s", tostring(self), table.concat(pids, ",")) end
 
     -- move PIDs to cgroup
     fp:setvbuf("no")
@@ -399,13 +396,15 @@ function CGroup.create_isolation_group(proc, suffix, mappings, include_children,
           mapping.adjust_new(ng, proc)
         end
         ng:commit()
-        ulatency.log_info(string.format('Isolation group %s created.', ng:path()))
+        u_info('Isolation group %s created.', ng:path())
       end
-      ulatency.log_sched(string.format(
-              'Move pid %d, cmdfile %s, exe %s" with tasks %s to isolation group %s.',
-               proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE",
-               table.concat(tasks,','),
-               ng:path()))
+
+      if LOG_SCHED then u_sched(
+            'Move pid %d, cmdfile %s, exe %s" with tasks %s to isolation group %s.',
+             proc.pid, proc.cmdfile or "NONE", proc.exe or "NONE",
+             table.concat(tasks,','),
+             ng:path()) end
+
       ng:run_adjust(proc)
       ng:add_task_list(proc.pid, tasks)
       if include_children then
@@ -535,23 +534,23 @@ function CGroup.init_key_ranges(die_on_error)
         local force = range[3]
         if force then
           __CGROUP_KEYS_RANGES[subsys][param] = {min, max}
-          ulatency.log_debug(string.format(
+          u_debug(
                 "subsys %s: Using forced range for parameter %s = {%d, %d}",
-                subsys, param, min, max))
+                subsys, param, min, max)
         else -- force
           local min, max, errstr, errno =
                 detect_cgroup_key_range(subsys, param, min, max)
           if min and max then
             __CGROUP_KEYS_RANGES[subsys][param] = {min, max}
-            ulatency.log_debug(string.format(
+            u_debug(
                   "subsys %s: Detected range for parameter %s = {%d, %d}",
-                  subsys, param, min, max))
+                  subsys, param, min, max)
           else
             ulatency.log(die_on_error and ulatency.LOG_LEVEL_ERROR or
-                  ulatency.LOG_LEVEL_WARNING, string.format(
+                                          ulatency.LOG_LEVEL_WARNING,
                   "subsys %s: Range of values for %s parameter could not be "..
                   "detected. Parameter will not be used. Error code %d: %s",
-                  subsys, param, errno, errstr ))
+                  subsys, param, errno, errstr )
           end
         end -- else force
       end

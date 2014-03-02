@@ -11,6 +11,10 @@
 --!   @todo Describe CGroup.
 --!   @ingroup lua_API
 
+--!     @defgroup lua_LOGGING Logging facilities
+--!     @brief Logging facilities accessible from LUA
+--!     @ingroup  lua_CORE
+
 --!     @defgroup lua_CGROUPS CGroups
 --!     @todo Describe CGroups
 --!     @ingroup  lua_CORE
