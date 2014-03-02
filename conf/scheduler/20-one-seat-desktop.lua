@@ -316,7 +316,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         adjust_new = function(cgroup, proc)
                   cgroup:add_task(proc.pid)
                   cgroup:commit()
-                  bytes = cgroup:get_value("memory.usage_in_bytes")
+                  local bytes = cgroup:get_value("memory.usage_in_bytes")
                   if not bytes then
                     u_warning("can't access memory subsystem")
                     return
@@ -352,7 +352,8 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                                                     { name = "user.poison.group",
                                                       value = proc.pgrp })
                   cgroup:add_task(proc.pid)
-                  cgroup:set_value("memory.soft_limit_in_bytes", math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95))))
+                  local bytes = math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95)))
+                  cgroup:set_value("memory.soft_limit_in_bytes", bytes)
                   -- we use soft limit, but without limit we can't set the memsw limit
                   local max_rss = math.floor(num_or_percent(ulatency.get_config("memory", "max_rss"),
                                                  Scheduler.meminfo.kb_main_total,
