@@ -425,9 +425,14 @@ function Scheduler:load_config(name)
   ulatency.log_debug("use scheduler map \n" .. to_string(MAPPING))
   self.MAPPING = MAPPING
   self.CONFIG_NAME = name
-  -- simplify rules
-  local function _initialize_rules (rules)
+
+  -- initialize rules
+
+  local omitted_params = {}
+  local function _initialize_rules (rules, subsys, parent_rules)
     for key, rule in ipairs(rules) do
+      local rule_path = parent_rules and parent_rules..'/'..rule.name or
+                        rule.name
       -- merge adjust() and check() functions to adjusts and checks tables
       for _,k in ipairs({"adjust", "check"}) do
         if rule[k] then
@@ -440,18 +445,54 @@ function Scheduler:load_config(name)
           rule[k] = nil
         end
       end
-      if rule.children then
-        _initialize_rules (rule.children)
+      -- recalculate values of cgroup parameters
+      if rule.param then
+        for param, val in pairs(rule.param) do
+          rule.param[param] = CGroup.get_recalc_value(subsys, param, val)
+          if val and tostring(val) ~= tostring(rule.param[param]) then
+            ulatency.log_debug(string.format(
+                  "mapping %s[%s], rule %s: "..
+                  "Adjust cgroup parameter %s from %s to %s.",
+                  self.CONFIG_NAME, subsys, rule_path,
+                  param,
+                  val, rule.param[param] or "nil" ))
+          end
+          if val and not rule.param[param] then
+            -- remember omitted parameters
+            local key = "subsys "..subsys..", param "..param
+            omitted_params[key] = omitted_params[key] or {}
+            table.insert(omitted_params[key], string.format(
+                  "rule %s, value %s", rule_path, val ))
+          end
+        end
       end
-    end
+      -- initialize children rules
+      if rule.children then
+        _initialize_rules (rule.children, subsys, rule_path)
+      end
+    end -- each rule
   end
 
   for x,subsys in ipairs(ulatency.get_cgroup_subsystems()) do
     map = self.MAPPING[subsys] or SCHEDULER_MAPPING_DEFAULT[subsys]
     if map then
-      _initialize_rules(map)
+      _initialize_rules(map, subsys)
     end
   end
+
+  -- log omitted cgroup parameters
+  do
+    local output = {}
+    for key, vals in pairs(omitted_params) do
+      output[#output+1] = key..': '..table.concat(vals, "; ")
+    end
+    if #output > 0 then
+      output = table.concat(output, "\n")
+      ulatency.log_warning(
+            "Some cgroup parameters were omitted from the mapping:\n"..output )
+    end
+  end
+
   return true
 end
 

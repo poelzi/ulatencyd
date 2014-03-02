@@ -438,5 +438,191 @@ function CGroup:starve(what)
   end
 end
 
---! @} End of "addtogroup lua_CGROUPS"
 
+-------------------------------------------------------------------------------
+-- Begin detecting ranges of parameters values accepted by cgroup subsystems
+-------------------------------------------------------------------------------
+
+--! @retval min, max
+--! @retval nil, nil, errstr, errno
+local function detect_cgroup_key_range(subsys, key, range_min, range_max)
+  local min, max = tonumber(range_min), tonumber(range_max)
+  if not min then return nil, nil, "Wrong minimum of range: "..range_min, -1 end
+  if not max then return nil, nil, "Wrong maximum of range: "..range_max, -1 end
+  if not ulatency.tree_loaded(subsys) then
+    return nil, nil, subsys.." subsys not loaded.", -2
+  end
+
+  local cgr = CGroup.new("test."..key, nil, subsys)
+  local ok, errstr, errno = cgr:commit(true)
+  if not ok then
+    cgr:remove()
+    return nil, nil, errstr, errno
+  end
+
+  -- get current value, will be use as min/max value for binary search
+  local initval, errstr, errno = cgr:get_value(key, true)
+  if not initval then
+    cgr:remove()
+    return nil, nil, errstr, errno
+  end
+  initval = tonumber(initval)
+  if not initval then
+    cgr:remove()
+    return nil, "Initial cgroup value not a number.", -3
+  end
+
+  local check = function(value)
+    cgr:set_value(key, value)
+    if cgr:commit(true) then
+      return tonumber(cgr:get_value(key, true)) == value and true or false
+    end
+    return false
+  end
+
+  local search = function(min, max, dir) -- binary search
+    local rv = dir == "up" and min or max
+    local s, e, m = min, max
+    while s <= e do
+      m = math.floor((s+e)/2)
+      if check(m) then
+        rv = m
+        if dir == "up" then s = m + 1 else e = m - 1 end
+      else
+        if dir == "up" then e = m - 1 else s = m + 1 end
+      end
+    end
+    return rv
+  end
+
+  -- search
+  local _min = check(min) and min or search(min+1, initval, "down")
+  local _max = check(max) and max or search(initval, max-1, "up")
+  cgr:remove()
+  return _min, _max
+end
+
+--
+-- Range of values allowed for cgroups parameters.
+--
+-- { <subsystem> = { <parameter> = {<min>, <max>}, ..}, ..}
+--
+-- The interval <min,max> validity is in an empty cgroup. If the test fails,
+-- nearest narrower interval is calculated and used.
+-- If the third range value is true, the range validity is not tested.
+local __CGROUP_KEYS_RANGES = {            -- {min, max, force}
+  cpu =   {
+            ["cpu.shares"]                 = {2, 262144},
+  },
+  blkio = {
+            ["blkio.weight"]               = {10, 1000},
+  },
+  bfqio = {
+            ["bfqio.weight"]               = {1, 1000},
+  },
+}
+
+--! initialize __CGROUP_KEYS_RANGES table
+function CGroup.init_key_ranges(die_on_error)
+  for subsys, def in pairs(__CGROUP_KEYS_RANGES) do
+    if not ulatency.tree_loaded(subsys) then
+      for param, _ in pairs(def) do
+        __CGROUP_KEYS_RANGES[subsys][param] = {nil, nil}
+      end
+    else
+      for param, range in pairs(def) do
+        local min, max = tonumber(range[1]), tonumber(range[2])
+        local force = range[3]
+        if force then
+          __CGROUP_KEYS_RANGES[subsys][param] = {min, max}
+          ulatency.log_debug(string.format(
+                "subsys %s: Using forced range for parameter %s = {%d, %d}",
+                subsys, param, min, max))
+        else -- force
+          local min, max, errstr, errno =
+                detect_cgroup_key_range(subsys, param, min, max)
+          if min and max then
+            __CGROUP_KEYS_RANGES[subsys][param] = {min, max}
+            ulatency.log_debug(string.format(
+                  "subsys %s: Detected range for parameter %s = {%d, %d}",
+                  subsys, param, min, max))
+          else
+            ulatency.log(die_on_error and ulatency.LOG_LEVEL_ERROR or
+                  ulatency.LOG_LEVEL_WARNING, string.format(
+                  "subsys %s: Range of values for %s parameter could not be "..
+                  "detected. Parameter will not be used. Error code %d: %s",
+                  subsys, param, errno, errstr ))
+          end
+        end -- else force
+      end
+    end
+  end
+end
+
+--! Return range of cgroup parameter `key`
+--! @param self #CGroup instance or subsystem string
+--! @param key Name of cgroup parameter
+--! @retval min, max
+--! @retval nil, nil If the range was not detected or `key` is not recalcable;
+--! see `CGroup.is_recalcable`
+--! @public @memberof CGroup
+function CGroup.get_key_range(self, key)
+  local subsys = type(self) == "string" and self or self.tree
+  if string.sub(key, 1, 1) == '?' then key = string.sub(key, 2) end
+
+  if __CGROUP_KEYS_RANGES[subsys] and __CGROUP_KEYS_RANGES[subsys][key] then
+    return  __CGROUP_KEYS_RANGES[subsys][key][1],
+            __CGROUP_KEYS_RANGES[subsys][key][2]
+  else
+    return nil, nil
+  end
+end
+
+function CGroup.is_recalcable_key(self, key)
+  local subsys = type(self) == "string" and self or self.tree
+  if string.sub(key, 1, 1) == '?' then key = string.sub(key, 2) end
+
+  return __CGROUP_KEYS_RANGES[subsys] and
+         __CGROUP_KEYS_RANGES[subsys][key]
+end
+
+--! @param self #CGroup instance or subsystem string
+--! @retval recalculated_number
+--! @retval nil
+function CGroup.get_recalc_value(self, key, value)
+  if not CGroup.is_recalcable_key(self, key) then return value end
+
+  local subsys = type(self) == "string" and self or self.tree
+  if string.sub(key, 1, 1) == '?' then key = string.sub(key, 2) end
+
+  local min, max = CGroup.get_key_range(subsys, key)
+  if not (min and max) then return nil end
+
+  local number = tonumber(value)
+  if number then
+    return number < min and min or number > max and max or number
+  else
+    -- string
+    value = value:upper()
+    if value == "MAX" then return max end
+    if value == "MIN" then return min end
+    if value:sub(-1) == '%' then
+      value = tonumber(value:sub(1, -2))
+      if value then return (max - min) / 100 * value
+      else
+        ulatancy.log_warning(string.format(
+              "subsys %s: Wrong value for cgroup parameter %s: %s",
+              subsys, key, value ))
+        return nil
+      end
+    end
+  end
+  return value
+end
+
+
+-------------------------------------------------------------------------------
+-- End detecting ranges of parameters values accepted by cgroup subsystems
+-------------------------------------------------------------------------------
+
+--! @} End of "addtogroup lua_CGROUPS"

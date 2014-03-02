@@ -394,19 +394,20 @@ do
         "Loaded cgroup subsystems: "..table.concat(loaded_subsystems, ", "))
 end -- do
 
--------------------------------------------------------------------------------
---  End setup of cgroups subsystems
--------------------------------------------------------------------------------
-
-
--- setup root cgroup for each subsystem
-
+-- setup defaults parameters for the root cgroup inside each subsystem
 for _,subsys in pairs(CGROUP_SUBSYSTEMS) do
   if ulatency.tree_loaded(subsys) then
     CGroup.new("", nil, subsys):commit()
   end
 end
 
+-------------------------------------------------------------------------------
+--  End setup of cgroups subsystems
+-------------------------------------------------------------------------------
+
+-- detect ranges of parameters values accepted by cgroup subsystems
+
+CGroup.init_key_ranges(true)
 
 -- disable the autogrouping
 
