@@ -3,23 +3,18 @@ project(ulatency C)
 
 INCLUDE(FindPkgConfig)
 INCLUDE(FindGettext)
-INCLUDE (CheckIncludeFiles)
+INCLUDE(CheckIncludeFiles)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 
-option(CONFIG_PREFIX "config prefix" "/etc")
 option(DEVELOP_MODE "build for development" FALSE)
 option(DEVELOP_DBUS_SESSION "export to session dbus" FALSE)
-option(LIBCGROUPS "add libcgroups support (BROKEN)" FALSE)
 option(LUA_JIT "enable luajit support when available" FALSE)
 option(ENABLE_DBUS "enable dbus" TRUE)
-option(STATIC_LINK_LIBPROCPS "statically link to libprocps" TRUE)
 
 SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
-
-if(LIBCGROUPS)
-  pkg_check_modules(LIBCGROUP libcgroup OPTIONAL)
-endif(LIBCGROUPS)
 
 pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
 
@@ -40,24 +35,67 @@ if(POLKIT_FOUND)
   CHECK_LIBRARY_EXISTS(polkit-gobject-1 polkit_authority_get_sync "" POLKIT_HAVE_GET_SYNC)
 endif(POLKIT_FOUND)
 
-# libproc (static or dynamic linking)
 
-pkg_check_modules(LIBPROC libprocps REQUIRED)
-if(STATIC_LINK_LIBPROCPS)
-  set(STATIC_LINK_LIBPROCPS_PATH ${LIBPROC_LIBDIR}/libprocps.a CACHE STRING "Full path to libprocps.a for static linking" FORCE)
-  if(NOT EXISTS ${STATIC_LINK_LIBPROCPS_PATH})
-    message(FATAL_ERROR "Static procps library not found: ${STATIC_LINK_LIBPROCPS_PATH}")
-  endif(NOT EXISTS ${STATIC_LINK_LIBPROCPS_PATH})
-  add_library(procps STATIC IMPORTED)
-  set_target_properties( procps PROPERTIES IMPORTED_LOCATION ${STATIC_LINK_LIBPROCPS_PATH} )
-else(STATIC_LINK_LIBPROCPS)
-  set(procps ${LIBPROC_LIBRARIES})
-endif(STATIC_LINK_LIBPROCPS)
 
-SET(CONFIG_PREFIX "/etc" CACHE STRING
-      "Config prefix"
-      FORCE)
-SET(SYSTEMD_DIR "/lib/systemd/system" CACHE STRING
+# -----------------------------------------------------------------------------
+#  Begin finding procps
+# -----------------------------------------------------------------------------
+
+# list of required libprocps symbols
+set(PROCPS_CHECK_SYMBOLS
+      "readtask" "readproc"
+      "openproc" "closeproc" "freeproc"
+      "uptime" "loadavg" "smp_num_cpus"
+      "user_from_uid" "group_from_gid"
+      "get_pid_digits"
+
+      "meminfo"
+      #grep -o 'kb_[a-zA-Z0-9_]*' src/lua_binding.c | tr '\n' ' ' | sed "s%\b%\"%g" | fmt
+      "kb_active" "kb_main_shared" "kb_main_buffers" "kb_main_cached"
+      "kb_main_free" "kb_main_total" "kb_swap_free" "kb_swap_total"
+      "kb_high_free" "kb_high_total" "kb_low_free" "kb_low_total" "kb_active"
+      "kb_inact_laundry" "kb_inact_dirty" "kb_inact_clean" "kb_inact_target"
+      "kb_swap_cached" "kb_swap_used" "kb_main_used" "kb_writeback" "kb_slab"
+      "kb_committed_as" "kb_dirty" "kb_inactive" "kb_mapped" "kb_pagetables"
+
+      "vminfo"
+      #grep -o 'vm_[a-zA-Z0-9_]*' src/lua_binding.c | tr '\n' ' ' | sed "s%\b%\"%g" | fmt
+      "vm_nr_dirty" "vm_nr_writeback" "vm_nr_pagecache" "vm_nr_page_table_pages"
+      "vm_nr_reverse_maps" "vm_nr_mapped" "vm_nr_slab" "vm_pgpgin" "vm_pgpgout"
+      "vm_pswpin" "vm_pswpout" "vm_pgalloc" "vm_pgfree" "vm_pgactivate"
+      "vm_pgdeactivate" "vm_pgfault" "vm_pgmajfault" "vm_pgscan" "vm_pgrefill"
+      "vm_pgsteal" "vm_kswapd_steal" "vm_pageoutrun" "vm_allocstall"
+  )
+set(PROCPS_REQUIRE_SYMBOLS ${PROCPS_CHECK_SYMBOLS}) # require all
+# list of required proc_t structure members
+set(PROCPS_CHECK_PROC_T_MEMBERS
+      "tid" "ppid" "state" "utime" "stime" "cutime" "cstime" "start_time"
+      "signal" "blocked" "sigignore" "sigcatch" "_sigpnd" "start_code"
+      "end_code" "start_stack" "kstk_esp" "kstk_eip" "wchan" "priority"
+      "nice" "rss" "alarm" "size" "resident" "share" "trs" "lrs" "drs" "dt"
+      "vm_size" "vm_lock" "vm_rss" "vm_data" "vm_stack" "vm_swap" "vm_exe"
+      "vm_lib" "rtprio" "sched" "vsize" "rss_rlim" "flags" "min_flt" "maj_flt"
+      "cmin_flt" "cmaj_flt" "euser" "ruser" "suser" "fuser" "rgroup" "egroup"
+      "sgroup" "fgroup" "cmd" "nlwp" "tgid" "tty" "euid" "egid" "ruid" "rgid"
+      "suid" "sgid" "fuid" "fgid" "tpgid" "exit_signal" "processor"
+  )
+set(PROCPS_REQUIRE_PROC_T_MEMBERS ${PROCPS_CHECK_PROC_T_MEMBERS}) # require all
+set(Procps_VERBOSE ON)
+
+set(PROCPS_REQUIRE_NG ON) # set OFF if you want to try older procps;
+                          # proc_t->vm_swap will be probably missing and
+                          # the legacy library was never tested with ulatencyd
+find_package(Procps "3.3.0" REQUIRED) # not sure by version, 3.3.3 tested
+
+# -----------------------------------------------------------------------------
+#  End finding procps
+# -----------------------------------------------------------------------------
+
+
+
+SET(CONFIG_PREFIX "/etc" CACHE PATH
+      "Config prefix")
+SET(SYSTEMD_DIR "/lib/systemd/system" CACHE PATH
       "systemd service file directory")
 
 if(DEVELOP_MODE)
@@ -102,9 +140,9 @@ configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src
-                     ${LIBCGROUP_INCLUDE_DIRS}
-                     ${LIBPROC_INCLUDE_DIRS} ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
-                     ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS})
+                     ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
+                     ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS}
+                     ${PROCPS_INCLUDE_DIRS} )
 
 IF(LUA_JIT AND LUAJIT_FOUND)
   include_directories (${LUAJIT_INCLUDE_DIRS})
@@ -119,7 +157,6 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   set(ADD_COMPILE_FLAGS "-g -pg -Wall -Wformat -Werror=format-security")
 endif("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
-add_subdirectory(src/bc)
 add_subdirectory(src)
 add_subdirectory(modules)
 add_subdirectory(tests)

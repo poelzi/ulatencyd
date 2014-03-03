@@ -38,8 +38,6 @@
 #include <polkit/polkit.h>
 #endif
 
-//#include <libcgroup.h>
-
 
 #define U_LOG_LEVEL_SCHED   1 << 8
 #define u_sched(...)    g_log (G_LOG_DOMAIN,         \
@@ -51,6 +49,7 @@
                                U_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
+extern gint U_log_level; //!< Current log level
 
 #define VERSION 0.5.0+exp0.6.0-pre1
 
@@ -403,7 +402,7 @@ int fallback_quit(gpointer exit_code);
 int load_modules(char *path);
 int load_rule_directory(const char *path, const char *load_pattern, int fatal);
 int load_rule_file(const char *name);
-int load_lua_rule_file(lua_State *L, const char *name);
+int load_lua_file(lua_State *L, const char *name);
 
 /* u_proc* u_proc_new(proc_t proc)
  *

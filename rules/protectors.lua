@@ -43,10 +43,10 @@ function update_caches()
 
   new_memory_pressure = swap_memory_pressure or new_memory_pressure
   if(memory_pressure ~= new_memory_pressure and new_memory_pressure) then
-    ulatency.log_warning("memory pressure detected !")
+    u_warning("memory pressure detected !")
     ulatency.run_iteration()
   elseif (memory_pressure ~= new_memory_pressure and not new_memory_pressure) then
-    ulatency.log_info("memory pressure ended")
+    u_info("memory pressure ended")
   end
   memory_pressure = new_memory_pressure
   return true

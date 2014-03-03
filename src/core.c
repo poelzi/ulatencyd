@@ -545,7 +545,15 @@ gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
 
   for(i = 0; lines[i]; i++) {
       char **vals;
-      vals = g_strsplit (lines[i], ":", 3); // or is regex ^[0-9]+:(.+):(.+) needed?
+      /*
+       * Ulatencyd will not run with multiple subsystems mounted in single
+       * hierarchy, so assume in /proc/<pid>/cgroup there is always only one
+       * subsys_name on each line <hierarchy_number>:<subsys_name>:<cgroup>
+       *
+       * Another approach is to use hierarchy_number as index into hash
+       * table generated from /proc/cgroups. Would it be faster?
+       */
+      vals = g_strsplit (lines[i], ":", 3);
       if (vals != NULL && g_strv_length(vals) == 3) {
         g_hash_table_insert (cgroups, g_strdup (vals[1]), g_strdup (vals[2]));
         if (cgroups_origin)
@@ -2160,7 +2168,7 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
         if((sb.st_mode & S_IFMT) != S_IFREG)
             goto next;
 
-        if(load_lua_rule_file(lua_main_state, rpath) && fatal)
+        if(load_lua_file(lua_main_state, rpath) && fatal)
           abort();
     next:
         g_free(rule_name);
@@ -2181,8 +2189,10 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal) {
   return 0;
 }
 
-int luaopen_ulatency(lua_State *L);
-int luaopen_bc(lua_State *L);
+LUALIB_API int luaopen_ulatency (lua_State *L);
+LUALIB_API int luaopen_u_proc   (lua_State *L);
+LUALIB_API int luaopen_u_task   (lua_State *L);
+LUALIB_API int luaopen_u_flag   (lua_State *L);
 
 int u_dbus_setup();
 
@@ -2190,7 +2200,7 @@ int u_dbus_setup();
 int core_init() {
   // load config
   int i;
-  iteration = 1;
+  iteration = 0;
   filter_list = NULL;
 
   smp_num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
@@ -2246,18 +2256,36 @@ int core_init() {
 
   // configure lua
   lua_main_state = luaL_newstate();
-  luaL_openlibs(lua_main_state);
-  luaopen_bc(lua_main_state);
-  luaopen_ulatency(lua_main_state);
-#ifdef LIBCGROUP
-  luaopen_cgroup(lua_main_state);
-#endif
+  if (lua_main_state) {
+      luaL_openlibs(lua_main_state);
+
+      lua_pushcfunction(lua_main_state, luaopen_ulatency);
+      lua_pushstring(lua_main_state, "ulatency");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_u_proc);
+      lua_pushstring(lua_main_state, "U_PROC");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_u_task);
+      lua_pushstring(lua_main_state, "U_TASK");
+      lua_call(lua_main_state, 1, 0);
+
+      lua_pushcfunction(lua_main_state, luaopen_u_flag);
+      lua_pushstring(lua_main_state, "U_FLAG");
+      lua_call(lua_main_state, 1, 0);
+  } else {
+      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't open lua libraries");
+  }
+
+
 
   // FIXME make it configurable
   scheduler_set(&LUA_SCHEDULER);
 
-  if(load_lua_rule_file(lua_main_state, QUOTEME(LUA_CORE_FILE)))
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "can't load core library");
+  if(load_lua_file(lua_main_state, QUOTEME(LUA_CORE_DIR) "/bootstrap.lua"))
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,
+        "Can't load " QUOTEME(LUA_CORE_DIR) "/bootstrap.lua");
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "core initialized");
   if(delay)

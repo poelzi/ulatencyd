@@ -50,7 +50,7 @@
 //static proc_t *push_proc_t (lua_State *L);
 static u_proc *push_u_proc (lua_State *L, u_proc *proc);
 static int docall (lua_State *L, int narg, int nresults);
-int load_lua_rule_file(lua_State *L, const char *name);
+int load_lua_file(lua_State *L, const char *name);
 
 void stackdump_g(lua_State* l)
 {
@@ -850,14 +850,25 @@ static int u_proc_get_n_nodes (lua_State *L) {
 }
 
 static int u_proc_set_block_scheduler (lua_State *L) {
+  const char *reason;
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
+  reason = lua_tostring (L, 3); // optional reason
 
   if(!U_PROC_IS_VALID(proc))
     return 0;
 
-  g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "block_scheduler set to: %d by %s", value, "(FIXME)");
   proc->block_scheduler = value;
+
+  if (reason) {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,
+        "pid %d (cmd: %s): block_scheduler set to %d because %s.",
+        proc->pid, proc->proc->cmd, value, reason);
+  } else {
+    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,
+        "pid %d (cmd: %s): block_scheduler set to %d",
+        proc->pid, proc->proc->cmd, value);
+  }
   
   return 0;
 }
@@ -952,14 +963,17 @@ static int u_proc_set_oom_score (lua_State *L) {
 }
 
 static int u_proc_get_oom_score (lua_State *L) {
+  int rv;
   u_proc *proc = check_u_proc(L, 1);
 
   if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
     return 0;
 
-  lua_pushinteger(L, !get_oom_killer(proc->pid));
-
-  return 1;
+  if ((rv = get_oom_killer(proc->pid)) != -1) {
+    lua_pushinteger(L, rv);
+    return 1;
+  }
+  return 0;
 }
 
 static int u_proc_ioprio_set (lua_State *L) {
@@ -1074,7 +1088,7 @@ static int handle_proc_t (lua_State *L, proc_t *proc, const char *key) {
   PUSH_INT(stime) 
   PUSH_INT(cutime) 
   PUSH_INT(cstime)
-  // FIXME need bc lib here
+  // FIXME need bc lib here (https://github.com/LuaDist/lbc/)
   PUSH_INT(start_time) 
 #ifdef SIGNAL_STRING
   PUSH_STR(signal)
@@ -2174,6 +2188,21 @@ static int l_get_time (lua_State *L) {
   return 1;
 }
 
+static int user_load_lua_core_file(lua_State *L) {
+  char *full, *full2;
+  const char *name = luaL_checkstring(L, 1);
+  full = g_strconcat(QUOTEME(LUA_CORE_DIR), "/", name, NULL);
+  full2 = realpath(full, NULL);
+  if(!full2) {
+    g_warning("load_core_file: realpath failed for %s", full);
+    g_free(full);
+    return 0;
+  }
+  lua_pushboolean(L, !load_lua_file(L, full2));
+  g_free(full);
+  g_free(full2);
+  return 1;
+}
 
 static int user_load_lua_rule_file(lua_State *L) {
   char *full, *full2;
@@ -2187,11 +2216,11 @@ static int user_load_lua_rule_file(lua_State *L) {
       g_free(full);
       return 0;
     }
-    lua_pushboolean(L, !load_lua_rule_file(L, full2));
+    lua_pushboolean(L, !load_lua_file(L, full2));
     g_free(full);
     g_free(full2);
   } else {
-    lua_pushboolean(L, !load_lua_rule_file(L, name));
+    lua_pushboolean(L, !load_lua_file(L, name));
   }
   return 1;
 }
@@ -2340,11 +2369,12 @@ static const luaL_reg R[] = {
   {"search_uid_env", l_search_uid_env},
   // misc
   {"filter_rv",  l_filter_rv},
-  {"log",  l_log},
+  {"_log",  l_log},
   {"get_uid", l_get_uid},
   {"get_time", l_get_time},
   {"fallback_quit", l_fallback_quit},
   {"die", l_die},
+  {"load_core_file", user_load_lua_core_file},
   {"load_rule", user_load_lua_rule_file},
   {"load_rule_directory", user_load_rule_directory},
   {"process_update", l_process_update},
@@ -2368,32 +2398,26 @@ static const luaL_reg R[] = {
 	lua_pushstring(L, SYMBOLE); \
 	lua_setfield(L, -2, #NAME);
 
-int luaopen_ulatency(lua_State *L) {
+LUALIB_API int luaopen_ulatency(lua_State *L) {
+  /* create new type UL_META */
+  luaL_newmetatable(L, UL_META);
+  lua_pushvalue(L, -1);
+  lua_setfield(L, -2, "__index");
 
+  /* create `ulatency` table */
+  luaL_register(L, "ulatency", R);
+  lua_pushvalue(L, -2);
+  lua_setfield(L, -2, "meta_ulatency");
 
-	/* create metatable */
-	luaL_newmetatable(L, UL_META);
-
-	/* metatable.__index = metatable */
-	lua_pushvalue(L, -1);
-	lua_setfield(L, -2, "__index");
-
-	/* register module */
-	luaL_register(L, "ulatency", R);
-
-	/* register metatable as socket_meta */
-	lua_pushvalue(L, -2);
-	lua_setfield(L, -2, "meta_ulatency");
-
-	/* module version */
+  // module version
   PUSH_STR(version, QUOTEME(VERSION))
   PUSH_STR(release_agent, QUOTEME(RELEASE_AGENT))
+  PUSH_STR(path_core_directory, QUOTEME(LUA_CORE_DIR))
   PUSH_STR(path_rules_directory, QUOTEME(RULES_DIRECTORY))
   PUSH_STR(path_config_directory, QUOTEME(CONFIG_PATH))
 
   //PUSH_INT(hertz, Hertz)
   PUSH_INT(smp_num_cpus, smp_num_cpus)
-
 
   // glib log level
   PUSH_INT(LOG_LEVEL_ERROR, G_LOG_LEVEL_ERROR)
@@ -2404,10 +2428,13 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(LOG_LEVEL_DEBUG, G_LOG_LEVEL_DEBUG)
   PUSH_INT(LOG_LEVEL_SCHED, U_LOG_LEVEL_SCHED)
   PUSH_INT(LOG_LEVEL_TRACE, U_LOG_LEVEL_TRACE)
+  PUSH_INT(LOG_LEVEL, U_log_level)
   
+  // filter flags
   PUSH_INT(FILTER_STOP, FILTER_STOP)
   PUSH_INT(FILTER_SKIP_CHILD, FILTER_SKIP_CHILD)
 
+  // io priority stuff
   PUSH_INT(IOPRIO_CLASS_NONE, IOPRIO_CLASS_NONE)
   PUSH_INT(IOPRIO_CLASS_RT, IOPRIO_CLASS_RT)
   PUSH_INT(IOPRIO_CLASS_BE, IOPRIO_CLASS_BE)
@@ -2420,56 +2447,58 @@ int luaopen_ulatency(lua_State *L) {
   PUSH_INT(SCHED_BATCH, SCHED_BATCH)
   PUSH_INT(SCHED_IDLE, SCHED_IDLE)
 
+  // u_proc states
   PUSH_INT(UPROC_NEW, UPROC_NEW)
   PUSH_INT(UPROC_INVALID, UPROC_INVALID)
   PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)
 
-  /* remove meta table */
-	lua_remove(L, -2);
+  lua_remove(L, -2);  // remove meta table
+  return 1; /* return `ulatency` table */
+}
 
-  // map u_proc
-  luaL_register(L, U_PROC, u_proc_methods); 
+LUALIB_API int luaopen_u_proc(lua_State *L) {
+  /* create new type U_PROC_META */
   luaL_newmetatable(L, U_PROC_META);
   luaL_register(L, NULL, u_proc_meta);
-  //lua_pushliteral(L, "__index");
-  //lua_pushvalue(L, -3);
-  //lua_rawset(L, -3);                  /* metatable.__index = methods */
-  lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -2);               /* dup methods table*/
-  lua_rawset(L, -4);
-  lua_pop(L, 1);
 
-  // map u_proc
-  luaL_register(L, U_TASK, u_task_methods);
+  /* create `U_PROC` table */
+  luaL_register(L, U_PROC, u_proc_methods);
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
+
+  lua_remove(L, -2);  // remove metatable
+  return 1; /* return `U_PROC` table */
+}
+
+LUALIB_API int luaopen_u_task(lua_State *L) {
+  /* create new type U_TASK_META */
   luaL_newmetatable(L, U_TASK_META);
   luaL_register(L, NULL, u_task_meta);
-  //lua_pushliteral(L, "__index");
-  //lua_pushvalue(L, -3);
-  //lua_rawset(L, -3);                  /* metatable.__index = methods */
-  lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -2);               /* dup methods table*/
-  lua_rawset(L, -4);
-  lua_pop(L, 1);
 
-  // map u_filter
-  luaL_register(L, U_FLAG, u_flag_methods); 
+  /* create `U_TASK` table */
+  luaL_register(L, U_TASK, u_task_methods);
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
+
+  lua_remove(L, -2); // remove meta table
+  return 1; /* return `U_TASK` table */
+}
+
+LUALIB_API int luaopen_u_flag(lua_State *L) {
+  /* create new type U_FLAG_META */
   luaL_newmetatable(L, U_FLAG_META);
   luaL_register(L, NULL, u_flag_meta);
-  //lua_pushliteral(L, "__index");
-  //lua_pushvalue(L, -3);
-  //lua_rawset(L, -3);                  /* metatable.__index = methods */
+
+  /* create `U_FLAG` table */
+  luaL_register(L, U_FLAG, u_flag_methods);
   lua_pushliteral(L, "__metatable");
-  lua_pushvalue(L, -2);               /* dup methods table*/
-  lua_rawset(L, -4);
-  lua_pop(L, 1);
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
 
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-  luaL_ref(L, LUA_REGISTRYINDEX);
-
-	return 1;
+  lua_remove(L, -2);// remove meta table
+  return 1; /* return `U_FLAG` table */
 }
 
 // misc functions
@@ -2539,7 +2568,7 @@ static int docall (lua_State *L, int narg, int nresults) {
 
 
 
-int load_lua_rule_file(lua_State *L, const char *name) {
+int load_lua_file(lua_State *L, const char *name) {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "load %s", name);
   if(luaL_loadfile(L, name)) {
     report(L, 1);

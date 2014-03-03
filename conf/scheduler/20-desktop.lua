@@ -144,9 +144,9 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
         adjust_new = function(cgroup, proc)
                   cgroup:add_task(proc.pid)
                   cgroup:commit()
-                  bytes = cgroup:get_value("memory.usage_in_bytes")
+                  local bytes = cgroup:get_value("memory.usage_in_bytes")
                   if not bytes then
-                    ulatency.log_warning("can't access memory subsystem")
+                    u_warning("can't access memory subsystem")
                     return
                   end
                   bytes = math.floor(bytes*(tonumber(ulatency.get_config("memory", "process_downsize")) or 0.95))
@@ -158,9 +158,12 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                   local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"), 
                                                    Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
                                                max_rss)
-                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
+                  u_info(
+                        "memory container created: %s, max_rss: %d, "..
+                        "max_total: %d, soft_limit: %d",
+                        cgroup.name, max_rss, total_limit, bytes)
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
-                  cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
+                  cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit)
                   cgroup:commit()
                 end
       },
@@ -177,7 +180,8 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                                                     { name = "user.poison.group",
                                                       value = proc.pgrp })
                   cgroup:add_task(proc.pid)
-                  cgroup:set_value("memory.soft_limit_in_bytes", math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95))))
+                  local bytes = math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95)))
+                  cgroup:set_value("memory.soft_limit_in_bytes", bytes)
                   -- we use soft limit, but without limit we can't set the memsw limit
                   local max_rss = math.floor(num_or_percent(ulatency.get_config("memory", "max_rss"),
                                                  Scheduler.meminfo.kb_main_total,
@@ -185,7 +189,10 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
                   local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"), 
                                                    Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
                                                max_rss)
-                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
+                  u_info(
+                        "memory container created: %s, max_rss: %d, "..
+                        "max_total: %d, soft_limit: %d",
+                        cgroup.name, max_rss, total_limit, bytes)
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
                   cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                   cgroup:commit()

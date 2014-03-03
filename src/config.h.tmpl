@@ -23,7 +23,6 @@
 // ioprio
 
 #cmakedefine ENABLE_NLS
-#cmakedefine LIBCGROUPS
 #cmakedefine CONFIG_PREFIX @CONFIG_PREFIX@
 #cmakedefine INSTALL_PREFIX @INSTALL_PREFIX@
 #cmakedefine ENABLE_DBUS
@@ -36,13 +35,13 @@
 #define CONFIG_PATH conf
 #define RULES_DIRECTORY rules
 #define MODULES_DIRECTORY modules
-#define LUA_CORE_FILE src/core.lua
+#define LUA_CORE_DIR src/lua
 #else
 #define RELEASE_AGENT ${INSTALL_PREFIX}/lib/ulatencyd/ulatencyd_cleanup.sh
 #define CONFIG_PATH ${CONFIG_PREFIX}/ulatencyd
 #define RULES_DIRECTORY ${CONFIG_PREFIX}/ulatencyd/rules
 #define MODULES_DIRECTORY ${INSTALL_PREFIX}/lib/ulatencyd/modules
-#define LUA_CORE_FILE ${INSTALL_PREFIX}/lib/ulatencyd/core.lua
+#define LUA_CORE_DIR ${INSTALL_PREFIX}/lib/ulatencyd/lua
 #endif
 
 #define QUOTEME_(x) #x

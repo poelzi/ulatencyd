@@ -46,9 +46,6 @@ DBusGConnection *U_dbus_connection_system;
 #include <glib.h>
 #include <proc/sysinfo.h>
 #include <proc/readproc.h>
-#ifdef LIBCGROUP
-#include <libcgroup.h>
-#endif
 #include <sys/mman.h>
 #include <error.h>
 
@@ -56,8 +53,8 @@ static gchar *config_file = QUOTEME(CONFIG_PATH)"/ulatencyd.conf";
 static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);
 static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
-static gint verbose = 1<<5;
 static char *mount_point;
+gint U_log_level = G_LOG_LEVEL_MESSAGE; //!< Current log level
 static char *log_file = NULL;
 int          log_fd = -1;
 
@@ -80,7 +77,7 @@ static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpoint
   if(value) {
     i = atoi(value);
   }
-  verbose = verbose << i;
+  U_log_level = U_log_level << i;
   return TRUE;
 }
 
@@ -89,7 +86,7 @@ static gboolean opt_quiet(const gchar *option_name, const gchar *value, gpointer
   if(value) {
     i = atoi(value);
   }
-  verbose = verbose >> i;
+  U_log_level = U_log_level >> i;
   return TRUE;
 }
 
@@ -112,9 +109,6 @@ GMainLoop *main_loop;
 
 void cleanup() {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "cleanup daemon");
-#ifdef LIBCGROUP
-  cgroup_unload_cgroups();
-#endif
   // for valgrind
   core_unload();
 }
@@ -269,6 +263,9 @@ static void log_file_handler (const gchar    *log_domain,
 
   write (log_fd, string, strlen (string));
   g_free (string);
+
+  if (is_fatal)
+    g_log_default_handler(log_domain, log_level, message, unused_data);
 }
 
 static void close_logfile() {
@@ -294,7 +291,7 @@ static int open_logfile(char *file) {
 static void filter_log_handler(const gchar *log_domain, GLogLevelFlags log_level,
                         const gchar *message, gpointer unused_data) {
 
-  if(log_level <= verbose) {
+  if(log_level <= U_log_level) {
     if(log_fd != -1)
       log_file_handler(log_domain, log_level, message, unused_data);
     else
@@ -553,6 +550,7 @@ int main (int argc, char *argv[])
       g_print ("option parsing failed: %s\n", error->message);
       exit (1);
     }
+  g_option_context_free (context);
 
   pid_t pid, sid;
   if (opt_daemon) {
@@ -590,23 +588,6 @@ int main (int argc, char *argv[])
 
   main_context = g_main_context_default();
   main_loop = g_main_loop_new(main_context, FALSE);
-
-#if LIBCGROUP
-  if(cgroup_init()) {
-    g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "could not init libcgroup. try mounting cgroups...");
-    g_mkdir_with_parents(mount_point, 0755);
-    if(!mount_cgroups() || cgroup_init()) {
-#ifdef DEVELOP_MODE
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
-      //g_log(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "give up init libcgroup");
-#else
-      g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "give up init libcgroup");
-#endif
-    }
-  }
-#else
-  //mount_cgroups();
-#endif
 
   atexit(cleanup);
 

@@ -148,6 +148,11 @@ int adj_oom_killer(pid_t pid, int adj)
   return -1;
 }
 
+/**
+ * Returns number of how oom-killer score is adjusted for #U_PROC
+ * @retval >=0 score adjust
+ * @retval -1 on failure
+ */
 int get_oom_killer(pid_t pid)
 {
     char       *contents, *path;
@@ -163,10 +168,10 @@ int get_oom_killer(pid_t pid)
                                &error);
     if (!res) {
         g_error_free (error);
-        return 0;
+        return -1;
     }
     if(!sscanf(contents, "%d", &rv))
-      rv = 0;
+      rv = -1;
 
     g_free(contents);
     g_free(path);
