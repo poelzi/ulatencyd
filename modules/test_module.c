@@ -17,6 +17,9 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#include <ulatency.h>
+
+#include <glib.h>
 #include <gmodule.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,6 +27,9 @@
 G_MODULE_EXPORT const gchar*
 g_module_check_init (GModule *module)
 {
-  printf("test module loaded\n");
+  printf ("Test module loaded\n");
+  g_message ("Test module: loaded.");
+  u_module_close_me (module);
+  g_message ("Test module: unloading requested.");
   return NULL;
 }

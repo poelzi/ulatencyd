@@ -161,7 +161,7 @@ local function format_name(proc, map)
     function get(name)
       return tostring(proc[name])
     end
-    return string.gsub(map.cgroups_name, "%$\{(%w+)\}", get)
+    return string.gsub(map.cgroups_name, "%$\{([%w_]+)\}", get)
   end
   return map.name
 end

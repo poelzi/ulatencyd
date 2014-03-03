@@ -155,6 +155,32 @@ ulatency.UPROC_INVALID = UPROC_INVALID
 ulatency.UPROC_ALIVE = UPROC_ALIVE
 --! @}
 
+--! @name U_PROC.session_id values
+--! @{
+
+--! @ingroup lua_USER_SESSIONS
+
+--! The session could not be determined, process already dead or consolekit/logind error.
+--! @public @memberof ulatency
+ulatency.USESSION_UNKNOWN      = 0
+--! the init (pid 1).
+--! @public @memberof ulatency
+ulatency.USESSION_INIT         = 1
+--! kernel threads
+--! @public @memberof ulatency
+ulatency.USESSION_KERNEL       = 2
+--! process does not belong to any user session
+--! @public @memberof ulatency
+ulatency.USESSION_NONE         = 3
+--! unknown user session (wrong consolekit cookie or consolekit error)
+--! @public @memberof ulatency
+ulatency.USESSION_USER_UNKNOWN = 5
+--! first user session
+--! @public @memberof ulatency
+ulatency.USESSION_USER_FIRST   = 10
+
+--! @}
+
 ------------------ ulatency class functions -----------
 
 --! @name system load
@@ -443,8 +469,8 @@ end
 
 --! @ingroup lua_USER_SESSIONS
 
---! Returns array of ConsoleKit sessions.
---! @return array of #u_session structures.
+--! Returns all user sessions.
+--! @return table of #U_SESSION tables.
 --! @public @memberof ulatency
 function ulatency.get_sessions()
 end

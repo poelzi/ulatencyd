@@ -67,18 +67,18 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
 
   {
     name = "idle_user",
-    cgroups_name = "idle_usr_${euid}",
+    cgroups_name = "idle_usr_${session_id}",
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+              return proc.session_id > ulatency.USESSION_NONE and not proc.session_is_active
             end,
     param = { ["cpu.shares"]="1",  ["?cpu.rt_runtime_us"] = "100" }
   },
 
   {
     name = "user",
-    cgroups_name = "usr_${euid}",
+    cgroups_name = "usr_${session_id}",
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 )
+              return proc.session_id > ulatency.USESSION_NONE
             end,
     param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
@@ -88,7 +88,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
         cgroups_name = "active",
         param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.is_active and proc.active_pos == 1
+            return proc.session_is_active and proc.is_active and proc.active_pos == 1
           end
       },
       {
@@ -211,10 +211,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
   },
   {
     name = "idle_user",
-    cgroups_name = "idle_usr_${euid}",
+    cgroups_name = "idle_usr_${session_id}",
     check = function(proc)
-              -- FIXME: proc.euid is probably not always the best choice.
-              return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+              return proc.session_id > ulatency.USESSION_NONE and not proc.session_is_active
             end,
     param = { ["memory.soft_limit_in_bytes"] = "1", ["?memory.swappiness"] = "100", ["?memory.use_hierarchy"] = "1" },
     children = {
@@ -272,12 +271,11 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     },
   },
 
-
   {
-    name = "user",
-    cgroups_name = "usr_${euid}",
+    name = "active_user",
+    cgroups_name = "active_usr_${session_id}",
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 )
+              return proc.session_id > ulatency.USESSION_NONE
             end,
     children = {
       {
@@ -294,7 +292,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "20" },
         check = function(proc)
-                if not proc.is_active then return false end
+                if not proc.session_is_active or not proc.is_active then 
+                  return false
+                end
                 for j, flag in pairs(ulatency.list_flags()) do
                   if flag.name == "pressure" or flag.name == "emergency" then
                   return proc.active_pos == 1
@@ -390,6 +390,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       },
     },
   },
+
   {
     name = "system_idle",
     cgroups_name = "sys_idle",
@@ -453,9 +454,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
 
   {
     name = "idle_user",
-    cgroups_name = "idle_usr_${euid}",
+    cgroups_name = "idle_usr_${session_id}",
     check = function(proc)
-                return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+                return proc.session_id > ulatency.USESSION_NONE and not proc.session_is_active
               end,
     param = { ["blkio.weight"]="10" },
     adjust = function(cgroup, proc)
@@ -480,10 +481,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
   },
   {
     name = "active",
-    cgroups_name = "usr_${euid}_active",
+    cgroups_name = "usr_${session_id}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
-                return proc.active_pos == 1
+                return proc.session_is_active and proc.is_active and proc.active_pos == 1
               end,
     adjust = function(cgroup, proc)
                 if ulatency.match_flag({"application.starting"}, proc) then
@@ -615,9 +616,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
 {
   {
     name = "user",
-    cgroups_name = "usr_${euid}",
+    cgroups_name = "usr_${session_id}",
     check = function(proc)
-                return ( proc.euid > 999 and proc.euid < 60000 )
+                return proc.session_id > ulatency.USESSION_NONE
               end,
     param = { ["freezer.state"] = "THAWED" },
     children = {
@@ -625,7 +626,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
         name = "inactive_user.useless",
         label = { "inactive_user.useless", "user.media", "user.ui", "user.game", "user.idle", "daemon.idle" },
         adjust = function(cgroup, proc)
-                if ulatency.get_uid_stats(proc.euid) or ulatency.match_flag({"quit","suspend"}) then
+                if proc.session_is_active or ulatency.match_flag({"quit","suspend"}) then
                   if cgroup:get_value("freezer.state") == 'FROZEN' then
                     Scheduler:register_after_hook('thaw group ' .. cgroup.name, function()
                         u_info('thawing group %s', cgroup.name)

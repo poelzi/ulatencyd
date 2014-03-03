@@ -17,8 +17,10 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
-#include "ulatency.h"
 #include "config.h"
+
+#include "ulatency.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -603,6 +605,7 @@ int main (int argc, char *argv[])
     signal (SIGUSR2, SIG_IGN);
 
   core_init();
+
   // set the cgroups root path
   lua_getfield(lua_main_state, LUA_GLOBALSINDEX, "CGROUP_ROOT"); /* function to be called */
   config_cgroup_root = g_strdup(lua_tostring(lua_main_state, -1));

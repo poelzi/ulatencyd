@@ -17,8 +17,8 @@ SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
 
 pkg_check_modules(GLIB2 glib-2.0 REQUIRED)
+pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)
 
-#pkg_check_modules(GMODULE gmodule-2.0 REQUIRED)
 if(ENABLE_DBUS)
   pkg_check_modules(DBUS dbus-glib-1 REQUIRED)
   if(DBUS_FOUND)

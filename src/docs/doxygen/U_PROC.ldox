@@ -116,7 +116,7 @@ end
 --! Scheduler skips unchanged processes unless performing full run or normal run under special circumstances.
 --! A process is considered changed if
 --!       - recieved RT for the first time (SCHED_RR or SCHED_FIFO)
---!       - changed euid, egid, sessions, pgrp, sched or rtprio
+--!       - changed euid, egid, sid, pgrp, sched or rtprio
 --!       - or it was already marked as changed:
 --!           + new process affected by fast (instant) filters
 --!           + new process that has been removed from delay_stack
@@ -273,7 +273,7 @@ end
 
 
 
---! @name read/write properties
+--! @name U_PROC read/write properties
 --! @{
 
 --! @brief custom process data
@@ -283,7 +283,7 @@ end
 U_PROC.data = {}
 --! @}
 
---! @name always accessible read-only properties
+--! @name U_PROC read-only properties
 --! @{
 
 --! If TRUE, the `#U_PROC` instance is valid, see `U_PROC.is_invalid`.
@@ -311,8 +311,30 @@ U_PROC.block_scheduler = <number>
 --! @public @memberof U_PROC
 U_PROC.is_active = <boolean>
 --! Position in active list.
+--! @ingroup lua_USER_SESSIONS
 --! @public @memberof U_PROC
 U_PROC.active_pos = <number>
+--! `#U_SESSION` instance to which the process belongs or `nil`.
+--! @ingroup lua_USER_SESSIONS
+--! @public @memberof U_PROC
+U_PROC.session = <U_SESSION> or nil
+--! Session ID (specific to ulatency). May be
+--! - ulatency.USESSION_UNKNOWN (0)
+--! - ulatency.USESSION_INIT
+--! - ulatency.USESSION_KERNEL
+--! - ulatency.USESSION_NONE
+--! - ulatency.USESSION_USER_UNKNOWN
+--! - ulatency.USESSION_USER_FIRST or greater, in this case #U_PROC.session
+--! contains corresponding #U_SESSION instance.
+--! @ingroup lua_USER_SESSIONS
+--! @public @memberof U_PROC
+U_PROC.session_id = <number>
+--! If the process is in active user session. In event of the process being not
+--! in a session, the session could not be determined or process is dead, this
+--! value is FALSE.
+--! @ingroup lua_USER_SESSIONS
+--! @public @memberof U_PROC
+U_PROC.session_is_active = <boolean>
 --! TRUE, if any of process tasks was scheduled in the past with SCHED_FIFO or SCHED_RR policy.
 --! @note Scheduling policies are updated only when the `/proc/#` is parsed again (`update_processes_run()`),
 --! usually every iteration, therefore short lasting RT policy may  not be detected.
@@ -335,7 +357,7 @@ U_PROC.tid = <number>
 --! @}
 
 
---! @name Misc
+--! @name U_PROC miscellaneous properties
 --! Some of these properties are automatically fill whenever the process is updated, rest of them is filled on request.
 --! Basically they will be `nil` if the process is already dead and have not been filled before.
 
@@ -392,7 +414,7 @@ U_PROC.cgroup_origin_raw = {} or nil
 --! @}
 
 
---! @name BASIC read-only properties
+--! @name U_PROC basic read-only properties
 --! @anchor U_PROC_BASIC
 --! These are properties inherited from `u_proc.proc` implemented in C (see `proc_t`).
 --! Properties are accessible since the process basic properties have been parsed (`U_PROC.has_basic_props`).
@@ -548,4 +570,13 @@ U_PROC.tpgid = <number>
 U_PROC.exit_signal = <number>
 --! @public @memberof U_PROC
 U_PROC.processor = <number>
+--! Process group ID.
+--! This is either real process group (pgrp) or the faked value set by
+--! `U_PROC:set_pgid()`.
+--! @public @memberof U_PROC
+U_PROC.pgrp = <number>
+--! Process session ID.
+--! This is either real process session (sid) or the faked value.
+--! @public @memberof U_PROC
+U_PROC.sid = <number>
 --! @}

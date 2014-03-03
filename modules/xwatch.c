@@ -23,6 +23,7 @@
 
 #include "config.h"
 #include "ulatency.h"
+#include "usession.h"
 #include <dbus/dbus-glib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -51,7 +52,7 @@
 #define RETRY_TIMEOUT 30
 
 struct x_server {
-  char *name; // unique name for identification
+  guint id; // unique id for identification, corespondent to USession.id
   time_t last_try;
   uid_t uid;
   char *display;
@@ -69,7 +70,6 @@ static void free_x_server(struct x_server *xs) {
   g_debug("remove x_server display: %s", xs->display);
   if(xs->connection)
       xcb_disconnect (xs->connection);
-  g_free(xs->name);
   g_free(xs->display);
 }
 
@@ -314,7 +314,7 @@ void del_connection(struct x_server *rm) {
   g_free(rm);
 }
 
-struct x_server *add_connection(const char *name, uid_t uid, const char *display) {
+struct x_server *add_connection(guint sess_id, uid_t uid, const char *display) {
   struct x_server *nc;
   GList *cur;
   uid_t myid = getuid();
@@ -333,7 +333,7 @@ struct x_server *add_connection(const char *name, uid_t uid, const char *display
 
   nc = g_malloc0(sizeof(struct x_server));
 
-  nc->name = g_strdup(name);
+  nc->id = sess_id;
   nc->display = g_strdup(display);
   nc->uid = uid;
 
@@ -458,51 +458,40 @@ static gboolean update_all_server(gpointer data) {
   GList *cur;
   pid_t pid;
   int i;
-  u_session *sess;
-  GList *csess;
+  USession *sess;
   struct x_server *xs;
 
   // check the session list for new/changed servers
   // remove dead servers
   for(i = 0; i < g_list_length(server_list);) {
-    int found = FALSE;
     cur = g_list_nth(server_list, i);
     xs = cur->data;
 
-    csess = g_list_first(U_session_list);
-    while(csess) {
-      sess = csess->data;
-
-      if(!strcmp(xs->name, sess->name)) {
-        found = TRUE;
-        break;
-      }
-      csess = g_list_next(csess);
-    }
-    if(!found) {
+    sess = u_session_find_by_id (xs->id);
+    if (!sess) {
       del_connection(xs);
     } else {
       i++;
     }
   }
-  csess = g_list_first(U_session_list);
-  while(csess) {
-    sess = csess->data;
+
+  sess = U_sessions;
+  while (sess) {
     int found = FALSE;
     GList *xcur = g_list_first(server_list);
     while(xcur) {
       xs = xcur->data;
-      if(!strcmp(xs->name, sess->name)) {
+      if (xs->id == sess->id) {
         found = TRUE;
         break;
       }
       xcur = g_list_next(xcur);
     }
     if(!found && sess->X11Display && strcmp(sess->X11Display, "")) {
-      add_connection(sess->name, sess->uid, sess->X11Display);
+      add_connection(sess->id, sess->uid, sess->X11Display);
     }
 
-    csess = g_list_next(csess);
+    sess = sess->next;
   }
 
   int error = 0;

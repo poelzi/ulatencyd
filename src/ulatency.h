@@ -51,6 +51,13 @@
 
 extern gint U_log_level; //!< Current log level
 
+#ifndef g_info
+#define g_info(...)     g_log (G_LOG_DOMAIN,         \
+                               G_LOG_LEVEL_INFO,     \
+                               __VA_ARGS__)
+#endif
+
+
 #define VERSION 0.5.0+exp0.6.0-pre1
 
 //FIXME enable PROC_FILLSUPGRP once adapted to the new libprocps
@@ -191,8 +198,8 @@ typedef struct {
   // fake pgid because it can't be changed.
   pid_t         fake_pgrp;      //!< fake value for pgrp
   pid_t         fake_pgrp_old;
-  pid_t         fake_session;   //!< fake value of session
-  pid_t         fake_session_old;
+  pid_t         fake_sid;   //!< fake value of session
+  pid_t         fake_sid_old;
 
   u_proc_ensured ensured;       //!< properties ensured since current iteration start
 } u_proc;
@@ -309,24 +316,6 @@ enum USER_ACTIVE_AGENT {
   USER_ACTIVE_AGENT_MODULE=1000,
 };
 
-// tracking for user sessions
-typedef struct {
-  gchar     *name;
-  gchar     *X11Display;
-  gchar     *X11Device;
-  // most likely dbus session
-  gchar     *dbus_session;
-  uid_t     uid;
-  uint32_t  idle;
-  uint32_t  active;
-#ifdef ENABLE_DBUS
-  DBusGProxy *proxy;
-#endif
-} u_session;
-
-// list of active sessions
-extern GList *U_session_list;
-
 struct user_active {
   uid_t uid;
   guint max_processes;
@@ -336,7 +325,6 @@ struct user_active {
   GList *actives;       // list of user_active_process
   gboolean enabled;     // if false, ignore this user active list - useful if the user is not active (or frozen)
 };
-
 
 typedef struct {
   int (*all)(void);    //!< make scheduler run over all processes
@@ -556,7 +544,7 @@ uint64_t     get_number_of_processes();
 #endif
 #define U_DBUS_RETRY_WAIT       500 * 1000
 
-#endif
-
 // linux_netlink.c
 extern gboolean netlink_proc_listening; //!< Linux netlink module listening to proc events
+
+#endif /* __ulatency_h__ */

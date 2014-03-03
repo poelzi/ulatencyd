@@ -19,6 +19,8 @@
 
 #include "config.h"
 #include "ulatency.h"
+#include "usession.h"
+
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -495,10 +497,10 @@ static int l_add_interval (lua_State *L) {
 
 // type checks and pushes
 
+// U_PROC
+
 #define U_PROC "U_PROC"
 #define U_PROC_META "U_PROC_META"
-#define U_TASK "U_TASK"
-#define U_TASK_META "U_TASK_META"
 
 static u_proc *check_u_proc (lua_State *L, int index)
 {
@@ -542,6 +544,11 @@ static int u_proc_gc (lua_State *L)
   return 0;
 }
 
+// U_TASK
+
+#define U_TASK "U_TASK"
+#define U_TASK_META "U_TASK_META"
+
 static u_task *check_u_task (lua_State *L, int index)
 {
   u_task **p;
@@ -571,6 +578,43 @@ static int u_task_gc (lua_State *L)
   DEC_REF(task);
   return 0;
 }
+
+// U_SESSION
+
+#define U_SESSION "U_SESSION"
+#define U_SESSION_META "U_SESSION_META"
+
+static USession *check_u_session (lua_State *L, int index)
+{
+  USession **s;
+  luaL_checktype(L, index, LUA_TUSERDATA);
+  s = (USession **)luaL_checkudata(L, index, U_SESSION_META);
+  if (s == NULL) luaL_typerror(L, index, U_SESSION);
+  return *s;
+}
+
+static void push_u_session (lua_State *L, USession *sess)
+{
+  USession **s = (USession **)lua_newuserdata(L, sizeof(USession *));
+
+  INC_REF(sess);
+
+  *s = sess;
+  luaL_getmetatable(L, U_SESSION_META);
+  lua_setmetatable(L, -2);
+
+  return;
+}
+
+static int u_session_gc (lua_State *L)
+{
+  USession *sess = check_u_session(L, 1);
+
+  DEC_REF(sess);
+  return 0;
+}
+
+// U_FLAG
 
 #define U_FLAG "U_FLAG"
 #define U_FLAG_META "U_FLAG_META"
@@ -1232,6 +1276,21 @@ static int u_proc_index (lua_State *L)
   } else if(!strcmp(key, "active_pos" )) {
     lua_pushinteger(L, get_active_pos(proc));
     return 1;
+  } else if(!strcmp(key, "session" )) {
+    USession *sess = u_session_find_by_proc(proc);
+    if (sess) {
+      push_u_session(L, sess);
+      return 1;
+    } else {
+      return 0;
+    }
+  } else if(!strcmp(key, "session_id" )) {
+    lua_pushinteger(L, u_session_id_find_by_proc(proc));
+    return 1;
+  } else if(!strcmp(key, "session_is_active" )) {
+    USession *sess = u_session_find_by_proc(proc);
+    lua_pushboolean(L, sess ? sess->active : 0);
+    return 1;
   } else if(!strcmp(key, "received_rt" )) {
     lua_pushboolean(L, proc->received_rt);
     return 1;
@@ -1344,8 +1403,8 @@ static int u_proc_index (lua_State *L)
     lua_pushinteger(L, proc->fake_pgrp ? proc->fake_pgrp : (lua_Integer)proc->proc->pgrp);
     return 1;
   }
-  if(!strcmp(key, "session" )) {
-    lua_pushinteger(L, proc->fake_session ? proc->fake_session : (lua_Integer)proc->proc->session);
+  else if(!strcmp(key, "sid" )) {
+    lua_pushinteger(L, proc->fake_sid ? proc->fake_sid : (lua_Integer)proc->proc->session);
     return 1;
   }
 
@@ -1473,6 +1532,134 @@ static const luaL_reg u_task_meta[] = {
   {"__tostring", u_task_tostring},
   {"__index",    u_task_index},
   {"__eq",       u_task_eq},
+  {NULL, NULL}
+};
+
+/*********************************************
+   u_session setup                              */
+
+
+static int u_session_tostring (lua_State *L)
+{
+  USession **sess = lua_touserdata(L, 1);
+  lua_pushfstring(L, "USession: <%p> id:%d uid:%d name:%s",
+        (*sess), (*sess)->id, (*sess)->uid, &(*sess)->name);
+  return 1;
+}
+
+static int u_session_eq (lua_State *L)
+{
+  USession *sess1 = check_u_session(L, 1);
+  USession *sess2 = check_u_session(L, 2);
+
+  lua_pushboolean(L, sess1 == sess2);
+  return 1;
+}
+
+static const luaL_reg u_session_methods[] = {
+  {NULL, NULL},
+};
+
+static int u_session_index (lua_State *L) {
+  USession *session = check_u_session(L, 1);
+  const char *key = luaL_checkstring(L, 2);
+
+  luaL_reg *lreg = (luaL_reg *)u_session_methods;
+
+  for (; lreg->name; lreg++) {
+    if(strcmp(lreg->name, key) == 0) {
+      lua_pushcfunction(L, lreg->func);
+      return 1;
+    }
+  }
+
+  lua_getfield(L, LUA_GLOBALSINDEX, U_SESSION);
+  int base = lua_gettop(L);
+  if (lua_istable(L, -1)) {
+    lua_pushstring(L, key);
+    lua_rawget(L, -2);
+    lua_remove(L,  base);
+    if(!lua_isnil(L, -1)) {
+      return 1;
+    }
+  }
+  lua_remove(L, base);
+
+  if(!strcmp(key, "is_valid" )) { \
+    lua_pushboolean(L, session->is_valid);
+    return 1;
+  } else if(!strcmp(key, "is_invalid" )) {
+    lua_pushboolean(L, !session->is_valid);
+    return 1;
+  } else if(!strcmp(key, "id" )) {
+    lua_pushinteger(L, session->id);
+    return 1;
+  } else if(!strcmp(key, "name" )) {
+    lua_pushstring(L, session->name);
+    return 1;
+  } else if(!strcmp(key, "leader_pid" )) {
+    u_session_get_leader (session);
+    lua_pushinteger(L, session->leader_pid);
+    return 1;
+  } else if(!strcmp(key, "X11Display" )) {
+    lua_pushstring(L, session->X11Display);
+    return 1;
+  } else if(!strcmp(key, "X11Device" )) {
+    lua_pushstring(L, session->X11Device);
+    return 1;
+  } else if(!strcmp(key, "dbus_session" )) {
+    lua_pushstring(L, session->dbus_session);
+    return 1;
+  } else if(!strcmp(key, "uid" )) {
+    lua_pushinteger(L, session->uid);
+    return 1;
+  } else if(!strcmp(key, "idle" ) || !strcmp(key, "is_idle" )) {
+    lua_pushboolean(L, session->uid);
+    return 1;
+  } else if(!strcmp(key, "active" ) || !strcmp(key, "is_active" )) {
+    lua_pushboolean(L, session->active);
+    return 1;
+  } else if(!strcmp(key, "consolekit_cookie" )) {
+    lua_pushstring(L, session->consolekit_cookie);
+    return 1;
+  } else if(!strcmp(key, "data" )) {
+    if(!session->lua_data) {
+      lua_newtable(L);
+      lua_pushvalue(L, -1);
+      session->lua_data = luaL_ref(L, LUA_REGISTRYINDEX);
+      return 1;
+    } else {
+      lua_rawgeti(L, LUA_REGISTRYINDEX, session->lua_data);
+      return 1;
+    }
+    return 0;
+  }
+
+  // session->session and session->proc available only if u_session is valid
+  if(!session->is_valid) {
+    lua_pushfstring(L, "USession<id %d, uid:%d name:%s> is not valid.",
+          session->id, session->uid, session->name);
+    lua_error(L);
+  }
+
+  if(!strcmp(key, "leader" )) {
+    u_proc *leader = u_session_get_leader(session);
+    if (leader) {
+      push_u_proc(L, leader);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  return 0;
+}
+
+static const luaL_reg u_session_meta[] = {
+  {"__gc",       u_session_gc},
+  {"__tostring", u_session_tostring},
+  {"__index",    u_session_index},
+  {"__eq",       u_session_eq},
   {NULL, NULL}
 };
 
@@ -2247,20 +2434,18 @@ static int user_load_rule_directory(lua_State *L) {
 }
 
 static int l_uid_stats(lua_State *L) {
-    GList *cur = U_session_list;
-    u_session *sess;
+    USession *sess;
     uid_t uid = luaL_checkinteger(L, 1);
     int act = 0;
     int idle = 1;
-    while(cur) {
-        sess = cur->data;
-        if(sess->uid == uid) {
-            if(sess->active)
-                act = 1;
-            if(!sess->idle)
-                idle = 0;
-        }
-        cur = g_list_next(cur);
+    while (sess) {
+      if(sess->uid == uid) {
+          if(sess->active)
+              act = 1;
+          if(!sess->idle)
+              idle = 0;
+      }
+      sess = sess->next;
     }
     lua_pushboolean(L, act);
     lua_pushboolean(L, idle);
@@ -2284,33 +2469,20 @@ static int l_search_uid_env(lua_State *L) {
 }
 
 static int l_get_sessions(lua_State *L) {
-    GList *cur = U_session_list;
-    u_session *sess;
-    lua_newtable(L);
-    int i = 1;
-    while(cur) {
-        sess = cur->data;
-        lua_pushinteger(L, i);
-        lua_newtable(L);
-        lua_pushstring(L, sess->name);
-        lua_setfield (L, -2, "name");
-        lua_pushstring(L, sess->X11Display);
-        lua_setfield (L, -2, "X11Display");
-        lua_pushstring(L, sess->X11Device);
-        lua_setfield (L, -2, "X11Device");
-        lua_pushstring(L, sess->dbus_session);
-        lua_setfield (L, -2, "dbus_session");
-        lua_pushinteger(L, sess->uid);
-        lua_setfield (L, -2, "uid");
-        lua_pushboolean(L, sess->idle);
-        lua_setfield (L, -2, "idle");
-        lua_pushboolean(L, sess->active);
-        lua_setfield (L, -2, "active");
-        lua_settable(L, -3);
-        i++;
-        cur = g_list_next(cur);
-    }
-    return 1;
+  USession *sess;
+  int       i;
+
+  lua_newtable(L);
+  sess = U_sessions;
+  i = 1;
+  while (sess) {
+    lua_pushinteger(L, i);
+    push_u_session(L, sess);
+    lua_settable(L, -3);
+    i++;
+    sess = sess->next;
+  }
+  return 1;
 }
 
 #ifdef DEVELOP_MODE
@@ -2452,6 +2624,14 @@ LUALIB_API int luaopen_ulatency(lua_State *L) {
   PUSH_INT(UPROC_INVALID, UPROC_INVALID)
   PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)
 
+  // USession.id values
+  PUSH_INT(USESSION_UNKNOWN, USESSION_UNKNOWN)
+  PUSH_INT(USESSION_INIT, USESSION_INIT)
+  PUSH_INT(USESSION_KERNEL, USESSION_KERNEL)
+  PUSH_INT(USESSION_NONE, USESSION_NONE)
+  PUSH_INT(USESSION_USER_UNKNOWN, USESSION_USER_UNKNOWN)
+  PUSH_INT(USESSION_USER_FIRST, USESSION_USER_FIRST)
+
   lua_remove(L, -2);  // remove meta table
   return 1; /* return `ulatency` table */
 }
@@ -2484,6 +2664,21 @@ LUALIB_API int luaopen_u_task(lua_State *L) {
 
   lua_remove(L, -2); // remove meta table
   return 1; /* return `U_TASK` table */
+}
+
+LUALIB_API int luaopen_u_session(lua_State *L) {
+  /* create new type U_SESSION_META */
+  luaL_newmetatable(L, U_SESSION_META);
+  luaL_register(L, NULL, u_session_meta);
+
+  /* create `U_TASK` table */
+  luaL_register(L, U_SESSION, u_session_methods);
+  lua_pushliteral(L, "__metatable");
+  lua_pushvalue(L, -3);
+  lua_rawset(L, -3);
+
+  lua_remove(L, -2); // remove meta table
+  return 1; /* return `U_SESSION` table */
 }
 
 LUALIB_API int luaopen_u_flag(lua_State *L) {
