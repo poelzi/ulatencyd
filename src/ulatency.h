@@ -387,7 +387,6 @@ int check_polkit(const char *methode,
 int fallback_quit(gpointer exit_code);
 
 // core.c
-int load_modules(char *path);
 int load_rule_directory(const char *path, const char *load_pattern, int fatal);
 int load_rule_file(const char *name);
 int load_lua_file(lua_State *L, const char *name);
