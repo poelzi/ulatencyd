@@ -303,27 +303,11 @@ struct u_cgroup_controller {
   int ref; // struct 
 };
 
-
-struct user_active_process {
-  guint pid;
-  time_t last_change;
-};
-
-enum USER_ACTIVE_AGENT {
+enum USER_ACTIVE_AGENT {       // FIXME remove?
   USER_ACTIVE_AGENT_NONE = 0,
   USER_ACTIVE_AGENT_DISABLED,
   USER_ACTIVE_AGENT_DBUS,
   USER_ACTIVE_AGENT_MODULE=1000,
-};
-
-struct user_active {
-  uid_t uid;
-  guint max_processes;
-  guint active_agent;   // tracker of the active list
-  // FIXME: last change time
-  time_t last_change;   // time when the last change happend
-  GList *actives;       // list of user_active_process
-  gboolean enabled;     // if false, ignore this user active list - useful if the user is not active (or frozen)
 };
 
 typedef struct {
@@ -517,14 +501,6 @@ int ioprio_getpid(pid_t pid, int *ioprio, int *ioclass);
 int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
 int adj_oom_killer(pid_t pid, int adj);
 int get_oom_killer(pid_t pid);
-
-// group.c
-void set_active_pid(guint uid, guint pid, time_t timestamp);
-struct user_active* get_userlist(guint uid, gboolean create);
-int is_active_pid(u_proc *proc);
-int get_active_pos(u_proc *proc);
-void enable_active_list(guint uid, gboolean enable);
-void clear_active_list(guint uid);
 
 // sysinfo.c
 GHashTable * u_read_env_hash (pid_t pid);
