@@ -79,6 +79,8 @@ u_session_free (void *ptr)
 {
   USession *sess = ptr;
   g_assert (sess->ref == 0);
+  g_assert (sess->is_valid == FALSE); // test if triggered by DEC_REF invoked
+                                      // from u_session_destroy()
 
   if (sess->proxy && G_IS_OBJECT (sess->proxy))
     {
@@ -90,9 +92,9 @@ u_session_free (void *ptr)
   g_free (sess->X11Device);
   g_free (sess->dbus_session);
   g_free (sess->consolekit_cookie);
-  if(sess->lua_data) {
+  if (sess->lua_data)
     luaL_unref(lua_main_state, LUA_REGISTRYINDEX, sess->lua_data);
-  }
+  g_assert (sess->focus_tracker == NULL);
   g_assert (sess->focus_stack == NULL);
   g_free (sess);
 }
@@ -133,6 +135,9 @@ u_session_destroy (USession *sess)
       g_assert (! G_IS_OBJECT (sess->proxy));
     }
 
+  invoke_hooks (U_HOOK_TYPE_SESSION_REMOVED, sess);
+  g_assert (sess->focus_tracker == NULL);
+
   if (sess->focus_stack)
     {
       u_focus_stack_free (sess->focus_stack);
@@ -144,7 +149,6 @@ u_session_destroy (USession *sess)
             sess->id, sess->uid, sess->active,
             sess->X11Display, sess->X11Device, sess->name);
 
-  invoke_hooks (U_HOOK_TYPE_SESSION_REMOVED, sess);
   DEC_REF (sess);
 }
 
@@ -604,6 +608,19 @@ u_session_add (USession *sess)
   g_hash_table_insert (sessions_table, GUINT_TO_POINTER (sess->id), sess);
   INC_REF (sess);
   sess->focus_stack = u_focus_stack_new();
+
+  // run hooks informing about tracker change
+  if (u_hook_list_is_setup (U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED))
+    {
+      UHookDataSession *data;
+
+      data = (UHookDataSession *) u_hook_list_get_data(
+          U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED);
+      data->session = sess;
+      u_hook_list_invoke (U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED);
+      DEC_REF (data);
+    }
+
   sess->is_valid = TRUE;
 
   leader = u_session_get_leader (sess);
@@ -722,7 +739,6 @@ u_session_remove_by_id (guint sess_id)
  * @param active New hint value.
  *
  * Beside the own property change other related actions are performed:
- * - disable/enable active list and xwatch polling for affected session.
  * - processes that belongs to the session are marked as changed
  * (#u_proc.changed set)
  * - if the `active` is TRUE, new iteration is scheduled
@@ -747,30 +763,7 @@ u_session_active_changed (USession *sess,
               sess->name, sess->id, sess->uid);
     }
 
-  // Disable (and clear) or enable list of this user active processes.
-  // xwatch will not update X servers of disabled (inactive) users. This is needed
-  // to avoid freezes while requesting active atom from Xorg where some application
-  // is frozen.
-
-  //FIXME: make xwatch working on real sessions
-
-  GHashTableIter iter;
-  gpointer key;
-  USession *s;
-  gboolean act;
-
-  g_hash_table_iter_init (&iter, sessions_table);
-  act = FALSE;
-  while (g_hash_table_iter_next (&iter, &key, (gpointer *) &s))
-    {
-      if(s->uid == sess->uid)
-        {
-          if(s->active)
-            act = TRUE;
-        }
-    }
-
-  enable_active_list(sess->uid, act);
+  // FIXME: set sess->focus_stack->enaled = true ?? Is this needed?
 
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_ACTIVE
   u_session_change_processes (sess->id);
@@ -804,3 +797,84 @@ u_session_idle_hint_changed (USession *sess,
   invoke_hooks (U_HOOK_TYPE_SESSION_IDLE_CHANGED, sess);
   iteration_request(0);
 }
+
+/**
+ * Request for set new focus tracker agent.
+ * @param session Session to be tracked.
+ * @param tracker_id Internalized string encoding the new tracker name
+ */
+gboolean
+u_session_set_focus_tracker (USession    *session,
+                             const gchar *tracker_id)
+{
+  g_return_val_if_fail(session, FALSE);
+
+  // check if request permitted
+  if (session->focus_tracker
+      && u_hook_list_is_setup (U_HOOK_TYPE_SESSION_UNSET_FOCUS_TRACKER))
+    {
+      UHookDataSession *data;
+
+      data = (UHookDataSession *) u_hook_list_get_data (
+          U_HOOK_TYPE_SESSION_UNSET_FOCUS_TRACKER);
+      data->session = session;
+      u_hook_list_invoke_owner (
+                U_HOOK_TYPE_SESSION_UNSET_FOCUS_TRACKER,
+                session->focus_tracker);
+      if (session->focus_tracker)
+        {
+          return FALSE;
+          DEC_REF (data);
+        }
+      DEC_REF (data);
+    }
+  // set new tracker
+  session->focus_tracker = tracker_id;
+  g_info ("Set %s as focus tracker for session %s (ID: %d, UID: %d).",
+          tracker_id, session->name, session->id, session->uid);
+
+  // run hooks informing about tracker change
+  if (u_hook_list_is_setup (U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED))
+    {
+      UHookDataSession *data;
+
+      data = (UHookDataSession *) u_hook_list_get_data (
+          U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED);
+      data->session = session;
+      u_hook_list_invoke (U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED);
+      DEC_REF (data);
+    }
+  return TRUE;
+}
+
+/**
+ * Unset focus tracker agent.
+ * @param session Session
+ * @param tracker_id Internalized string encoding the tracker name
+ */
+/*gboolean
+u_session_unset_focus_tracker (USession    *session,
+                                const gchar *tracker_id)
+{
+  g_return_val_if_fail(
+      session && session->focus_tracker && session->focus_tracker == tracker_id,
+      FALSE);
+
+  session->focus_tracker = NULL;
+
+  // run hooks informing about tracker change
+  if (U_hook_list[U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED])
+    {
+      UHookDataSession *data;
+
+      data = (UHookDataSession *)
+                U_hook_data[U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED];
+      data->session = session;
+      u_hook_list_invoke_except_owner (
+                U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED,
+                tracker_id);
+      DEC_REF (data);
+    }
+  return TRUE;
+}
+*/

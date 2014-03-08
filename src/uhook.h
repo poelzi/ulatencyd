@@ -77,6 +77,11 @@ typedef enum
   //! When triggered, #UHookFunc of hooks added to this list may call
   //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
   //! an invoker.
+  //! \note
+  //! A focus tracking agent may register a hook to this list, wait for
+  //! a session with field #USession->focus_tracker changed to \c NULL, either
+  //! because new session was created or some other tracker released it. Then
+  //! the new tracker may attach itself with #u_session_set_focus_tracker().
   //! \sa UFocusStack
   U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED,
   //! Invoked by \ref UFocus subsystem when another focus agent wants to

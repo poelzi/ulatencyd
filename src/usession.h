@@ -69,6 +69,11 @@ u_proc *       u_session_get_leader             (USession    *session);
 void           u_session_invalidate_by_id       (guint        sess_id);
 void           u_session_change_processes       (guint        sess_id);
 
+gboolean       u_session_set_focus_tracker      (USession    *session,
+                                                 const gchar *tracker_id);
+gboolean       u_usession_unset_focus_tracker   (USession    *session,
+                                                 const gchar *tracker_id);
+
 
 /* --- variables --- */
 extern USession* U_sessions;
@@ -101,6 +106,7 @@ struct _USession
   gchar     *consolekit_cookie; //!< value of XDG_SESSION_COOKIE environment
                                 //!< variable; specific to consolekit backend
   int       lua_data;           //!< id for per session lua storage
+  const gchar *focus_tracker;   //!< active tracker of the focus list
   UFocusStack *focus_stack;
 #ifdef ENABLE_DBUS
   DBusGProxy *proxy;
@@ -110,7 +116,5 @@ struct _USession
 };
 
 /*! @} End of "addtogroup USession" */
-
-
 
 #endif /* __U_SESSION_H__ */
