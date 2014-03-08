@@ -91,6 +91,11 @@ static struct hook_list _hook_lists[U_HOOK_TYPE_COUNT] = {
         .log_level = U_LOG_LEVEL_TRACE,
         .data_size = sizeof(UHookDataProcessExit),
     },
+    {
+        .log_name  = "ALL_MODULES_LOADED",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookData),
+    },
 };
 
 /* --- private structures --- */

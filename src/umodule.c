@@ -90,6 +90,8 @@ u_module_load_directory (char *modules_directory)
   char           **disabled;
   gsize            disabled_len;
 
+  g_info("Loading modules from directory '%s/' ...", modules_directory);
+
   if ((dip = opendir(modules_directory)) == NULL)
   {
     g_warning ("Couldn't load modules (directory '%s': %s)",
@@ -141,5 +143,6 @@ u_module_load_directory (char *modules_directory)
 
   g_strfreev (disabled);
   closedir (dip);
+
   return TRUE;
 }

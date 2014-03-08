@@ -84,6 +84,8 @@ typedef enum
   //! #u_hook_list_get_data() to access structure #UHookDataProcessExit filled by
   //! an invoker.
   U_HOOK_TYPE_PROCESS_EXIT,
+  //! Invoked when all modules loaded.
+  U_HOOK_TYPE_ALL_MODULES_LOADED,
 
   U_HOOK_TYPE_COUNT // type count, must stay last
 } UHookType;

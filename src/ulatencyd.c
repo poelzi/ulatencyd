@@ -19,6 +19,8 @@
 
 #include "config.h"
 
+#include "uhook.h"
+
 #include "ulatency.h"
 
 #include <stdio.h>
@@ -619,6 +621,9 @@ int main (int argc, char *argv[])
 
   adj_oom_killer(getpid(), -1000);
   u_module_load_directory(modules_directory);
+  g_info("Finished modules loading.");
+  u_hook_list_invoke (U_HOOK_TYPE_ALL_MODULES_LOADED);
+  u_hook_list_clear (U_HOOK_TYPE_ALL_MODULES_LOADED);
   load_rule_directory(rules_directory, load_pattern, TRUE);
 
   process_update_all();
