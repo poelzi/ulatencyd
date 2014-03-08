@@ -99,6 +99,10 @@
 --!     @brief Sessions subsystem interface for session tracking agents.
 --!     @ingroup USession
 
+--!   @defgroup UFocus
+--!   @brief Track applications that have user focus
+--!   @ingroup core
+
 --!   @defgroup UHook Hooks
 --!   @ingroup core
 

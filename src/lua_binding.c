@@ -360,75 +360,6 @@ static int l_get_number_of_processes(lua_State *L) {
   return 1;
 }
 
-static int l_set_active_pid(lua_State *L) {
-  time_t timestamp = 0;
-  lua_Integer uid = luaL_checkinteger (L, 1);
-  lua_Integer pid = luaL_checkinteger (L, 2);
-  if (lua_isnumber(L, 3))
-    timestamp = lua_tointeger(L, 3);
-
-  set_active_pid((guint)uid, (guint)pid, timestamp);
-
-  return 0;
-}
-
-static int l_get_active_uids(lua_State *L) {
-  GList *cur = g_list_first(active_users);
-  struct user_active *ua = NULL;
-  int i = 1;
-  
-  lua_newtable(L);
-  while(cur) {
-    ua = cur->data;
-    lua_pushinteger(L, i);
-    lua_newtable(L);
-    lua_pushstring(L, "uid");
-    lua_pushinteger(L, ua->uid);
-    lua_settable (L, -3);
-    lua_pushstring(L, "max_processes");
-    lua_pushinteger(L, ua->max_processes);
-    lua_settable (L, -3);
-    lua_pushstring(L, "last_change");
-    lua_pushinteger(L, ua->last_change);
-    lua_settable (L, -3);
-    lua_settable (L, -3);
-    i++;
-    cur = g_list_next (cur);
-  }
-
-  return 1;
-}
-
-static int l_get_active_pids(lua_State *L) {
-  lua_Integer uid = luaL_checkinteger (L, 1);
-  struct user_active *ua = get_userlist((guint)uid, FALSE);
-  struct user_active_process *up;
-  GList *cur;
-  int i = 1;
-
-  if(!ua)
-    return 0;
-
-  cur = g_list_first(ua->actives);
-  lua_newtable(L);
-  while(cur) {
-    up = cur->data;
-    lua_pushinteger(L, i);
-    lua_newtable(L);
-    lua_pushstring(L, "pid");
-    lua_pushinteger(L, up->pid);
-    lua_settable (L, -3);
-    lua_pushstring(L, "last_change");
-    lua_pushinteger(L, up->last_change);
-    lua_settable (L, -3);
-    lua_settable (L, -3);
-    i++;
-    cur = g_list_next (cur);
-  }
-
-  return 1;
-}
-
 static int l_log (lua_State *L) {
   int level = luaL_checkint (L, 1);
   const char *str = luaL_checkstring(L, 2);
@@ -1082,6 +1013,21 @@ static int u_proc_set_cgroup (lua_State *L) {
   return 0;
 }
 
+static int l_u_proc_set_focused (lua_State *L) {
+  u_proc   *proc;
+  time_t timestamp = 0;
+
+  proc = check_u_proc(L, 1);
+  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+    return 0;
+  if (lua_isnumber(L, 3))
+    timestamp = lua_tointeger(L, 3);
+
+  lua_pushboolean(L, u_proc_set_focused(proc, timestamp));
+
+  return 1;
+}
+
 #define PUSH_INT(name) \
   if(!strcmp(key, #name )) { \
     lua_pushinteger(L, (lua_Integer)proc->name); \
@@ -1118,6 +1064,7 @@ static const luaL_reg u_proc_methods[] = {
   {"get_current_task_pids", _u_proc_get_current_task_pids},
   {"get_cgroup", u_proc_get_cgroup},
   {"set_cgroup", u_proc_set_cgroup},
+  {"set_focused", l_u_proc_set_focused},
   {NULL,NULL}
 };
 
@@ -1268,11 +1215,11 @@ static int u_proc_index (lua_State *L)
       return 1;
     }
     return 0;
-  } else if(!strcmp(key, "is_active" )) {
-    lua_pushboolean(L, is_active_pid(proc));
-    return 1;
-  } else if(!strcmp(key, "active_pos" )) {
-    lua_pushinteger(L, get_active_pos(proc));
+  } else if(!strcmp(key, "focus_position" )) {
+    gint pos = u_proc_get_focus_position(proc, FALSE);
+    if (G_LIKELY (pos == 0))
+      return 0;
+    lua_pushinteger(L, pos);
     return 1;
   } else if(!strcmp(key, "session" )) {
     USession *sess = u_session_find_by_proc(proc);
@@ -2525,11 +2472,6 @@ static const luaL_reg R[] = {
   {"clear_flag_all", u_sys_clear_flag_all},
   {"get_flags_changed", u_sys_get_flags_changed},
   {"set_flags_changed", u_sys_set_flags_changed},
-
-  // group code
-  {"set_active_pid", l_set_active_pid},
-  {"get_active_uids", l_get_active_uids},
-  {"get_active_pids", l_get_active_pids},
   // config
   {"get_config",  l_get_config},
   {"list_keys",  l_list_keys},

@@ -88,7 +88,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
         cgroups_name = "active",
         param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.session_is_active and proc.is_active and proc.active_pos == 1
+            return proc.focus_position == 1
           end
       },
       {
@@ -292,12 +292,12 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "20" },
         check = function(proc)
-                if not proc.session_is_active or not proc.is_active then 
+                if not proc.focus_position then
                   return false
                 end
                 for j, flag in pairs(ulatency.list_flags()) do
                   if flag.name == "pressure" or flag.name == "emergency" then
-                  return proc.active_pos == 1
+                  return proc.focus_position == 1
                 end
               end
               return true
@@ -484,7 +484,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     cgroups_name = "usr_${session_id}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
-                return proc.session_is_active and proc.is_active and proc.active_pos == 1
+                return proc.focus_position == 1
               end,
     adjust = function(cgroup, proc)
                 if ulatency.match_flag({"application.starting"}, proc) then

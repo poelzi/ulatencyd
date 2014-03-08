@@ -75,7 +75,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
         name = "active",
         param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.session_is_active and proc.is_active
+            return proc.focus_position
           end
       },
       { 
@@ -217,7 +217,7 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "0" },
         check = function(proc)
-            return proc.session_is_active and proc.is_active
+            return proc.focus_position
           end
       },
       { 
@@ -287,8 +287,7 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
     cgroups_name = "usr_${session_id}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
-        return proc.session_id > ulatency.USESSION_NONE and
-               proc.session_is_active and proc.is_active
+        return proc.focus_position
       end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)
@@ -362,8 +361,7 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
     cgroups_name = "usr_${session_id}_active",
     param = { ["bfqio.weight"]="1000" },
     check = function(proc)
-        return proc.session_id > ulatency.USESSION_NONE and
-               proc.session_is_active and proc.is_active
+        return proc.focus_position
       end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)

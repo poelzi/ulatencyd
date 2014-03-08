@@ -149,6 +149,17 @@ end
 function U_PROC:set_cgroup(subsys, cgroup_path)
 end
 
+--! Manually add process to the focus stack which is associated with the process
+--! session. Position of the process in the stack depends on timestamp. If the
+--! stack has been changed as result of this action, all processes in the stack
+--! are marked as changed and rescheduled (new iteration is requested).
+--! @param (optional) timestamp (as the number of seconds since the Epoch) of
+--! last process activity. If 0 or not set current time will be used.
+--! @retval number > 0
+--! @retval nil
+--! @public @memberof U_PROC
+function U_PROC:set_focused(timestamp)
+
 -------------------------------------------------------
 
 --! @name process flags manipulation
@@ -307,13 +318,12 @@ U_PROC.changed = <boolean>
 --! See `U_PROC::set_block_scheduler()`
 --! @public @memberof U_PROC
 U_PROC.block_scheduler = <number>
---! If the process is in user active list.
+--! Position in the focus stack unless the process is not in currently active
+--! session or in its focus stack.
+--! @retval number > 0
+--! @retval nil
 --! @public @memberof U_PROC
-U_PROC.is_active = <boolean>
---! Position in active list.
---! @ingroup lua_USER_SESSIONS
---! @public @memberof U_PROC
-U_PROC.active_pos = <number>
+U_PROC.focus_position = <number> or nil
 --! `#U_SESSION` instance to which the process belongs or `nil`.
 --! @ingroup lua_USER_SESSIONS
 --! @public @memberof U_PROC

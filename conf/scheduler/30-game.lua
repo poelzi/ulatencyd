@@ -53,7 +53,7 @@ SCHEDULER_MAPPING_GAME["cpu"] =
         name = "game",
         param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.active_pos == 1 or check_label({ "cmd.config.game", "user.game" }, proc)
+            return proc.focus_position == 1 or check_label({ "cmd.config.game", "user.game" }, proc)
           end
       },
       {
