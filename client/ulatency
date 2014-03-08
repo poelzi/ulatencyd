@@ -201,13 +201,13 @@ class Session:
         self.silent = silent
         self.sets = {
             'config':self.set_config,
-            'active':self.set_active,
+            'focused':self.set_focusedpid,
             }
         self.gets = {
             'config':self.get_config,
             'desc':self.get_desc,
             'systemflags':self.get_systemflags,
-            'activelistlength':self.get_activelistlength,
+            'focusStackLength':self.get_focusstacklength,
             }
 
     def init_system(self):
@@ -277,14 +277,14 @@ class Session:
                 return None
             raise
 
-    def set_active(self, pid=None):
+    def set_focusedpid(self, pid=None):
         if pid is None:
             prnt("error: no pid given")
             sys.exit(1)
         if not self.init_user():
             return False
         user = dbus.Interface(self.user, 'org.quamquam.ulatencyd.User')
-        try: return user.setActive(pid)
+        try: return user.setFocusedPid(pid, 0)
         except dbus.exceptions.DBusException as e:
             prnt(e)
             if self.silent:
@@ -363,14 +363,12 @@ class Session:
             raise
 
 
-    def get_activelistlength(self):
+    def get_focusstacklength(self):
         if not self.init_user():
             return None
 
-        properties = dbus.Interface(self.user,'org.freedesktop.DBus.Properties')
-        try:
-            return unicode(properties.Get(
-                'org.quamquam.ulatencyd.User', 'activeListLength'))
+        user = dbus.Interface(self.user, 'org.quamquam.ulatencyd.User')
+        try: return unicode(user.getFocusStackLength(os.getpid()))
         except dbus.exceptions.DBusException as e:
             prnt(e)
             if self.silent:

@@ -18,7 +18,11 @@
 */
 
 #include "config.h"
+
 #include "ulatency.h"
+#include "usession.h"
+#include "ufocusstack.h"
+
 #include <stdint.h>
 #include <glib.h>
 #include <dbus/dbus.h>
@@ -56,23 +60,22 @@ const char *INTROSPECT_XML_USER =
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
     "<node name=\"" U_DBUS_USER_PATH "\">\n"
     "  <interface name=\"" U_DBUS_USER_INTERFACE "\">\n"
-    "    <method name=\"setActive\">\n"
+    "    <method name=\"setFocusedPid\">\n"
     "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
     "      <arg type=\"t\" name=\"timestamp\" direction=\"in\" />\n"
     "    </method>\n"
-    "    <method name=\"setActiveWithUser\">\n"
-    "      <arg type=\"t\" name=\"uid\" direction=\"in\" />\n"
+    "    <method name=\"getFocusStackLength\">\n"
     "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
-    "      <arg type=\"t\" name=\"timestamp\" direction=\"in\" />\n"
+    "      <arg type=\"q\" name=\"length\" direction=\"out\" />\n"
     "    </method>\n"
-    "    <method name=\"setActiveControl\">\n"
-    "      <arg type=\"b\" name=\"enabled\" direction=\"in\" />\n"
+    "    <method name=\"setFocusStackLength\">\n"
+    "      <arg type=\"t\" name=\"pid\" direction=\"in\" />\n"
+    "      <arg type=\"q\" name=\"length\" direction=\"in\" />\n"
     "    </method>\n"
 //"    <method name=\"wishGroup\">\n"
 //"      <arg type=\"i\" name=\"pid\" direction=\"in\" />\n"
 //"      <arg type=\"i\" name=\"priority\" direction=\"in\" />\n"
 //"    </method>\n"
-    "    <property name=\"activeListLength\" type=\"q\" access=\"readwrite\"/>\n"
     "  </interface>\n"
     INTROSPECT
     "</node>\n";
@@ -165,12 +168,49 @@ const void *U_DBUS_POINTER = &INTROSPECT_XML_SYSTEM;
 
 #define PUSH_ERROR(ID, MSG) \
   do {                                                                        \
+    if (ret)                                                                  \
+      dbus_message_unref (ret);                                               \
     if (error.name)                                                           \
-      ret = dbus_message_new_error (m, error.name, error.message);             \
+      ret = dbus_message_new_error (m, error.name, error.message);            \
     else {                                                                    \
       ret = dbus_message_new_error (m, ID, #MSG);                             \
       goto finish;                                                            \
     }                                                                         \
+  } while (0)
+
+#define CHECK_PROC_FROM_PID(PROC, PID) \
+  do { \
+    PROC = proc_by_pid_with_retry (PID); \
+    if (!PROC \
+        || U_PROC_HAS_STATE (PROC, UPROC_DEAD) \
+        || !u_proc_ensure (PROC, BASIC, UPDATE_ONCE)) \
+      { \
+        ret = dbus_message_new_error (m, \
+                                      U_DBUS_ERROR_NO_PID, \
+                                      "PID not found."); \
+        goto finish; \
+      } \
+  } while (0)
+
+#define CHECK_SESSION_FROM_PROC(SESSION, PROC) \
+  do { \
+    SESSION = u_session_find_by_proc (PROC); \
+    if (!SESSION || !SESSION->is_valid) \
+      { \
+        ret = dbus_message_new_error (m, DBUS_ERROR_FAILED, \
+                                      "PID not in session."); \
+        goto finish; \
+      } \
+  } while(0)
+
+#define CHECK_IF_SESSION_ALLOWED_FOR_UID(SESSION, UID) \
+  do { \
+    if (UID != 0 && UID != SESSION->uid) \
+      { /* FIXME: check if sender is in the same session as the process */ \
+        ret = dbus_message_new_error (m, DBUS_ERROR_ACCESS_DENIED, \
+                               "not allowed to set focus of foreign users"); \
+        goto finish; \
+      } \
   } while (0)
 
 /* --- functions --- */
@@ -183,93 +223,112 @@ dbus_user_handler (DBusConnection *c,
   DBusError    error;
   DBusMessage *ret = NULL;
   uid_t        caller;
-  int          is2 = 0;
 
   dbus_error_init (&error);
 
-  if (dbus_message_is_method_call (m, U_DBUS_USER_INTERFACE, "setActive")
-      || (is2 = dbus_message_is_method_call (m, U_DBUS_USER_INTERFACE,
-                                             "setActiveWithUser")))
-    {
-      uid_t    uid;
-      pid_t    pid;
-      time_t   timestamp;
-      uint64_t tmpu;
-      uint64_t tmpp;
-      uint64_t tmpt;
+  if (dbus_message_is_method_call (m, U_DBUS_USER_INTERFACE, "setFocusedPid")) {
+      pid_t     pid;
+      uint64_t  tmpp;
+      time_t    timestamp;
+      uint64_t  tmpt;
+
+      u_proc   *proc;
+      USession *session;
 
       GET_CALLER ();
 
-      if (is2)
-        {
-          if (!dbus_message_get_args (m, &error,
-                                      DBUS_TYPE_UINT64, &tmpu,
-                                      DBUS_TYPE_UINT64, &tmpp,
-                                      DBUS_TYPE_UINT64, &tmpt,
-                                      DBUS_TYPE_INVALID))
-            {
-              PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
-            }
-
-          uid = (uid_t) tmpu;
-        }
-      else
-        {
-          if (!dbus_message_get_args (m, &error,
-                                      DBUS_TYPE_UINT64, &tmpp,
-                                      DBUS_TYPE_UINT64, &tmpt,
-                                      DBUS_TYPE_INVALID))
-            {
-              PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
-            }
-
-          uid = (pid_t) caller;
-        }
-
-      pid = (pid_t) tmpp;
-      timestamp = (time_t) tmpt;
-
-      if (caller != 0 && caller != uid)
-        {
-          ret = dbus_message_new_error (m, DBUS_ERROR_ACCESS_DENIED,
-                            "not allowed to set aktive pids of foreign users");
-          goto finish;
-        }
-
-      set_active_pid (uid, pid, timestamp);
-      ret = dbus_message_new_method_return (m);
-
-      goto finish;
-    }
-  else if (dbus_message_is_method_call (m, U_DBUS_USER_INTERFACE,
-                                        "setActiveControl"))
-    {
-      gboolean enable;
-      struct user_active *ua;
-
       if (!dbus_message_get_args (m, &error,
-                                  DBUS_TYPE_BOOLEAN, &enable,
+                                  DBUS_TYPE_UINT64, &tmpp,
+                                  DBUS_TYPE_UINT64, &tmpt,
                                   DBUS_TYPE_INVALID))
         {
           PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
         }
+      pid = (pid_t) tmpp;
+      timestamp = (time_t) tmpt;
+
+      CHECK_PROC_FROM_PID (proc, pid);
+      CHECK_SESSION_FROM_PROC (session, proc);
+      CHECK_IF_SESSION_ALLOWED_FOR_UID (session, (uid_t) caller);
+
+      if (session->id < USESSION_USER_FIRST)
+        {
+          ret = dbus_message_new_error (m, DBUS_ERROR_FAILED,
+                                        "PID not in user session");
+          goto finish;
+        }
+
+      u_focus_stack_add_pid(session->focus_stack, pid, timestamp);
+      ret = dbus_message_new_method_return (m);
+
+      goto finish;
+
+  }
+  else if (dbus_message_is_method_call (m, U_DBUS_USER_INTERFACE,
+                                          "getFocusStackLength")) {
+      pid_t     pid;
+      uint64_t  tpid;
+
+      u_proc   *proc;
+      USession *session;
 
       GET_CALLER ();
-      ua = get_userlist (caller, TRUE);
 
-      if (enable)
-        ua->active_agent = USER_ACTIVE_AGENT_DBUS;
-      else
-        ua->active_agent = USER_ACTIVE_AGENT_NONE;
+      if (!dbus_message_get_args (m, &error,
+                                  DBUS_TYPE_UINT64, &tpid,
+                                  DBUS_TYPE_INVALID))
+        {
+          PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
+        }
+      pid = (pid_t) tpid;
+
+      CHECK_PROC_FROM_PID (proc, pid);
+      CHECK_SESSION_FROM_PROC (session, proc);
+      CHECK_IF_SESSION_ALLOWED_FOR_UID (session, (uid_t) caller);
+
+
+      ret = dbus_message_new_method_return (m);
+      dbus_message_append_args (ret, DBUS_TYPE_UINT16,
+                                &session->focus_stack->max_count,
+                                DBUS_TYPE_INVALID);
+
+      goto finish;
+
+    }
+  else if (dbus_message_is_method_call (m, U_DBUS_USER_INTERFACE,
+                                          "setFocusStackLength")) {
+      pid_t     pid;
+      uint64_t  tpid;
+      guint16   length;
+
+      u_proc   *proc;
+      USession *session;
+
+      GET_CALLER ();
+
+      if (!dbus_message_get_args (m, &error,
+                                  DBUS_TYPE_UINT64, &tpid,
+                                  DBUS_TYPE_UINT16, &length,
+                                  DBUS_TYPE_INVALID))
+        {
+          PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
+        }
+      pid = (pid_t) tpid;
+
+      CHECK_PROC_FROM_PID (proc, pid);
+      CHECK_SESSION_FROM_PROC (session, proc);
+      CHECK_IF_SESSION_ALLOWED_FOR_UID (session, (uid_t) caller);
+
+      u_focus_stack_set_length(session->focus_stack, length);
 
       ret = dbus_message_new_method_return (m);
 
       goto finish;
+
     }
   else if (dbus_message_is_method_call (m, DBUS_INTERFACE_PROPERTIES, "Get"))
     {
       const char *interface, *property;
-      struct user_active *ua;
 
       if (!dbus_message_get_args (m, &error,
                                   DBUS_TYPE_STRING, &interface,
@@ -280,33 +339,10 @@ dbus_user_handler (DBusConnection *c,
           ret = dbus_message_new_error (m, error.name, error.message);
           goto finish;
         }
-
-      if (g_strcmp0 (interface, U_DBUS_USER_INTERFACE) == 0)
-        {
-          GET_CALLER ();
-          ua = get_userlist (caller, TRUE);
-          ret = dbus_message_new_method_return (m);
-
-          if (g_strcmp0 (property, "activeListLength") == 0)
-            {
-              dbus_message_append_args (ret, DBUS_TYPE_UINT32,
-                                        &ua->max_processes, DBUS_TYPE_INVALID);
-              goto finish;
-            }
-
-          dbus_message_unref (ret);
-          return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-        }
-      else
-        {
-          return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-        }
-
     }
   else if (dbus_message_is_method_call (m, DBUS_INTERFACE_PROPERTIES, "Set"))
     {
       const char *interface, *property;
-      struct user_active *ua;
       DBusMessageIter imsg;
 
       if (!dbus_message_get_args (m, &error,
@@ -325,10 +361,13 @@ dbus_user_handler (DBusConnection *c,
 
       if (g_strcmp0 (interface, U_DBUS_USER_INTERFACE) == 0)
         {
+          /*
+          struct user_active *ua;
           GET_CALLER ();
           ua = get_userlist (caller, TRUE);
           ret = dbus_message_new_method_return (m);
 
+          // FIXME: Implement getFocusedStack in user interface
           if (g_strcmp0 (property, "activeList") == 0)
             {
               if (!dbus_message_iter_get_arg_type (&imsg) == DBUS_TYPE_UINT32)
@@ -339,6 +378,7 @@ dbus_user_handler (DBusConnection *c,
 
           dbus_message_unref (ret);
           return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+          */
         }
       else
         {
@@ -357,11 +397,6 @@ dbus_user_handler (DBusConnection *c,
     {
       return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-
-error:
-  if (ret)
-    dbus_message_unref (ret);
-  ret = dbus_message_new_error (m, DBUS_ERROR_INVALID_ARGS, "wrong arguments");
 
 finish:
   if (ret)
@@ -722,7 +757,6 @@ dbus_system_handler (DBusConnection *c,
       dbus_message_append_args (ret, DBUS_TYPE_BOOLEAN, &suc,
                                 DBUS_TYPE_INVALID);
 
-      ret = dbus_message_new_method_return (m);
       goto finish;
 
     }
@@ -1000,6 +1034,9 @@ fail:
   return FALSE;
 }
 
+#undef CHECK_PROC_FROM_PID
+#undef CHECK_SESSION_FROM_PROC
+#undef CHECK_IF_SESSION_ALLOWED_FOR_UID
 #undef PUSH_ERROR
 #undef GET_CALLER
 #undef INTROSPECT
