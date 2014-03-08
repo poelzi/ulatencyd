@@ -109,6 +109,10 @@ gulong                  u_hook_add_full                 (UHookType      type,
 gboolean                u_hook_list_is_setup            (UHookType      type);
 UHookData              *u_hook_list_get_data            (UHookType      type);
 void                    u_hook_list_invoke              (UHookType      type);
+void                    u_hook_list_invoke_owner        (UHookType      type,
+                                                         const gchar   *owner);
+void                    u_hook_list_invoke_except_owner (UHookType      type,
+                                                         const gchar   *owner);
 void                    u_hook_init                     ();
 
 

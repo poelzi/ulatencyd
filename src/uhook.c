@@ -237,6 +237,94 @@ u_hook_list_invoke (UHookType type)
     }
 }
 
+static gboolean //(*GHookCheckMarshaller)
+marshal_owner (GHook *hook, gpointer marshal_data)
+{
+  g_return_val_if_fail (marshal_data != NULL, TRUE);
+
+  if ((const gchar *) marshal_data == U_HOOK (hook)->owner)
+    return ((GHookCheckFunc) hook->func) (hook->data);
+  else
+    return TRUE;
+}
+
+static gboolean //(*GHookCheckMarshaller)
+marshal_except_owner (GHook *hook, gpointer marshal_data)
+{
+  g_return_val_if_fail (marshal_data != NULL, TRUE);
+
+  if ((const gchar *) marshal_data != U_HOOK (hook)->owner)
+    return ((GHookCheckFunc) hook->func) (hook->data);
+  else
+    return TRUE;
+}
+
+/**
+ * Invokes hooks owned by \a owner from a hook list determined by \a type.
+ *
+ * @param type an #UHookType
+ * @param owner an owner to be match
+ *
+ * Calls #UHook functions in corresponding hook list which are owned by
+ * \a owner. Any function which returns \c FALSE will be removed from the hooks.
+ */
+void
+u_hook_list_invoke_owner (UHookType   type,
+                          const gchar *owner)
+{
+  struct hook_list *hook_list;
+
+  g_return_if_fail(type >= 0 && type < U_HOOK_TYPE_COUNT);
+  hook_list = &_hook_lists[type];
+  if (hook_list->hooks)
+    {
+      gint old_ref;
+
+      u_timer_start (&timer_hooks);
+      g_log (G_LOG_DOMAIN, hook_list->log_level,
+             "Invoke %s hooks owned by %s.", hook_list->log_name, owner);
+      old_ref = hook_list->data->ref;
+      g_hook_list_marshal_check (hook_list->hooks, FALSE,
+                                 (gpointer) marshal_owner, (gpointer) owner);
+      g_return_if_fail(hook_list->data->ref == old_ref);
+      u_timer_stop (&timer_hooks);
+    }
+}
+
+/**
+ * Invokes hooks from a hook list determined by \a type except hooks owned
+ * by \a owner.
+ *
+ * @param type an #UHookType
+ * @param owner an owner to be excluded
+ *
+ * Calls #UHook functions in corresponding hook list except those owned by
+ * \a owner. Any function which returns \c FALSE will be removed from the hooks.
+ */
+void
+u_hook_list_invoke_except_owner (UHookType    type,
+                                 const gchar *owner)
+{
+  struct hook_list *hook_list;
+
+  g_return_if_fail(type >= 0 && type < U_HOOK_TYPE_COUNT);
+  hook_list = &_hook_lists[type];
+  if (hook_list->hooks)
+    {
+      gint old_ref;
+
+      u_timer_start (&timer_hooks);
+      g_log (G_LOG_DOMAIN, hook_list->log_level,
+             "Invoke %s hooks not owned by %s.", hook_list->log_name, owner);
+      old_ref = hook_list->data->ref;
+      g_hook_list_marshal_check (hook_list->hooks, FALSE,
+                                 (gpointer) marshal_except_owner,
+                                 (gpointer) owner);
+      g_return_if_fail(hook_list->data->ref == old_ref);
+      u_timer_stop (&timer_hooks);
+    }
+}
+
 /**
  * Initializes profiling timer.
  */
