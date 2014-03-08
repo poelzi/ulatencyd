@@ -60,14 +60,15 @@ static USessionAgent *u_session_agent = NULL;  // agent in charge
 /* --- private functions --- */
 
 inline static void
-invoke_hooks (UHookType type,
-              USession *sess)
+invoke_hooks (UHookType  type,
+              USession  *sess)
 {
-  if (U_hook_list[type])
+  if (u_hook_list_is_setup (type))
     {
-      UHookDataSession *data = (UHookDataSession *) U_hook_data[type];
+      UHookDataSession *data = (UHookDataSession *) u_hook_list_get_data (type);
       data->session = sess;
-      g_hook_list_invoke_check (U_hook_list[type], FALSE);
+      u_hook_list_invoke (type);
+      DEC_REF (data);
     }
 }
 
@@ -396,16 +397,16 @@ u_session_check_agent (gpointer ignored)
 
 //! [Define hooks functions.]
 static gboolean                                     //UHookFunc
-hook_on_process_exit (UHookData *data)
+hook_on_process_exit (gpointer ignored)
 {
-  u_proc   *proc;
+  UHookDataProcessExit *hook_data;
+  u_proc    *proc;
   pid_t     sid;
   gboolean  removed;
 
-  if (G_UNLIKELY (data->in_destruction))
-    return FALSE;
-
-  proc = ((UHookDataProcessExit *) data)->proc;
+  hook_data = (UHookDataProcessExit *) u_hook_list_get_data (
+      U_HOOK_TYPE_PROCESS_EXIT);
+  proc = hook_data->proc;
   sid = proc->proc->session;
   if (G_UNLIKELY (proc->pid == sid))
     {
@@ -414,23 +415,24 @@ hook_on_process_exit (UHookData *data)
         g_debug ("Dead leader of sgrp %d removed.", sid);
     }
 
+  DEC_REF (hook_data);
   return TRUE;
 }
 
 static gboolean                                     //UHookFunc
-hook_on_process_changed (UHookData *data)
+hook_on_process_changed (gpointer ignored)
 {
+  UHookDataProcessChangedMajor *hook_data;
   gboolean removed;
   pid_t    pid;
   pid_t    old_sid;
   pid_t    new_sid;
 
-  if (G_UNLIKELY (data->in_destruction))
-    return FALSE;
-
-  pid     = ((UHookDataProcessChangedMajor *) data)->proc_old->tid;
-  old_sid = ((UHookDataProcessChangedMajor *) data)->proc_old->session;
-  new_sid = ((UHookDataProcessChangedMajor *) data)->proc_new->session;
+  hook_data = (UHookDataProcessChangedMajor *) u_hook_list_get_data (
+      U_HOOK_TYPE_PROCESS_CHANGED_MAJOR);
+  pid     = hook_data->proc_old->tid;
+  old_sid = hook_data->proc_old->session;
+  new_sid = hook_data->proc_new->session;
   if (G_UNLIKELY (pid == old_sid && new_sid != old_sid))
     {
       removed = g_hash_table_remove (sessid_by_sid, GUINT_TO_POINTER (old_sid));
@@ -438,6 +440,7 @@ hook_on_process_changed (UHookData *data)
         g_debug ("Leader of sgrp %d migrated to sgrp %d.", old_sid, new_sid);
     }
 
+  DEC_REF (hook_data);
   return TRUE;
 }
 //! [Define hooks functions.]
@@ -466,10 +469,10 @@ u_session_init ()
   g_timeout_add (0, u_session_check_agent, NULL);
 
   //! [Adding hooks.]
-  u_hook_add (U_HOOK_TYPE_PROCESS_EXIT, "USession",
+  u_hook_add (U_HOOK_TYPE_PROCESS_EXIT, g_intern_static_string("USession"),
               hook_on_process_exit);
-  u_hook_add (U_HOOK_TYPE_PROCESS_CHANGED_MAJOR, "USession",
-              hook_on_process_changed);
+  u_hook_add (U_HOOK_TYPE_PROCESS_CHANGED_MAJOR,
+              g_intern_static_string("USession"), hook_on_process_changed);
   //! [Adding hooks.]
 
   return TRUE;

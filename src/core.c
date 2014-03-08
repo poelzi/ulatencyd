@@ -772,14 +772,16 @@ static void processes_free_value(gpointer data) {
   }
 
   //! [Invoking hooks with feedback.]
-  if (U_PROC_HAS_STATE (proc, UPROC_BASIC) &&
-      U_hook_list[U_HOOK_TYPE_PROCESS_EXIT])
+  if (U_PROC_HAS_STATE (proc, UPROC_BASIC)
+      && u_hook_list_is_setup (U_HOOK_TYPE_PROCESS_EXIT))
     {
       UHookDataProcessExit *data;
 
-      data = (UHookDataProcessExit *) U_hook_data[U_HOOK_TYPE_PROCESS_EXIT];
+      data = (UHookDataProcessExit *) u_hook_list_get_data (
+          U_HOOK_TYPE_PROCESS_EXIT);
       data->proc = proc;
       u_hook_list_invoke (U_HOOK_TYPE_PROCESS_EXIT);
+      DEC_REF (data);
     }
   //! [Invoking hooks with feedback.]
 
@@ -945,17 +947,18 @@ static int detect_changed(proc_t *old, proc_t *new)
      changed = 1;
 
   //! [Invoking hooks.]
-  if (changed && U_hook_list[U_HOOK_TYPE_PROCESS_CHANGED_MAJOR])
+  if (changed && u_hook_list_is_setup (U_HOOK_TYPE_PROCESS_CHANGED_MAJOR))
     {
       UHookDataProcessChangedMajor *data;
 
-      data = (UHookDataProcessChangedMajor *)
-                  U_hook_data[U_HOOK_TYPE_PROCESS_CHANGED_MAJOR];
+      data = (UHookDataProcessChangedMajor *) u_hook_list_get_data (
+          U_HOOK_TYPE_PROCESS_CHANGED_MAJOR);
       data->proc_old = old;
       data->proc_new = new;
       data->changed = changed;
       u_hook_list_invoke (U_HOOK_TYPE_PROCESS_CHANGED_MAJOR);
       changed = data->changed;
+      DEC_REF (data);
     }
   //! [Invoking hooks.]
 

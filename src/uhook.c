@@ -1,5 +1,5 @@
 /*
-    Copyright 2013 ulatencyd developers
+    Copyright 2013, 2014 ulatencyd developers
 
     This file is part of ulatencyd.
 
@@ -34,10 +34,8 @@
  * \snippet core.c Invoking hooks with feedback.
  *
  * @todo
- * - implement hook lists finalizing
- * - free data when all hooks finalized
- * - missing functions such as u_hook_remove(), u_hook_remove_by_name()
  * - bindings to lua
+ * - missing functions such as u_hook_remove(), u_hook_remove_by_owner()
  * @todo maybe:
  * - implement ordering (1-10, 5 default) of hooks
  * - implement hooks precedence
@@ -51,17 +49,49 @@
 #include <glib.h>
 
 
-/* --- global variables --- */
-//! Array of pointers to hook lists. Pointer to specific list is stored at
-//! the index defined by its type (#UHookType enumeration value).
-GHookList *U_hook_list[U_HOOK_TYPE_COUNT];
-//! Array of pointers to data structures specific to each hook list type.
-//! When a hook list is invoked, correspondent structure is passed to
-//! #UHookFunc of each hook within the list.
-UHookData *U_hook_data[U_HOOK_TYPE_COUNT];
-//! Timer counting the time spent inside hooks.
 struct u_timer timer_hooks;
 
+struct hook_list
+{
+  const gchar *log_name;
+  gint         log_level;
+  GHookList   *hooks;     //!< List of hooks.
+  gsize        data_size; //!< Size of \a hook_data
+  UHookData   *data;      //!< Pointer to data structure; passed to hooks.
+};
+
+static struct hook_list _hook_lists[U_HOOK_TYPE_COUNT] = {
+    {
+        .log_name  = "SESSION_ADDED",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataSession),
+    },
+    {
+        .log_name  = "SESSION_REMOVED",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataSession),
+    },
+    {
+        .log_name  = "SESSION_ACTIVE_CHANGED",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataSession),
+    },
+    {
+        .log_name  = "SESSION_IDLE_CHANGED",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataSession),
+    },
+    {
+        .log_name  = "PROCESS_CHANGED_MAJOR",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataProcessChangedMajor),
+    },
+    {
+        .log_name  = "PROCESS_EXIT",
+        .log_level = U_LOG_LEVEL_TRACE,
+        .data_size = sizeof(UHookDataProcessExit),
+    },
+};
 
 /* --- private structures --- */
 typedef struct _UHook
@@ -72,101 +102,147 @@ typedef struct _UHook
 #define U_HOOK(hook)       ((UHook*) (hook))
 
 /**
+ * Return TRUE if hook list of given \a type is initialized.
+ * @param type #UHookType
+ * @retval TRUE if hook list is initialized (contains at least one hook)
+ * @retval FALSE if hook list is not initialized (does not contain any hook)
+ */
+gboolean
+u_hook_list_is_setup (UHookType type)
+{
+  return _hook_lists[type].hooks ? TRUE : FALSE;
+}
+
+/**
+ * Return pointer to data field of hook list determined by \a type.
+ * @param type #UHookType
+ * @return data pointer to #UHookData
+ * @retval NULL if hook list was not initialized (does not contain any hook)
+ *
+ * The #UHoodData and derived structures may be filled before invoking hooks
+ * or retrieved by invoked hooks. They are valid only only during single
+ * invoking of hook lists.
+ * \attention
+ * It is error to store reference to returned data as this structure is shared
+ * with all hooks of same type. To ensure this, reference counting is enforced.
+ * this function increases \a data ref counter and you must call DEC_REF()
+ * before leaving the #UHookFunc; if the ref counter will not be same as
+ * before #UHookFunc was called, warning is printed.
+ */
+UHookData *
+u_hook_list_get_data (UHookType type)
+{
+  INC_REF (_hook_lists[type].data);
+  return _hook_lists[type].data;
+}
+
+/**
  * Add hook to the list of specified type.
- * @param type  Define to the which list of hooks should this hook be added.
- * @param owner Pointer to unique, statically allocated string which identifies
- *              the hook source.
- * @param func  Function to be call when the hook list is invoked.
+ * @param type    defines to the which list of hooks should this hook be added
+ * @param owner   pointer to unique, statically allocated string which
+ *                identifies the hook source; must be obtain by
+ *                `g_intern_string()` or `g_intern_static_string()`
+ * @param func    function to call when the hook list is invoked
+ * @param data    data which is passed to \a func when this hook is invoked
+ * @param destroy function to call when the hook is being removed; this
+ *                should free \a data
  *
  * @return Identifier, that can be used to find the hook inside the list.
  */
 gulong
-u_hook_add (UHookType          type,
-            const gchar       *owner,
-            UHookFunc          func)
+u_hook_add_full (UHookType          type,
+                 const gchar       *owner,
+                 UHookFunc          func,
+                 gpointer           user_data,
+                 GDestroyNotify     destroy)
 {
-  GHookList *hook_list;
-  GHook     *g_hook;
-  UHook     *u_hook;
-  UHookData *hook_data;
+  struct hook_list *hook_list;
+  GHook            *g_hook;
+  UHook            *u_hook;
 
   g_return_val_if_fail (owner && func, 0);
 
-  hook_list = U_hook_list[type];
-  if (!hook_list)
+  hook_list = &_hook_lists[type];
+  if (!hook_list->hooks)
     {
-      gsize hook_data_size;
+      hook_list->data = (UHookData *) g_malloc0 (hook_list->data_size);
+      hook_list->data->free_fnk = g_free;
+      hook_list->data->type = type;
+      hook_list->data->ref = 1;
 
-      switch (type)
-        {
-          case U_HOOK_TYPE_SESSION_ADDED:
-          case U_HOOK_TYPE_SESSION_REMOVED:
-          case U_HOOK_TYPE_SESSION_ACTIVE_CHANGED:
-          case U_HOOK_TYPE_SESSION_IDLE_CHANGED:
-            hook_data_size = sizeof (UHookDataSession);
-            break;
-
-          case U_HOOK_TYPE_PROCESS_CHANGED_MAJOR:
-            hook_data_size = sizeof (UHookDataProcessChangedMajor);
-            break;
-
-          case U_HOOK_TYPE_PROCESS_EXIT:
-            hook_data_size = sizeof (UHookDataProcessExit);
-            break;
-
-          default:
-            g_return_val_if_reached (0);
-        }
-      hook_data = (UHookData *) g_malloc0 (hook_data_size);
-      hook_data->type = type;
-      U_hook_data[type] = hook_data;
-
-      hook_list = g_new (GHookList, 1);
-      g_hook_list_init (hook_list, sizeof (UHook));
-      U_hook_list[type] = hook_list;
-      g_debug ("Hook list %d initialized by %s.", type, owner); //debug
-
+      hook_list->hooks = g_new (GHookList, 1);
+      g_hook_list_init (hook_list->hooks, sizeof (UHook));
+      g_debug ("Hook list %s initialized by %s.", hook_list->log_name, owner);
     }
 
-  hook_data = U_hook_data[type];
-  hook_data->ref++;
-  g_hook = g_hook_alloc (hook_list);
-  g_hook->data = hook_data;
+  g_hook = g_hook_alloc (hook_list->hooks);
   g_hook->func = func;
+  g_hook->data = user_data;
+  g_hook->destroy = destroy;
 
   u_hook = U_HOOK (g_hook);
   u_hook->owner = owner;
 
-  g_hook_append (hook_list, g_hook);
-  g_debug ("%s registered a hook to hook list %d.", owner, type); //debug
+  g_hook_append (hook_list->hooks, g_hook);
+  g_debug ("%s registered a hook to list %s.",
+           owner, hook_list->log_name);
 
   return g_hook->hook_id;
 }
 
 /**
- * Invokes hooks from list of given type.
+ * Add hook to the list of specified type.
+ * @param type    defines to the which list of hooks should this hook be added
+ * @param owner   pointer to unique, statically allocated string which
+ *                identifies the hook source; must be obtain by
+ *                `g_intern_string()` or `g_intern_static_string()`
+ * @param func    function to call when the hook list is invoked
  *
- * @param type Type identifying the list.
+ * @return Identifier, that can be used to find the hook inside the list.
+ */
+inline gulong
+u_hook_add (UHookType    type,
+            const gchar *owner,
+            UHookFunc    func)
+{
+  return u_hook_add_full(type, owner, func, NULL, NULL);
+}
+
+/**
+ * Invokes all hooks from a hook list determined by \a type.
  *
- * This is similar to call
- * \code g_hook_list_invoke_check (U_hook_list[U_HOOK_TYPE_?], FALSE); \endcode
- * except this measures time spent in hooks.
+ * @param type an #UHookType
+ *
+ * Calls all #UHook functions in corresponding hook list. Any function which
+ * returns \c FALSE will be removed from the hooks.
  */
 void
 u_hook_list_invoke (UHookType type)
 {
-  if (U_hook_list[type])
+  struct hook_list *hook_list;
+
+  g_return_if_fail(type >= 0 && type < U_HOOK_TYPE_COUNT);
+  hook_list = &_hook_lists[type];
+  if (hook_list->hooks)
     {
+      gint old_ref;
+
       u_timer_start (&timer_hooks);
-      g_hook_list_invoke_check (U_hook_list[type], FALSE);
+      g_log (G_LOG_DOMAIN, hook_list->log_level,
+             "Invoke %s hooks.", hook_list->log_name);
+      old_ref = hook_list->data->ref;
+      g_hook_list_invoke_check (hook_list->hooks, FALSE);
+      g_return_if_fail(hook_list->data->ref == old_ref);
       u_timer_stop (&timer_hooks);
     }
 }
 
+/**
+ * Initializes profiling timer.
+ */
 void
 u_hook_init ()
 {
-  // initialize profiling timer
   timer_hooks.timer = g_timer_new ();
   timer_hooks.count = 0;
   g_timer_stop (timer_hooks.timer);

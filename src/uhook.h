@@ -1,5 +1,5 @@
 /*
-    Copyright 2013 ulatencyd developers
+    Copyright 2013, 2014 ulatencyd developers
 
     This file is part of ulatencyd.
 
@@ -40,35 +40,49 @@ typedef struct _UHookDataProcessChangedMajor UHookDataProcessChangedMajor;
 typedef struct _UHookDataProcessExit         UHookDataProcessExit;
 
 /**
- * Enumeration of hook lists. Each value is used as index into
- * #U_hook_list array.
+ * Enumeration of hook lists. Each hook list is identified by its type, which is
+ * index to opaque array of hook lists.
  *
- * @attention If you add new enumeration, don't forget to define corresponding
- * structure derived from #UHookData and allocate it inside `u_hook_add()`.
+ * @attention If you add new hook list type, don't forget to define
+ * corresponding structure derived from #UHookData and add the new hook
+ * definition into `_hook_lists` array defined at top of uhook.c.
  */
 typedef enum
 {
-  //! Invoked by \ref USession subsystem when user session is added. Pointer to
-  //! #UHookDataSession is passed to #UHookFunc.
-  U_HOOK_TYPE_SESSION_ADDED,
-  //! Invoked by \ref USession subsystem when user session is removed. Pointer
-  //! to #UHookDataSession is passed to #UHookFunc.
+  //! Invoked by \ref USession subsystem when new user session is added.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
+  //! an invoker.
+  U_HOOK_TYPE_SESSION_ADDED = 0,
+  //! Invoked by \ref USession subsystem when user session is removed.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
+  //! an invoker.
   U_HOOK_TYPE_SESSION_REMOVED,
   //! Invoked by \ref USession subsystem when the user session active property
-  //! has changed. Pointer to #UHookDataSession is passed to #UHookFunc.
+  //! has changed.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
+  //! an invoker.
   U_HOOK_TYPE_SESSION_ACTIVE_CHANGED,
   //! Invoked by \ref USession subsystem when the user session idle hint
-  //! property has changed. Pointer to #UHookDataSession is passed to
-  //! #UHookFunc.
+  //! property has changed.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
+  //! an invoker.
   U_HOOK_TYPE_SESSION_IDLE_CHANGED,
   //! Invoked inside `detect_changed()` from core.c if detected changed values
   //! of a #u_proc.proc structure are sufficient enough for the #u_proc.changed
   //! flag to be set.
-  //! Pointer to struct #_UHookDataProcessChangedMajor is passed to #UHookFunc.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataProcessChangedMajor
+  //! filled by an invoker.
   U_HOOK_TYPE_PROCESS_CHANGED_MAJOR,
   //! Invoked when the process no more exist and is being removed from
-  //! #processes table. Pointer to struct #_UHookDataProcessExit is
-  //! passed to #UHookFunc.
+  //! #processes table.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataProcessExit filled by
+  //! an invoker.
   U_HOOK_TYPE_PROCESS_EXIT,
 
   U_HOOK_TYPE_COUNT // type count, must stay last
@@ -76,41 +90,55 @@ typedef enum
 
 /**
  * Function called when the hook is invoked.
- * @param data Pointer to data structure shared with all hooks of same type.
- * @return TRUE, if the hook should be removed from the list; otherwise FALSE.
+ * @param user_data Pointer to data passed to #u_hook_add_full()
+ * @return FALSE, if the hook should be removed from the list; otherwise TRUE.
+ *
+ * Function may call #u_hook_list_get_data() to get access to data structure
+ * filled by the hook list invoker.
  */
-typedef gboolean (*UHookFunc) (UHookData *data);
+typedef gboolean (*UHookFunc) (gpointer user_data);  //GHookCheckFunc
 
-gulong      u_hook_add           (UHookType          type,
-                                  const gchar       *owner,
-                                  UHookFunc          func);
-void        u_hook_list_invoke   (UHookType          type);
-void        u_hook_init          ();
+inline gulong           u_hook_add                      (UHookType      type,
+                                                         const gchar   *owner,
+                                                         UHookFunc      func);
+gulong                  u_hook_add_full                 (UHookType      type,
+                                                         const gchar   *owner,
+                                                         UHookFunc      func,
+                                                         gpointer       user_data,
+                                                         GDestroyNotify notify);
+gboolean                u_hook_list_is_setup            (UHookType      type);
+UHookData              *u_hook_list_get_data            (UHookType      type);
+void                    u_hook_list_invoke              (UHookType      type);
+void                    u_hook_init                     ();
 
 
 /* --- variables --- */
-extern GHookList        *U_hook_list[U_HOOK_TYPE_COUNT];
-extern UHookData        *U_hook_data[U_HOOK_TYPE_COUNT];
 extern struct u_timer    timer_hooks;
 
-/* --- structures --- */
 /**
- *  Prototype of data structure which is passed to the hooks of any type.
+ *  Prototype of data structure accessible by hooks.
  *  On hook list invocation, a pointer to the structure derived from this
- *  prototype is passed to each #UHookFunc, depending on the hook type. Same
- *  structure is shared with all hooks of same type.
+ *  (depending on the invoked hooks type) is accessible by each #UHookFunc
+ *  via calling #u_hook_list_get_data().
+ *  Data structures are shared with all hooks of same type.
  */
 struct _UHookData
 {
-  guint     ref;            //!< Reference count, one for each hook in the list.
-  gboolean  in_destruction; //!< TRUE if the hook will be removed after this run.
-  UHookType type;           //!< Hook list identification.
+  U_HEAD;
+  //! FALSE if correspondent hook list is empty. Structure is still allocated
+  //! just because its ref count > 0. You should neve keep reference to it,
+  //! release it!
+  gboolean  is_valid;
+  //! Hook list type (probably useless as you already need to know the hook list
+  //! type to get its data)
+  UHookType type;
 };
 
 /**
- *  Data passed to hooks of type #U_HOOK_TYPE_SESSION_ADDED,
+ *  Data accessible to invoked hooks of type #U_HOOK_TYPE_SESSION_ADDED,
  *  #U_HOOK_TYPE_SESSION_REMOVED, #U_HOOK_TYPE_SESSION_ACTIVE_CHANGED,
  *  #U_HOOK_TYPE_SESSION_IDLE_CHANGED.
+ *  \extends #UHookData
  */
 struct _UHookDataSession
 {
@@ -118,7 +146,8 @@ struct _UHookDataSession
   USession *session; //!< affected session
 };
 
-//! Data passed to hooks of type #U_HOOK_TYPE_PROCESS_CHANGED_MAJOR.
+//! Data accessible to invoked hooks of type  #U_HOOK_TYPE_PROCESS_CHANGED_MAJOR.
+//! \extends #UHookData
 struct _UHookDataProcessChangedMajor
 {
   UHookData  base;
@@ -129,7 +158,8 @@ struct _UHookDataProcessChangedMajor
                       //!< may reset this to TRUE again.
 };
 
-//! Data passed to hooks of type #U_HOOK_TYPE_PROCESS_EXIT.
+//! Data accessible to invoked hooks of type #U_HOOK_TYPE_PROCESS_EXIT.
+//! \extends #UHookData
 struct _UHookDataProcessExit
 {
   UHookData base;
