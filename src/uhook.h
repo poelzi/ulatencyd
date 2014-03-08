@@ -71,6 +71,19 @@ typedef enum
   //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
   //! an invoker.
   U_HOOK_TYPE_SESSION_IDLE_CHANGED,
+  //! Invoked by \ref USession subsystem when the session focus agent changed.
+  //! Also called when new session has been added, getting opportunity for focus
+  //! trackers to register themselves with the session.
+  //! When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
+  //! an invoker.
+  //! \sa UFocusStack
+  U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED,
+  //! Invoked by \ref UFocus subsystem when another focus agent wants to
+  //! register. When triggered, #UHookFunc of hooks added to this list may call
+  //! #u_hook_list_get_data() to access structure #UHookDataSession filled by
+  //! an invoker.
+  U_HOOK_TYPE_SESSION_UNSET_FOCUS_TRACKER,
   //! Invoked inside `detect_changed()` from core.c if detected changed values
   //! of a #u_proc.proc structure are sufficient enough for the #u_proc.changed
   //! flag to be set.

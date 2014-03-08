@@ -82,6 +82,16 @@ static struct hook_list _hook_lists[U_HOOK_TYPE_COUNT] = {
         .data_size = sizeof(UHookDataSession),
     },
     {
+        .log_name  = "SESSION_FOCUS_TRACKER_CHANGED",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataSession),
+    },
+    {
+        .log_name  = "SESSION_FOCUS_TRACKER_CHANGE_REQUEST",
+        .log_level = G_LOG_LEVEL_DEBUG,
+        .data_size = sizeof(UHookDataSession),
+    },
+    {
         .log_name  = "PROCESS_CHANGED_MAJOR",
         .log_level = G_LOG_LEVEL_DEBUG,
         .data_size = sizeof(UHookDataProcessChangedMajor),
