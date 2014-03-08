@@ -16,6 +16,7 @@
     You should have received a copy of the GNU General Public License 
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
+#define _GNU_SOURCE
 
 #include "config.h"
 #include "ulatency.h"
@@ -35,9 +36,6 @@
 #include <time.h>
 #include <bits/signum.h>
 //#include <errno.h>
-#ifndef __USE_GNU
-#define __USE_GNU
-#endif
 #include <sched.h>
 #include <linux/sched.h>
 //#include <sys/ptrace.h>

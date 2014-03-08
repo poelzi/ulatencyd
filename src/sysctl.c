@@ -16,8 +16,11 @@
     You should have received a copy of the GNU General Public License 
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
+#define _GNU_SOURCE
+
 #include "config.h"
 #include "ulatency.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,9 +36,6 @@
 #include <err.h>
 #include <linux/oom.h>
 #include "nls.h"
-#ifndef __USE_GNU
-#define __USE_GNU
-#endif
 #include <fcntl.h>
 
 #ifndef OOM_SCORE_ADJ_MIN
