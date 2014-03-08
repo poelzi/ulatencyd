@@ -66,7 +66,7 @@ USession*      u_session_find_by_id             (guint        sess_id);
 guint          u_session_id_find_by_proc        (u_proc      *proc);
 u_proc *       u_session_get_leader             (USession    *session);
 void           u_session_invalidate_by_id       (guint        sess_id);
-void           u_proc_set_changed_by_session_id (guint        sess_id);
+void           u_session_change_processes       (guint        sess_id);
 
 
 /* --- variables --- */

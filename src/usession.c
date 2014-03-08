@@ -317,7 +317,7 @@ change_sgrp_by_session_id (gpointer _sid, gpointer _sess_id, gpointer sess_id)
  * for sessions that becomes active or inactive.
  */
 void
-u_proc_set_changed_by_session_id (guint sess_id)
+u_session_change_processes (guint sess_id)
 {
   g_hash_table_foreach (
       sessid_by_sid,
@@ -764,7 +764,7 @@ u_session_active_changed (USession *sess,
   enable_active_list(sess->uid, act);
 
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_ACTIVE
-  u_proc_set_changed_by_session_id (sess->id);
+  u_session_change_processes (sess->id);
 
   invoke_hooks (U_HOOK_TYPE_SESSION_ACTIVE_CHANGED, sess);
 }
@@ -790,7 +790,7 @@ u_session_idle_hint_changed (USession *sess,
           sess->name, sess->id, sess->uid,
           hint ? "idle" : "not idle");
   //FIXME: u_proc->changed |= U_PROC_CHANGED_SESSION_IDLE
-  u_proc_set_changed_by_session_id (sess->id);
+  u_session_change_processes (sess->id);
 
   invoke_hooks (U_HOOK_TYPE_SESSION_IDLE_CHANGED, sess);
   iteration_request(0);
