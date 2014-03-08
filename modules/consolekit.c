@@ -27,6 +27,7 @@
 #include "config.h"
 
 #include "usession-agent.h"
+#include "uhook.h"
 #include "ulatency.h"
 
 #include <glib.h>
@@ -341,14 +342,61 @@ consolekit_u_proc_get_session_id (u_proc *proc)
     }
 }
 
+static gboolean //UHookFunc
+bind_to_ck (gpointer ignored)
+{
+  GPtrArray *array = NULL;
+  GError    *error = NULL;
+  int       i;
+
+  dbus_g_proxy_add_signal (ck_manager_proxy, "SeatAdded",
+                           G_TYPE_STRING, G_TYPE_INVALID);
+
+  dbus_g_proxy_connect_signal(ck_manager_proxy,
+                              "SeatAdded",
+                              G_CALLBACK(ck_seat_added),
+                              NULL,
+                              NULL);
+
+  dbus_g_proxy_add_signal (ck_manager_proxy, "SeatRemoved",
+                           G_TYPE_STRING, G_TYPE_INVALID);
+
+  dbus_g_proxy_connect_signal(ck_manager_proxy,
+                              "SeatRemoved",
+                              G_CALLBACK(ck_seat_removed),
+                              NULL,
+                              NULL);
+
+  if (!dbus_g_proxy_call (ck_manager_proxy, "GetSeats", &error, G_TYPE_INVALID,
+                        dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
+                        &array, G_TYPE_INVALID)) {
+      g_warning("CK Error: %s\n", error->message);
+      g_error_free(error);
+  }
+  for (i = 0; i < array->len; i++) {
+      ck_seat_added(NULL, g_ptr_array_index(array, i), NULL);
+  }
+  g_ptr_array_free(array, TRUE);
+  if (!dbus_g_proxy_call (ck_manager_proxy, "GetSessions", &error, G_TYPE_INVALID,
+                        dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
+                        &array, G_TYPE_INVALID)) {
+      g_warning("CK Error: %s\n", error->message);
+      g_error_free(error);
+  }
+  for (i = 0; i < array->len; i++) {
+      ck_session_added(NULL, g_ptr_array_index(array, i), NULL);
+  }
+  g_ptr_array_free(array, TRUE);
+
+  return FALSE; // remove from hook list
+}
+
 G_MODULE_EXPORT const gchar*
 g_module_check_init (GModule *module)
 {
     USessionAgent *agent;
     gboolean       registered;
     GError        *error = NULL;
-    GPtrArray     *array = NULL;
-    int           i;
 
     g_assert (ck_seats == NULL);
     g_assert (ck_manager_proxy == NULL);
@@ -390,44 +438,12 @@ g_module_check_init (GModule *module)
 
     g_module_make_resident (module);
 
-    dbus_g_proxy_add_signal (ck_manager_proxy, "SeatAdded",
-                             G_TYPE_STRING, G_TYPE_INVALID);
-
-    dbus_g_proxy_connect_signal(ck_manager_proxy,
-                                "SeatAdded",
-                                G_CALLBACK(ck_seat_added),
-                                NULL,
-                                NULL);
-
-    dbus_g_proxy_add_signal (ck_manager_proxy, "SeatRemoved",
-                             G_TYPE_STRING, G_TYPE_INVALID);
-
-    dbus_g_proxy_connect_signal(ck_manager_proxy,
-                                "SeatRemoved",
-                                G_CALLBACK(ck_seat_removed),
-                                NULL,
-                                NULL);
-
-    if (!dbus_g_proxy_call (ck_manager_proxy, "GetSeats", &error, G_TYPE_INVALID,
-                          dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
-                          &array, G_TYPE_INVALID)) {
-        g_warning("CK Error: %s\n", error->message);
-        g_error_free(error);
-    }
-    for (i = 0; i < array->len; i++) {
-        ck_seat_added(NULL, g_ptr_array_index(array, i), NULL);
-    }
-    g_ptr_array_free(array, TRUE);
-    if (!dbus_g_proxy_call (ck_manager_proxy, "GetSessions", &error, G_TYPE_INVALID,
-                          dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
-                          &array, G_TYPE_INVALID)) {
-        g_warning("CK Error: %s\n", error->message);
-        g_error_free(error);
-    }
-    for (i = 0; i < array->len; i++) {
-        ck_session_added(NULL, g_ptr_array_index(array, i), NULL);
-    }
-    g_ptr_array_free(array, TRUE);
+    /*
+     * Give other modules opportunity to register hooks to a sessions related
+     * changes; otherwise, should they be focus tracking agents loaded before
+     * this module, they will miss initial sessions.
+     */
+    u_hook_add (U_HOOK_TYPE_ALL_MODULES_LOADED, MODULE_NAME, bind_to_ck);
 
     return NULL;
 }
