@@ -28,6 +28,7 @@
 
 #include "ulatency.h"
 #include "uhook.h"
+#include "ufocusstack.h"
 
 #include <glib.h>
 
@@ -92,6 +93,7 @@ u_session_free (void *ptr)
   if(sess->lua_data) {
     luaL_unref(lua_main_state, LUA_REGISTRYINDEX, sess->lua_data);
   }
+  g_assert (sess->focus_stack == NULL);
   g_free (sess);
 }
 
@@ -129,6 +131,12 @@ u_session_destroy (USession *sess)
     {
       g_object_unref (sess->proxy);
       g_assert (! G_IS_OBJECT (sess->proxy));
+    }
+
+  if (sess->focus_stack)
+    {
+      u_focus_stack_free (sess->focus_stack);
+      sess->focus_stack = NULL;
     }
 
   g_info ("Session removed (ID=%d, UID=%d, ACTIVE=%d, X11Display=%s, "
@@ -595,6 +603,7 @@ u_session_add (USession *sess)
 
   g_hash_table_insert (sessions_table, GUINT_TO_POINTER (sess->id), sess);
   INC_REF (sess);
+  sess->focus_stack = u_focus_stack_new();
   sess->is_valid = TRUE;
 
   leader = u_session_get_leader (sess);

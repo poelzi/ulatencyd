@@ -29,6 +29,7 @@
 #include "config.h"
 
 #include "ulatency.h"
+#include "ufocusstack.h"
 
 #include <glib.h>
 #include <sys/types.h>
@@ -99,7 +100,8 @@ struct _USession
   uint32_t  active;
   gchar     *consolekit_cookie; //!< value of XDG_SESSION_COOKIE environment
                                 //!< variable; specific to consolekit backend
-  int       lua_data;          //!< id for per session lua storage
+  int       lua_data;           //!< id for per session lua storage
+  UFocusStack *focus_stack;
 #ifdef ENABLE_DBUS
   DBusGProxy *proxy;
 #endif
