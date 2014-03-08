@@ -113,6 +113,7 @@ void                    u_hook_list_invoke_owner        (UHookType      type,
                                                          const gchar   *owner);
 void                    u_hook_list_invoke_except_owner (UHookType      type,
                                                          const gchar   *owner);
+void                    u_hook_list_clear               (UHookType      type);
 void                    u_hook_init                     ();
 
 

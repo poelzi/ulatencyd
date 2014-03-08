@@ -326,6 +326,22 @@ u_hook_list_invoke_except_owner (UHookType    type,
 }
 
 /**
+ * Clears hook list determined by \a type.
+ * @param type #UHookType
+ */
+void
+u_hook_list_clear (UHookType type)
+{
+  struct hook_list *hook_list;
+
+  g_return_if_fail(type >= 0 && type < U_HOOK_TYPE_COUNT);
+  hook_list = &_hook_lists[type];
+  g_hook_list_clear (hook_list->hooks);
+  g_assert (hook_list->data->ref == 1);
+  DEC_REF (hook_list->data);
+}
+
+/**
  * Initializes profiling timer.
  */
 void
