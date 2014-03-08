@@ -422,6 +422,9 @@ void u_proc_set_changed_flag_recursive(u_proc *proc);
 void u_proc_clear_changed_flag_recursive(u_proc *proc);
 GList *u_proc_list_flags (u_proc *proc, gboolean recrusive);
 GArray *u_proc_get_current_task_pids(u_proc *proc);
+gboolean u_proc_set_focused (u_proc *proc, time_t timestamp);
+guint16 u_proc_get_focus_position (u_proc *proc, gboolean force);
+
 
 
 u_filter *filter_new();

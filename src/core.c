@@ -22,6 +22,7 @@
 #include "config.h"
 #include "ulatency.h"
 #include "usession.h"
+#include "ufocusstack.h"
 #include "uhook.h"
 
 #include <proc/procps.h>
@@ -742,6 +743,80 @@ out:
     g_array_unref(rv);
     U_PROC_SET_STATE(proc, UPROC_DEAD);
     return NULL;
+}
+
+/**
+ * Add process to the focus stack in #USession instance it belongs to.
+ *
+ * @param proc #u_proc instance
+ * @param timestamp (optional) time when the process was focused. If 0, current
+ * time will be used.
+ *
+ * This function adds passed process to focus stack in corresponding #USession
+ * instance on position determined by `timestamp`. This means that the process
+ * must be member of an user session. The session will be automatically
+ * determined.
+ *
+ * @return TRUE on success; FALSE if the process is not member of
+ * any user session or if the process was not added to the stack
+ * because its position would be after the #UFocusStack->max_count.
+ * \ingroup UProc UFocus
+ */
+gboolean
+u_proc_set_focused (u_proc       *proc,
+                    time_t       timestamp)
+{
+  USession        *session;
+
+  /* checks */
+  g_return_val_if_fail (proc, FALSE);
+  session = u_session_find_by_proc (proc);
+  if (G_UNLIKELY (!session))
+    {
+      g_warning ("%s: PID %d does not belong to any session.",
+                 G_STRFUNC, proc->pid);
+      return FALSE;
+    }
+
+  if (G_UNLIKELY (session->id < USESSION_USER_FIRST))
+    {
+      g_warning ("%s: PID %d does not belong to any user session.",
+                 G_STRFUNC, proc->pid);
+      return FALSE;
+    }
+
+  if (G_UNLIKELY (!session->is_valid))
+    return FALSE;
+
+  return u_focus_stack_add_pid(session->focus_stack, proc->pid, timestamp);
+}
+
+/**
+ * Returns process position in focus stack.
+ *
+ * @param proc process which position should be returned
+ * @param force If the session to which the process belongs is not active,
+ * this function will return 0 regardless process position, unless `force` is
+ * TRUE.
+ *
+ * @return Process position (>0) or 0 if process is not in user session focus
+ * stack or the session is inactive (unless \a force is TRUE)
+ */
+guint16
+u_proc_get_focus_position (u_proc *proc, gboolean force)
+{
+  USession *session;
+
+  g_return_val_if_fail (proc, FALSE);
+
+  session = u_session_find_by_proc (proc);
+  if (G_UNLIKELY( !session || !session->is_valid
+                  || session->id < USESSION_USER_FIRST))
+    return 0;
+  if (session->active || force)
+    return u_focus_stack_get_pid_position(session->focus_stack, proc->pid);
+  else
+    return 0;
 }
 
 /**
