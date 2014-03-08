@@ -246,7 +246,12 @@ dbus_user_handler (DBusConnection *c,
         }
       pid = (pid_t) tmpp;
       timestamp = (time_t) tmpt;
-
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0)
+        PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
       CHECK_PROC_FROM_PID (proc, pid);
       CHECK_SESSION_FROM_PROC (session, proc);
       CHECK_IF_SESSION_ALLOWED_FOR_UID (session, (uid_t) caller);
@@ -281,11 +286,15 @@ dbus_user_handler (DBusConnection *c,
           PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
         }
       pid = (pid_t) tpid;
-
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0)
+        PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
       CHECK_PROC_FROM_PID (proc, pid);
       CHECK_SESSION_FROM_PROC (session, proc);
       CHECK_IF_SESSION_ALLOWED_FOR_UID (session, (uid_t) caller);
-
 
       ret = dbus_message_new_method_return (m);
       dbus_message_append_args (ret, DBUS_TYPE_UINT16,
@@ -314,7 +323,12 @@ dbus_user_handler (DBusConnection *c,
           PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
         }
       pid = (pid_t) tpid;
-
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0)
+        PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
       CHECK_PROC_FROM_PID (proc, pid);
       CHECK_SESSION_FROM_PROC (session, proc);
       CHECK_IF_SESSION_ALLOWED_FOR_UID (session, (uid_t) caller);
@@ -551,12 +565,14 @@ dbus_system_handler (DBusConnection *c,
         {
           PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
         }
-
       pid = (pid_t) tpid;
-      proc = proc_by_pid_with_retry (pid);
-
-      if (!proc)
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0)
         PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
+      CHECK_PROC_FROM_PID (proc, pid);
 
       ret = dbus_message_new_method_return (m);
       push_flag (ret, proc, recrusive);
@@ -591,14 +607,15 @@ dbus_system_handler (DBusConnection *c,
 
       pid_t pid = (pid_t) tpid;
       pid_t tid = (pid_t) ttid;
-
-      proc = proc_by_pid_with_retry (pid);
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0 || tid <= 0)
+        PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
+      CHECK_PROC_FROM_PID (proc, pid);
 
       GET_CALLER ();
-
-      if (!proc)
-        PUSH_ERROR (U_DBUS_ERROR_NO_PID, "wrong arguments");
-
       if (caller != 0 && caller != proc->proc->euid)
         PUSH_ERROR (DBUS_ERROR_ACCESS_DENIED, "access denied");
 
@@ -704,14 +721,15 @@ dbus_system_handler (DBusConnection *c,
       }
 
       pid_t pid = (pid_t) tpid;
-
-      proc = proc_by_pid_with_retry (pid);
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0)
+        PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
+      CHECK_PROC_FROM_PID (proc, pid);
 
       GET_CALLER ();
-
-      if (!proc)
-        PUSH_ERROR (U_DBUS_ERROR_NO_PID, "wrong arguments");
-
       if (caller != 0 && caller != proc->proc->euid)
         PUSH_ERROR (DBUS_ERROR_ACCESS_DENIED, "access denied");
 
@@ -739,14 +757,16 @@ dbus_system_handler (DBusConnection *c,
         {
           PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
         }
-
       pid_t pid = (pid_t) tpid;
-      proc = proc_by_pid_with_retry (pid);
+      /*
+       * pid_t may be __S32_TYPE, i.e. int;
+       * make sure we got positive number
+       */
+      if (pid <= 0)
+        PUSH_ERROR (DBUS_ERROR_INVALID_ARGS, "wrong arguments");
+      CHECK_PROC_FROM_PID (proc, pid);
+
       GET_CALLER ();
-
-      if (!proc)
-        PUSH_ERROR (U_DBUS_ERROR_NO_PID, "wrong arguments");
-
       if (caller != 0 && caller != proc->proc->euid)
         PUSH_ERROR (DBUS_ERROR_ACCESS_DENIED, "access denied");
 

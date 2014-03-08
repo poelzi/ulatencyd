@@ -144,7 +144,7 @@ create_connection (struct x_server *xs) {
   struct passwd *pw;
   GPtrArray *xauthptr;
   char *save_home, *save_xauth = NULL;
-  guint uid;
+  uid_t uid;
   gchar *display;
 
   uid = xs->session->uid;
