@@ -2028,7 +2028,7 @@ static GPtrArray *l_scheduler_list_configs() {
     } else {
       len = lua_objlen (L, -1);
       if(len)
-        rv = g_ptr_array_new();
+        rv = g_ptr_array_new_with_free_func(g_free);
       for(i = 1; i <= len; i++) {
         lua_pushinteger(L, i);
         lua_gettable(L, -2);
