@@ -178,6 +178,10 @@ const void *U_DBUS_POINTER = &INTROSPECT_XML_SYSTEM;
     }                                                                         \
   } while (0)
 
+/*
+ * This will not work if PID is a task which parent is not in processes hash
+ * table. See FIXME in proc_by_pid_with_retry()
+ */
 #define CHECK_PROC_FROM_PID(PROC, PID) \
   do { \
     PROC = proc_by_pid_with_retry (PID); \
