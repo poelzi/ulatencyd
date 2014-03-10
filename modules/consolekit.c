@@ -234,6 +234,11 @@ static void ck_seat_removed(DBusGProxy *proxy, const gchar *name, gpointer ignor
     }
 }
 
+/*
+ * FIXME (optimization)
+ * store consolekit cookie in hash table private for consolekit.c module;
+ * not as field in u_proc.
+ */
 static USession*
 get_session_for_cookie (const gchar *consolekit_cookie, gboolean *retry)
 {
@@ -304,7 +309,6 @@ get_session_for_cookie (const gchar *consolekit_cookie, gboolean *retry)
     }
 
   sess->consolekit_cookie = g_strdup(consolekit_cookie);
-
   g_free(consolekit_session);
 
   return sess;
@@ -313,12 +317,15 @@ get_session_for_cookie (const gchar *consolekit_cookie, gboolean *retry)
 guint
 consolekit_u_proc_get_session_id (u_proc *proc)
 {
-  char *consolekit_cookie;
+  GHashTable *environ;
+  char       *consolekit_cookie;
+  guint      retval;
 
   if (!u_proc_ensure (proc, ENVIRONMENT, UPDATE_ONCE)) /* no environment */
       return USESSION_UNKNOWN;
 
-  consolekit_cookie = g_hash_table_lookup (proc->environ, "XDG_SESSION_COOKIE");
+  environ = g_hash_table_ref (proc->environ);
+  consolekit_cookie = g_hash_table_lookup (environ, "XDG_SESSION_COOKIE");
   if (consolekit_cookie)
     {
       USession *sess = NULL;
@@ -327,19 +334,22 @@ consolekit_u_proc_get_session_id (u_proc *proc)
       sess = get_session_for_cookie (consolekit_cookie, &retry);
       if (sess)
         {
-          return sess->id;
+          retval = sess->id;
         }
       else /* probably unable to find session for cookie */
         {
           g_warning ("Unable to get CK session for pid %d despite cookie exists (%s error)",
                      proc->pid, retry ? "temporal" : "permanent");
-          return retry ? USESSION_UNKNOWN : USESSION_USER_UNKNOWN;
+          retval = retry ? USESSION_UNKNOWN : USESSION_USER_UNKNOWN;
         }
     }
   else /* no consolekit_cookie */
     {
-      return USESSION_NONE;
+      retval = USESSION_NONE;
     }
+
+  g_hash_table_unref (environ);
+  return retval;
 }
 
 static gboolean //UHookFunc
