@@ -73,6 +73,7 @@ extern gint U_log_level; //!< Current log level
 
 #define U_HEAD \
   gint ref; \
+  gint unref_forbidden; \
   void (*free_fnk)(void *data);
 
 struct _U_HEAD {
@@ -247,10 +248,50 @@ typedef struct _filter {
   void *data;
 } u_filter;
 
-#define INC_REF(P) P ->ref++;
+
+//! Increments reference count of \a P
+#define INC_REF(P) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); \
+  uh->ref++; g_assert(uh->ref > 0);} while(0)
+//! Increments reference count of \a P
+//! and assert the reference count may not drop to zero in future
+#define INC_REF_FORBID_UNREF(P) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); \
+  uh->unref_forbidden++; g_assert(uh->unref_forbidden > 0); \
+  INC_REF(P);} while(0)
+//! Increments reference count of \a P
+//! and terminates application if the new reference count is not equal to \a VAL
+#define INC_REF_ASSERT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  INC_REF(P); g_assert(uh->ref == val);} while(0)
+//! Increments reference count of \a P
+//! and terminates application if the new reference count is equal to \a VAL
+#define INC_REF_ASSERT_NOT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  DEC_REF(P); g_assert(uh->ref != val1);} while(0)
+
+//! Decrements reference count of \a P; if the reference count drops to zero,
+//! free \a P with P->free_fnk
 #define DEC_REF(P) \
- do { struct _U_HEAD *uh = (struct _U_HEAD *) (P) ; uh->ref--; g_assert(uh->ref >= 0); \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P) ; uh->ref--; \
+  g_assert(uh->ref > 0 || (uh->ref == 0 && !uh->unref_forbidden)); \
   if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0)
+//! Allows the reference count drop to zero and decrements reference count of
+//! \a P; if the reference count drops to zero, free P with P->free_fnk
+#define DEC_REF_ALLOW_UNREF(P) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); \
+  uh->unref_forbidden--; g_assert(uh->unref_forbidden >= 0); \
+  DEC_REF(P);} while(0)
+//! Decrements reference count of \a P unless new count won't be equal to
+//! \VAL in which case terminates application
+#define DEC_REF_ASSERT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  g_assert(uh->ref == val + 1); DEC_REF(P);} while(0)
+//! Decrements reference count of \a P unless new count will be equal to
+//! \VAL in which case terminates application
+#define DEC_REF_ASSERT_NOT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  g_assert(uh->ref != val + 1); DEC_REF(P);} while(0)
 
 #define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 ) { FNK ( P ); }
 
