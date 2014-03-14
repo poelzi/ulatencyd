@@ -72,7 +72,7 @@ extern gint U_log_level; //!< Current log level
 #define CONFIG_CORE "core"
 
 #define U_HEAD \
-  guint ref; \
+  gint ref; \
   void (*free_fnk)(void *data);
 
 struct _U_HEAD {
@@ -249,8 +249,8 @@ typedef struct _filter {
 
 #define INC_REF(P) P ->ref++;
 #define DEC_REF(P) \
- do { struct _U_HEAD *uh = (struct _U_HEAD *) P ; uh->ref--; g_assert(uh->ref >= 0); \
-  if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0);
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P) ; uh->ref--; g_assert(uh->ref >= 0); \
+  if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0)
 
 #define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 ) { FNK ( P ); }
 
