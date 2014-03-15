@@ -106,6 +106,9 @@
 --!   @defgroup UHook Hooks
 --!   @ingroup core
 
+--!   @defgroup UAssert Debug assertions
+--!   @ingroup core
+
 
 ----- hidden groups ------
 

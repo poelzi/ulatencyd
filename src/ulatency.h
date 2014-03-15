@@ -598,4 +598,6 @@ uint64_t     get_number_of_processes();
 // linux_netlink.c
 extern gboolean netlink_proc_listening; //!< Linux netlink module listening to proc events
 
+#include "uassert.h"
+
 #endif /* __ulatency_h__ */
