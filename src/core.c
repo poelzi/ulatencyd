@@ -401,14 +401,12 @@ void u_proc_free(void *ptr) {
 }
 
 /**
- * allocate new #u_proc
- * @arg proc pointer to #proc_t datastructure
+ * Allocates a new #u_proc structure.
+ * @arg proc optional pointer to #proc_t structure to copy data from.
  *
- * Allocates a new #u_proc. It can be prefiled with a proc_t datastructure.
- * If \c proc is NULL, the resulting u_proc will have the state UPROC_NEW, otherwise
- * it is UPROC_ALIVE
+ * Allocates a new #u_proc. It can be pre-filled with a proc_t structure.
  *
- * @return newly allocated #u_proc reference
+ * @return pointer to newly allocated #u_proc with the reference count set to 1
  */
 
 u_proc* u_proc_new(proc_t *proc) {
@@ -429,10 +427,8 @@ u_proc* u_proc_new(proc_t *proc) {
 
   if(proc) {
     rv->pid = proc->tid;
-    U_PROC_SET_STATE(rv,UPROC_ALIVE);
     rv->proc = proc;
   } else {
-    U_PROC_SET_STATE(rv,UPROC_NEW);
     rv->proc = g_new0(proc_t, 1);
   }
 
@@ -834,7 +830,6 @@ static void processes_free_value(gpointer data) {
   u_proc *proc = data;
   u_filter *flt;
 
-  U_PROC_UNSET_STATE(proc, UPROC_ALIVE);
   U_PROC_SET_STATE(proc, UPROC_DEAD);
 
   // run exit hooks
@@ -1313,13 +1308,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
     if(rrt != proc->received_rt)
       proc->changed = 1;
 
-    U_PROC_UNSET_STATE(proc, UPROC_NEW);
-    U_PROC_SET_STATE(proc, UPROC_ALIVE);
     if((proctab->flags & OPENPROC_FLAGS) == OPENPROC_FLAGS) {
         U_PROC_SET_STATE(proc, UPROC_BASIC);
         proc->ensured.basic = TRUE;
-    } else
-        U_PROC_UNSET_STATE(proc, UPROC_BASIC);
+    }
 
     if (! new_proc) u_flag_clear_timeout(proc, timeout, -1);
     updated = g_list_append(updated, proc);

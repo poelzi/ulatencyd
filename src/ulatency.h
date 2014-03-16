@@ -81,12 +81,10 @@ struct _U_HEAD {
 };
 
 enum U_PROC_STATE {
-  UPROC_NEW          = (1<<0),  //!< new process with basic properties not parsed, u_proc.proc is NULL
   UPROC_INVALID      = (1<<1),
   UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
-  UPROC_ALIVE        = (1<<3),
   UPROC_HAS_PARENT   = (1<<4),
-  //! Process is dead, but still may have UPROC_NEW or UPROC_ALIVE state.
+  //! Process is dead.
   //! This is set if the process could not be found in /proc filesystem while trying to update its properties.
   //! Since this, no function accepting #u_proc will try to update its properties.
   UPROC_DEAD         = (1<<5),
@@ -416,13 +414,6 @@ int load_rule_directory(const char *path, const char *load_pattern, int fatal);
 int load_rule_file(const char *name);
 int load_lua_file(lua_State *L, const char *name);
 
-/* u_proc* u_proc_new(proc_t proc)
- *
- * Allocates a new u_proc structure.
- *
- * @param proc: optional proc_t to copy data from. Will cause state U_PROC_ALIVE.
- * Returns: new allocated u_proc with refcount 1
- */
 u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 

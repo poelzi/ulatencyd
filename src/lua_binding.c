@@ -902,7 +902,7 @@ static int u_proc_set_pgid (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(!U_PROC_HAS_STATE(proc, UPROC_ALIVE))
+  if(!U_PROC_HAS_STATE(proc, UPROC_BASIC))
     return 0;
 
   if(proc->proc->pgrp != value) {
@@ -2560,9 +2560,7 @@ LUALIB_API int luaopen_ulatency(lua_State *L) {
   PUSH_INT(SCHED_IDLE, SCHED_IDLE)
 
   // u_proc states
-  PUSH_INT(UPROC_NEW, UPROC_NEW)
   PUSH_INT(UPROC_INVALID, UPROC_INVALID)
-  PUSH_INT(UPROC_ALIVE, UPROC_ALIVE)
 
   // USession.id values
   PUSH_INT(USESSION_UNKNOWN, USESSION_UNKNOWN)

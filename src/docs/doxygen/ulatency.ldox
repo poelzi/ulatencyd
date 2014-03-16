@@ -148,11 +148,7 @@ ulatency.SCHED_RR = SCHED_RR
 --! @{
 
 --! @public @memberof ulatency
-ulatency.UPROC_NEW = UPROC_NEW
---! @public @memberof ulatency
 ulatency.UPROC_INVALID = UPROC_INVALID
---! @public @memberof ulatency
-ulatency.UPROC_ALIVE = UPROC_ALIVE
 --! @}
 
 --! @name U_PROC.session_id values
