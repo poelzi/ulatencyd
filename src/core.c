@@ -584,7 +584,6 @@ gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update) {
 
   if(what == BASIC) {
-    // make sure process has basic values parsed
     if (   (update == NOUPDATE && U_PROC_HAS_STATE(proc, UPROC_BASIC))
         || (update == UPDATE_ONCE && proc->ensured.basic)
     ) {
@@ -596,8 +595,16 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update
     }
 
   } else if(what == TASKS) {
-      // FIXME
-      return (U_PROC_IS_VALID(proc) ? TRUE : FALSE);
+      /*
+       * Tasks are available for every parsed process, regardless openproc flags,
+       * but currently when /proc is parsed it is always opened with
+       * OPENPROC_FLAGS, so we may consider TASKS equal to BASIC, except only
+       * valid processes have tasks.
+       */
+      if (U_PROC_HAS_STATE(proc, UPROC_INVALID))
+        return FALSE;
+      else
+        return u_proc_ensure(proc, BASIC, update);
 
   } else if(what == ENVIRONMENT) {
       if(((update == UPDATE_ONCE && !proc->ensured.environment) || update == UPDATE_NOW) && proc->environ) {
