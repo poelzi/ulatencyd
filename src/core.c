@@ -908,10 +908,15 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child, gboole
     if(!updates)
         updates = g_array_new(FALSE, FALSE, sizeof(pid_t));
     u_proc *parent = proc_by_pid(parent_pid);
-    // this should't happen, but under fork stress init may not have
-    // collected so the parent does not exist, or the parent just died. we try updating
-    // the process first and try again.
-    if(!parent) {
+    if (parent) {
+        return parent;
+    } else {
+        /*
+         * This shouldn't happen, but under fork stress init may not have
+         * collected so the parent does not exist, or the parent just died or
+         * the parent is a thread. We try updating the process first and try
+         * again.
+         */
         if(!child_noupdate && !find_parent_caller_stack(updates, child->pid)) {
             // try update the child first, maybe was reparented
             g_debug("child %d parent (%d) missing: force child update", child->pid, parent_pid);
@@ -930,16 +935,18 @@ static inline u_proc *parent_proc_by_pid(pid_t parent_pid, u_proc *child, gboole
 
         parent = proc_by_pid(child->proc->ppid);
         if(!parent) {
-            g_debug("parent missing, second try: %d parent %d", child->pid, child->proc->ppid);
+            g_debug("parent missing, second try: force child update %d parent (%d)", child->pid, child->proc->ppid);
             process_update_pid(child->proc->ppid);
             parent = proc_by_pid(child->proc->ppid);
         }
     }
-    if(!parent) {
+    if (parent) {
+        g_debug("child %d parent found: %d", child->pid, parent->pid);
+        return parent;
+    } else {
         g_warning("pid: %d parent %d missing. attaching to pid 1", child->pid, parent_pid);
         return proc_by_pid(1);
     }
-    return parent;
 }
 
 /**
