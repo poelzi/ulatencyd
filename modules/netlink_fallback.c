@@ -151,7 +151,7 @@ static gboolean cb_inotify(GIOChannel *ch, GIOCondition condition, gpointer data
         // near all processes (as the number of total processes approaches to pid_max)
         for (pid = old_recent_pid + 1; pid <= recent_pid; pid++) {
             // we get both processes (thread leaders) and threads
-            if (task_by_tid(pid)) continue;
+            if (task_by_tid(pid) || proc_by_pid(pid)) continue;
             // throw away threads
             if (get_pids(pid, &tgid, &ppid)) {
                 if (tgid != pid) {
