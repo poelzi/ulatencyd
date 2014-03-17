@@ -870,6 +870,54 @@ static void processes_free_value(gpointer data) {
   DEC_REF(proc);
 }
 
+/**
+ * Returns #u_proc of PID or thread leader if PID is a thread (task)
+ * @param pid             PID of a process or task
+ *
+ * @return #u_proc process or thread leader if \a pid is a thread
+ * @retval NULL if \a pid vanished from `/proc/` or it is a thread which
+ * thread leader does no more exist.
+ */
+u_proc *proc_by_pid_with_retry (pid_t pid)
+{
+  u_proc *proc;
+  u_task *task;
+
+  if (G_UNLIKELY (pid) <= 0)
+    return NULL;
+
+  proc = g_hash_table_lookup (processes, GUINT_TO_POINTER (pid));
+  if (proc)
+    return proc;
+
+  task = task_by_tid (pid);
+  if (task)
+    {
+      return task->proc;
+    }
+  else
+    {
+      pid_t    pids[2] = {pid, 0};
+      PROCTAB *proctab;
+      proc_t  *p;
+
+      proctab = openproc (PROC_FILLSTATUS | PROC_PID | PROC_LOOSE_TASKS, pids);
+      p = readproc (proctab, NULL);
+      closeproc (proctab);
+
+      if (!p)
+        return NULL; // vanished
+
+      pid = p->tgid;
+      pids[0] = pid;
+      freeproc (p);
+
+      if (process_update_pids (pids))
+        return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
+      else
+        return NULL;
+    }
+}
 
 static int find_parent_caller_stack(GArray *array, pid_t pid) {
     int i;

@@ -500,30 +500,8 @@ static inline u_task *task_by_tid(pid_t tid) {
   return g_hash_table_lookup(tasks, GUINT_TO_POINTER(tid));
 }
 
-/**
- * Returns #u_proc of PID or thread leader if PID is a task
- * @param pid PID of a process or task
- * @return #u_proc process or thread leader if \a pid is a task
- * @retval NULL if \a pid does not exist in `/proc/` or if it is a task which
- * thread leader is not already known (in internal #processes table).
- *
- * @bug If \a pid is not in #processes table, we should check `/proc/` to found
- * out whether it is an existent task and pass its leader to
- * #process_update_pid() so we can return the leader.
- */
-static inline u_proc *proc_by_pid_with_retry(pid_t pid) {
-  u_proc *proc = g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
-  if(proc)
-    return proc;
-  else {
-    u_task *task = task_by_tid(pid);
-    if (task)
-      return task->proc;
-  }
-  if(process_update_pid(pid))
-    return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
-  return NULL;
-}
+u_proc *proc_by_pid_with_retry (pid_t pid);
+
 
 int scheduler_run_one(u_proc *proc);
 int scheduler_run();
