@@ -1433,6 +1433,10 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
   proc = proc_by_pid(pid);
   if(!proc) {
     if(parent) {
+      /*
+       * PROC_EVENT_FORK event from netlink
+       * or new process from netlink_fallback
+       */
       proc = u_proc_new(NULL);
       proc->pid = pid;
       proc->proc->tid = pid;
@@ -1443,12 +1447,12 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
       g_node_append(proc_parent->node, proc->node);
       g_hash_table_insert(processes, GUINT_TO_POINTER(pid), proc);
     } else {
-      /* mostly PROC_EVENT_EXEC netlink event */
+      /*
+       * PROC_EVENT_EXEC event from netlink
+       */
       if(!process_update_pid(pid))
         return FALSE;  // already dead
       proc = proc_by_pid(pid);
-      if(!proc)       // if process_update_pid(pid) was successful, this cannot happen, right?
-        return FALSE;
     }
     lp = g_malloc(sizeof(struct delay_proc));
     lp->proc = proc;
@@ -1462,6 +1466,9 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     }
     proc->changed = TRUE;
   } else {
+    /*
+     * PROC_EVENT_EXEC event from netlink
+     */
     // we got a exec event, so the process changed daramaticly.
     // clear all filter blocks that requested rerun on exec
     clear_process_skip_filters(proc, FILTER_RERUN_EXEC);
@@ -1539,9 +1546,9 @@ int process_update_pid(pid_t pid) {
  */
 int process_new(int pid, int noupdate) {
   u_proc *proc;
-  // if the process is already dead we can exit
   if(noupdate && proc_by_pid(pid))
       return FALSE;
+  // if the process is already dead we can exit
   if(!process_update_pid(pid))
     return FALSE;
   proc = proc_by_pid(pid);

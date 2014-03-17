@@ -100,7 +100,12 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
     process_new(ev->event_data.id.process_pid, FALSE);
 		break;
 	case PROC_EVENT_EXIT:
-    // skip threads
+    /*
+     * Skip threads,
+     * We could remove thread from the thread leader tasks, but this is
+     * currently useless, as we don't schedule tasks and we can wait for
+     * the next iteration; tasks will be updated automatically.
+     */
     if(ev->event_data.exit.process_tgid != ev->event_data.exit.process_pid)
       break;
 		u_trace("EXIT Event: PID = %d", ev->event_data.exit.process_pid);
@@ -110,7 +115,7 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
 		process_remove_by_pid(ev->event_data.exit.process_pid);
 		break;
 	case PROC_EVENT_EXEC:
-	  // skip threads
+	  // skip threads, see above note
 	  if(ev->event_data.exec.process_tgid != ev->event_data.exec.process_pid)
       break;
 		u_trace("EXEC Event: PID = %d, tGID = %d",
@@ -119,23 +124,13 @@ static int nl_handle_msg(struct cn_msg *cn_hdr)
     process_new_delay(ev->event_data.exec.process_tgid, 0);
 		break;
 	case PROC_EVENT_FORK:
-    // we skip new threads for now
-    // FIXME need filter block to get those events
-    if(ev->event_data.fork.parent_tgid != ev->event_data.fork.child_pid)
+    // skip threads, see above note
+    if(ev->event_data.fork.child_tgid != ev->event_data.fork.child_pid)
       break;
-		u_trace("FORK Event: PARENT = %d PID = %d tGID = %d",
-			ev->event_data.fork.parent_tgid, ev->event_data.fork.child_pid, ev->event_data.fork.child_tgid);
-
-		// parent does not mean the parent of the new proc, but the parent of
-		// the forking process. so we lookup the parent of the forking process
-		// first
-
-		u_proc *rparent = proc_by_pid(ev->event_data.fork.parent_tgid);
-		if(rparent) {
-			u_proc_ensure(rparent, BASIC, NOUPDATE);
-			process_new_delay(ev->event_data.fork.child_tgid, rparent->proc->ppid); //ev->event_data.fork.parent_pid);
-		} else
-			process_new_delay(ev->event_data.fork.child_tgid, 0);
+		u_trace("FORK Event: PARENT = <PID: %d, TGID: %d>, CHILD = <PID: %d, TGID = %d>",
+		        ev->event_data.fork.parent_pid, ev->event_data.fork.parent_tgid,
+		        ev->event_data.fork.child_pid, ev->event_data.fork.child_tgid);
+		process_new_delay(ev->event_data.fork.child_tgid, ev->event_data.fork.parent_tgid);
 		break;
 	default:
 		return 0;
