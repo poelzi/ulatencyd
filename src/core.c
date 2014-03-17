@@ -1206,6 +1206,9 @@ int update_processes_run(PROCTAB *proctab, int full) {
     pids = proctab->pids; // used later do detect dead processes
   }
   while((p = readproc(proctab, NULL))){
+    // skip tasks
+    if(p->tid != p->tgid)
+      continue;
     proc = proc_by_pid(p->tid);
     if(proc) {
       new_proc = FALSE;
