@@ -1280,6 +1280,10 @@ int update_processes_run(PROCTAB *proctab, int full) {
       if(parent && parent->node) {
         // current parent is not what it should be
         if(proc->node->parent != parent->node) {
+          if (proc->node->parent)
+            u_trace ("Parent of pid %d changed from %d to %d.",
+                     proc->pid, ((u_proc *) proc->node->parent->data)->pid,
+                     ((u_proc *) parent->node->data)->pid);
           g_node_unlink(proc->node);
           g_node_append(parent->node, proc->node);
         }
