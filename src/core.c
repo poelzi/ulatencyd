@@ -1283,6 +1283,9 @@ static void rebuild_tree() {
   gpointer key, value;
   u_proc *proc, *parent;
 
+  // could this ever happen?
+  g_critical("Process tree is desynchronized, rebuilding.");
+
   // clear root node
   g_node_destroy(processes_tree);
   processes_tree = g_node_new(NULL);
