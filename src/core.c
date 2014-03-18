@@ -877,9 +877,15 @@ u_proc_ensure (u_proc                 *proc,
                enum ENSURE_UPDATE      update)
 {
   if (U_PROC_HAS_STATE(proc, UPROC_VANISHED))
-    update = UPDATE_NEVER;
-
-  if (update == UPDATE_DEFAULT)
+    {
+      update = UPDATE_NEVER;
+    }
+  else if (G_UNLIKELY ((proc->need_update & what) && update != UPDATE_NEVER))
+    {
+      update = UPDATE_NOW;
+      proc->need_update &= ~what;
+    }
+  else if (update == UPDATE_DEFAULT)
     {
       switch (what)
       {
@@ -1828,9 +1834,9 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     // force update on basic data, they will be invalid anyway
     int old_changed = proc->changed;
 
-    u_proc_ensure(proc, CMDLINE, UPDATE_NOW);
+    proc->ensured = 0;
+    proc->need_update |= BASIC | CMDLINE | EXE | CMDLINE;
     u_proc_ensure(proc, BASIC, UPDATE_NOW); //runs process_update_pid()
-    u_proc_ensure(proc, EXE, UPDATE_NOW);
 
     // if a process is in the new stack, his changed settings will be true
     // for sure, but we only want to schedule him, if the instant filters
