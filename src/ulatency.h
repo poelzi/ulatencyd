@@ -80,6 +80,21 @@ struct _U_HEAD {
   U_HEAD;
 };
 
+/**
+ * `printf()` format string determining the #u_proc instance.
+ * \see #U_PROC_FORMAT_ARGS(P)
+ */
+#define U_PROC_FORMAT \
+  "u_proc<pid:%d, ppid:%d, euid:%d, ustate:%X, exe:%s, cmdline:%s>"
+
+/**
+ * `printf()` arguments for #U_PROC_FORMAT format
+ * @param P an #u_proc instance
+ */
+#define U_PROC_FORMAT_ARGS(P) \
+  (P)->pid, (P)->proc->ppid, (P)->proc->euid, (P)->ustate, \
+  (P)->exe ? (P)->exe : "??", (P)->cmdline_match ? (P)->cmdline_match : "??"
+
 enum U_PROC_STATE {
   UPROC_INVALID      = (1<<1),
   UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
