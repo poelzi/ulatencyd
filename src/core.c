@@ -1956,19 +1956,27 @@ int process_run_one(u_proc *proc, int update, int instant) {
   if (update)
     process_update_pid(proc->pid);
 
-  // we must ensure BASIC properties are set and not schedule already dead processes
+  // we must ensure BASIC properties are set and not schedule vanished processes
   if (!u_proc_ensure(proc, BASIC, UPDATE_DEFAULT)
-      || U_PROC_HAS_STATE(proc, UPROC_VANISHED)) {
-    process_remove(proc);
-    return FALSE;
+      || U_PROC_HAS_STATE(proc, UPROC_VANISHED))
+    goto remove;
+
+  if (instant) {
+    filter_for_proc(proc, filter_fast_list);
+    if (U_PROC_HAS_STATE(proc, UPROC_VANISHED))
+      goto remove;
   }
 
-  if (instant)
-    filter_for_proc(proc, filter_fast_list);
-
   filter_for_proc(proc, filter_list);
-  scheduler_run_one(proc);
-  return TRUE;
+
+  if (!U_PROC_HAS_STATE(proc, UPROC_VANISHED)) {
+    scheduler_run_one(proc);
+    return TRUE;
+  }
+
+remove:
+  process_remove(proc);
+  return FALSE;
 }
 
 /**
