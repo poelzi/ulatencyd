@@ -219,14 +219,14 @@ typedef struct {
   //! #u_proc_ensure() to determine whether the property should be parsed again.
   //! \see UPDATE_ONCE_PER_RUN
   //! \sa U_PROC_PROPERTIES
-  guint ensured;
+  guint ensured_props;
 
   //! Mask of properties that may be invalid and need to be updated. These
   //! are set if process called a function from `exec()` family and used by
   //! #u_proc_ensure() to determine if the property must be updated even if
   //! update was not requested by the caller.
   //! \sa U_PROC_PROPERTIES
-  guint need_update;
+  guint invalid_props;
 } u_proc;
 
 typedef struct {
@@ -451,8 +451,8 @@ void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
  * These are used:
  *  - As argument passed to #u_proc_ensure() to make sure the properties are
  *    available and/or should be updated.
- *  - #u_proc.ensured
- *  - #u_proc.need_update
+ *  - #u_proc.ensured_props
+ *  - #u_proc.invalid_props
  */
 enum U_PROC_PROPERTIES {
   BASIC        = (1<<0), //!< all #u_proc properties except those mentioned

@@ -536,7 +536,7 @@ gboolean u_proc_update_cgroup(u_proc *proc) {
   if (G_UNLIKELY (U_PROC_HAS_STATE (proc, UPROC_VANISHED)))
     return proc->cgroup != NULL;
 
-  proc->ensured |= CGROUP;
+  proc->ensured_props |= CGROUP;
 
   if (!u_proc_update_cgroup_raw (proc))
     return proc->cgroup != NULL;
@@ -620,7 +620,7 @@ u_proc_update_environment (u_proc *proc)
   if (U_PROC_HAS_STATE (proc, UPROC_KERNEL | UPROC_MASK_DEAD))
     return proc->environ != NULL;
 
-  proc->ensured |= ENVIRONMENT;
+  proc->ensured_props |= ENVIRONMENT;
   env = u_read_env_hash (proc->pid);
 
   if (G_UNLIKELY (env == NULL))
@@ -673,7 +673,7 @@ u_proc_update_cmdline (u_proc *proc)
   if (U_PROC_HAS_STATE (proc, UPROC_MASK_DEAD | UPROC_KERNEL))
     return proc->cmdline && proc->cmdline->len > 0;
 
-  proc->ensured |= CMDLINE;
+  proc->ensured_props |= CMDLINE;
 
   cmdline = u_pid_read_0file (proc->pid, "cmdline");
 
@@ -771,7 +771,7 @@ u_proc_update_exe (u_proc *proc)
   if (U_PROC_HAS_STATE (proc, UPROC_MASK_DEAD | UPROC_KERNEL))
     return proc->exe != NULL;
 
-  proc->ensured |= EXE;
+  proc->ensured_props |= EXE;
 
   path = g_strdup_printf ("/proc/%u/exe", (guint) proc->pid);
   out = readlink (path, (char *) &buf, PATH_MAX);
@@ -880,10 +880,10 @@ u_proc_ensure (u_proc                 *proc,
     {
       update = UPDATE_NEVER;
     }
-  else if (G_UNLIKELY ((proc->need_update & what) && update != UPDATE_NEVER))
+  else if (G_UNLIKELY ((proc->invalid_props & what) && update != UPDATE_NEVER))
     {
       update = UPDATE_NOW;
-      proc->need_update &= ~what;
+      proc->invalid_props &= ~what;
     }
   else if (update == UPDATE_DEFAULT)
     {
@@ -928,9 +928,11 @@ u_proc_ensure (u_proc                 *proc,
 
     case ENVIRONMENT:
       if (update == UPDATE_NEVER
-          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured & ENVIRONMENT))
+          || (update == UPDATE_ONCE_PER_RUN
+              && (proc->ensured_props & ENVIRONMENT))
           || (update == UPDATE_ONCE
-              && ((proc->ensured & ENVIRONMENT) || proc->environ != NULL)))
+              && ((proc->ensured_props & ENVIRONMENT)
+                  || proc->environ != NULL)))
         return proc->environ != NULL;
       else
         return u_proc_update_environment (proc);
@@ -939,7 +941,7 @@ u_proc_ensure (u_proc                 *proc,
     case CGROUP:
       if (update == UPDATE_NEVER
           || (update == UPDATE_ONCE && proc->cgroup != NULL)
-          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured & CGROUP)))
+          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured_props & CGROUP)))
         {
           return proc->cgroup != NULL;
         }
@@ -950,9 +952,9 @@ u_proc_ensure (u_proc                 *proc,
 
     case CMDLINE:
       if (update == UPDATE_NEVER
-          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured & CMDLINE))
+          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured_props & CMDLINE))
           || (update == UPDATE_ONCE
-              && ((proc->ensured & CMDLINE) || proc->cmdline != NULL)))
+              && ((proc->ensured_props & CMDLINE) || proc->cmdline != NULL)))
         {
           return proc->cmdline != NULL && proc->cmdline->len > 0;
         }
@@ -964,9 +966,9 @@ u_proc_ensure (u_proc                 *proc,
 
     case EXE:
       if (update == UPDATE_NEVER
-          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured & EXE))
+          || (update == UPDATE_ONCE_PER_RUN && (proc->ensured_props & EXE))
           || (update == UPDATE_ONCE
-              && ((proc->ensured & EXE) || proc->exe != NULL)))
+              && ((proc->ensured_props & EXE) || proc->exe != NULL)))
         {
           return proc->exe != NULL;
         }
@@ -1558,7 +1560,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
       // free all changable allocated buffers
       freeproc(proc->proc);
       proc->proc = p;
-      proc->ensured = 0;
+      proc->ensured_props = 0;
     } else {
       new_proc = TRUE;
       proc = u_proc_new(p);
@@ -1578,7 +1580,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
       u_proc_add_task(proc, t);
       proc->received_rt |= (t->sched == SCHED_FIFO || t->sched == SCHED_RR);
     }
-    proc->ensured |= TASKS;
+    proc->ensured_props |= TASKS;
     // remove invalid (not re-added) tasks
     if (! new_proc) {
       for(i = 0; i < proc->tasks->len;) {
@@ -1600,7 +1602,7 @@ int update_processes_run(PROCTAB *proctab, int full) {
          * Test for kernel threads and zombies or dead processes
          */
         U_PROC_SET_STATE(proc, UPROC_BASIC);
-        proc->ensured |= BASIC;
+        proc->ensured_props |= BASIC;
         if (proc->proc->state == 'Z')
           U_PROC_SET_STATE(proc, UPROC_ZOMBIE);
         else if (proc->proc->vsize == 0) {
@@ -1834,8 +1836,8 @@ gboolean process_new_delay(pid_t pid, pid_t parent) {
     // force update on basic data, they will be invalid anyway
     int old_changed = proc->changed;
 
-    proc->ensured = 0;
-    proc->need_update |= BASIC | CMDLINE | EXE | CMDLINE;
+    proc->ensured_props = 0;
+    proc->invalid_props |= BASIC | CMDLINE | EXE | CMDLINE;
     u_proc_ensure(proc, BASIC, UPDATE_NOW); //runs process_update_pid()
 
     // if a process is in the new stack, his changed settings will be true
