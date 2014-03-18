@@ -2388,25 +2388,6 @@ static int user_load_rule_directory(lua_State *L) {
   return 1;
 }
 
-static int l_uid_stats(lua_State *L) {
-    USession *sess;
-    uid_t uid = luaL_checkinteger(L, 1);
-    int act = 0;
-    int idle = 1;
-    while (sess) {
-      if(sess->uid == uid) {
-          if(sess->active)
-              act = 1;
-          if(!sess->idle)
-              idle = 0;
-      }
-      sess = sess->next;
-    }
-    lua_pushboolean(L, act);
-    lua_pushboolean(L, idle);
-    return 2;
-}
-
 static int l_search_uid_env(lua_State *L) {
     uid_t uid = luaL_checkinteger(L, 1);
     const char *key = luaL_checkstring(L, 2);
@@ -2487,7 +2468,6 @@ static const luaL_reg R[] = {
   {"list_keys",  l_list_keys},
   // system & user querying
   {"get_sessions", l_get_sessions},
-  {"get_uid_stats", l_uid_stats},
   {"search_uid_env", l_search_uid_env},
   // misc
   {"filter_rv",  l_filter_rv},

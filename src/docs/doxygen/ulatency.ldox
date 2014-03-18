@@ -435,15 +435,6 @@ end
 function ulatency.get_sessions()
 end
 
---! @brief Returns status of ConsoleKit sessions for user `uid`.
---! @param uid User UID
---! @return active, idle Returns two values.
---! @retval active If any of the user `uid` ConsoleKit sessions is active this values is 1, otherwise 0.
---! @retval idle If at least one of the user sessions is not idle this value is 0, otherwise 1.
---! @public @memberof ulatency
-function ulatency.get_uid_stats(uid)
-end
-
 --! @brief Gets array of unique values of environment variable `key` across all processes of the `uid` user.
 --! @param uid User UID
 --! @param key The name of environment variable.
