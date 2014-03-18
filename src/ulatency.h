@@ -110,9 +110,9 @@ enum U_PROC_STATE {
 #define U_PROC_IS_INVALID(P) ( P ->ustate & UPROC_INVALID )
 #define U_PROC_IS_VALID(P) ((( P ->ustate & U_PROC_OK_MASK ) & UPROC_INVALID ) == 0)
 
-#define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
-#define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
-#define U_PROC_HAS_STATE(P,STATE) ( ( P ->ustate & STATE ) == STATE )
+#define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~( STATE )))
+#define U_PROC_HAS_STATE(P,STATE) ( ( P ->ustate & ( STATE )))
+#define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | ( STATE ) ))
 
 
 enum FILTER_TYPES {
