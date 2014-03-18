@@ -176,21 +176,6 @@ struct filter_block {
   int flags;
 };
 
-/**
- * Identifies which #u_proc properties have been update since `/proc/<PID>/`
- * directory was parsed last time, i.e. since last time the process was passed
- * to #update_processes_run()
- * \see #u_proc_ensure()
- */
-typedef struct {
-  //gboolean basic; // use U_PROC_SET_STATE(proc, UPROC_BASIC) instead
-  gboolean environment;
-  gboolean cmdline;
-  gboolean exe;
-  //gboolean tasks; // not implemented
-  gboolean cgroup;
-} u_proc_ensured;
-
 typedef struct {
   U_HEAD;
   int           pid;            //!< duplicate of proc.tgid
@@ -228,7 +213,13 @@ typedef struct {
   pid_t         fake_sid;   //!< fake value of session
   pid_t         fake_sid_old;
 
-  u_proc_ensured ensured;       //!< properties ensured since current iteration start
+  //! Mask of properties that were already updated since `/proc/PID/` directory
+  //! was parsed last time; usually since the current iteration started.
+  //! Values are cleared by #update_processes_run() and set/used by
+  //! #u_proc_ensure() to determine whether the property should be parsed again.
+  //! \see UPDATE_ONCE_PER_RUN
+  //! \sa U_PROC_PROPERTIES
+  guint ensured;
 } u_proc;
 
 typedef struct {
@@ -444,21 +435,27 @@ int load_lua_file(lua_State *L, const char *name);
 u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 
-//! @name Ensure #u_proc properties
+//! @name Ensure u_proc properties
 //! @{
 
-//! @public @memberof u_proc
-
 /**
- * What fields should be ensured by #u_proc_ensure().
+ * Sets of #u_proc properties that are updated as an unit.
+ *
+ * These are used:
+ *  - As argument passed to #u_proc_ensure() to make sure the properties are
+ *    available and/or should be updated.
+ *  - #u_proc.ensured
  */
-enum ENSURE_WHAT {
-  BASIC,
-  ENVIRONMENT,
-  CMDLINE,
-  EXE,
-  TASKS,
-  CGROUP
+enum U_PROC_PROPERTIES {
+  BASIC        = (1<<0), //!< all #u_proc properties except those mentioned
+                         //!< below
+  ENVIRONMENT  = (1<<1), //!< #u_proc.environ
+  CMDLINE      = (1<<2), //!< #u_proc.cmdline, #u_proc.cmdline_match,
+                         //!< #u_proc.cmdfile
+  EXE          = (1<<3), //!< #u_proc.exe
+  TASKS        = (1<<4), //!< #u_proc.tasks
+  CGROUP       = (1<<5)  //!< #u_proc.cgroup, #u_proc.cgroup_raw and
+                         //!< #u_proc.cgroup_origin
 };
 
 /**
@@ -468,7 +465,7 @@ enum ENSURE_UPDATE {
   //! do not update fields
   UPDATE_NEVER = -1,
   //! update conditions are selected according the field type
-  //! \see #ENSURE_WHAT for more information.
+  //! \see #U_PROC_PROPERTIES for more information.
   UPDATE_DEFAULT = 0,
   //! fields are updated unless already set and unless another attempt to update
   //! them occurred since `/proc/<PID>/` directory was parsed last time
@@ -481,7 +478,7 @@ enum ENSURE_UPDATE {
   UPDATE_NOW = 3
 };
 
-int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update);
+int u_proc_ensure(u_proc *proc, enum U_PROC_PROPERTIES what, enum ENSURE_UPDATE update);
 
 //! @} End of "Ensure #u_proc properties"
 
