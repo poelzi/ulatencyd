@@ -271,7 +271,7 @@ int init_netlink(GMainLoop *loop) {
 
 	/* test if PROC_CN_MCAST_LISTEN will success */
 	netlink_proc_listening = FALSE;
-	g_socket_set_timeout(gsocket, 10);
+	g_socket_set_timeout(gsocket, 60);
 
 	/* fill the netlink header */
 	nl_hdr->nlmsg_len = SEND_MESSAGE_LEN;
