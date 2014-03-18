@@ -2762,7 +2762,7 @@ int core_init() {
       lua_call(lua_main_state, 1, 0);
 
       lua_pushcfunction(lua_main_state, luaopen_u_session);
-      lua_pushstring(lua_main_state, "U_TASK");
+      lua_pushstring(lua_main_state, "U_SESSION");
       lua_call(lua_main_state, 1, 0);
 
       lua_pushcfunction(lua_main_state, luaopen_u_flag);
