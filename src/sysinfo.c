@@ -19,8 +19,111 @@
 
 #include "config.h"
 #include "ulatency.h"
+
 #include <glib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+/**
+ * Returns contents of file `/proc/<pid>/<what>`.
+ *
+ * @param pid
+ * @param what        name of file in directory `/proc/<pid>/` to read contents
+ *                    from.
+ * @param[out] length location to store length in bytes of the contents,
+ *                    or \c NULL.
+ *
+ * @return contents of a file as a newly allocated string, use g_free() to free
+ *         the returned string.
+ * @retval NULL if either reading failed or content is empty:
+ * - If content is empty, \a errno is set to \c EEXIST and \a length to \c 0.
+ * - If error occurred, \a errno is set appropriately and \a length is not set.
+ */
+gchar *
+u_pid_read_file (pid_t       pid,
+                 const char *what,
+                 gsize      *length)
+{
+  gchar *path;
+  gchar *contents;
+  gint fd;
+  gchar buf[4096];
+  ssize_t bytes;
+  gsize total_bytes;
+  gsize total_allocated;
+  gint save_errno;
+
+  path = g_strdup_printf ("/proc/%u/%s", (guint)pid, what);
+
+  fd = open (path, O_RDONLY);
+  g_free (path);
+
+  if (fd < 0)
+    return NULL;
+
+  contents = NULL;
+  total_bytes = 0;
+  total_allocated = 0;
+
+  while (TRUE)
+    {
+      bytes = read (fd, buf, sizeof buf);
+
+      if (bytes == -1)
+        {
+          if (G_UNLIKELY (errno == EINTR))
+            continue;
+          goto error;
+        }
+      else if (bytes == 0)
+        {
+          break;
+        }
+      else if (G_UNLIKELY (total_bytes > G_MAXSIZE - bytes))
+        {
+          goto file_too_large;
+        }
+      else if (G_UNLIKELY (bytes < 0)) {
+          g_assert_not_reached();
+      }
+
+      if (!contents)
+        total_allocated = bytes + 1;
+      else
+        total_allocated += bytes;
+
+      contents = g_realloc (contents, total_allocated);
+      memcpy (contents + total_bytes, buf, bytes);
+
+      total_bytes += bytes;
+    }
+
+  close (fd);
+
+  if (G_UNLIKELY (total_allocated == 0))
+    errno = EEXIST;
+  else
+    contents[total_bytes] = '\0';
+
+  if (length)
+    *length = total_bytes;
+
+  return contents;
+
+file_too_large:
+  errno = EFBIG;
+
+error:
+  save_errno = errno;
+  g_free (contents);
+  close (fd);
+  errno = save_errno;
+
+  return NULL;
+}
 
 /* adapted from consolekit */
 GHashTable *
