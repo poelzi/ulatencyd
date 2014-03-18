@@ -339,11 +339,9 @@ static int l_list_processes (lua_State *L) {
   while (g_hash_table_iter_next (&iter, &ikey, &value)) 
   {
     proc = (u_proc *)value;
-    if(changed) {
-      if(!proc->changed) {
-        continue;
-      }
-    }
+    if (U_PROC_HAS_STATE (proc, UPROC_MASK_DEAD)
+        || (changed && !proc->changed))
+      continue;
     lua_pushinteger(L, i);
     push_u_proc(L, proc);
     lua_settable(L, -3);

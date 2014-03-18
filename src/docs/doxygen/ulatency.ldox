@@ -276,7 +276,7 @@ end
 
 --! Returns array with `U_PROC` processes from ulatency #processes table.
 --! @param changed TRUE if only changed processes should be included.
---! @return Array of `U_PROC` instances.
+--! @return Array of `U_PROC` instances excluding zombies and vanished processes.
 --! @public @memberof ulatency
 function ulatency.list_processes(changed)
 end
