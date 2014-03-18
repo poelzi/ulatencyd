@@ -63,8 +63,6 @@ void  u_assert_process_dead_real (u_proc      *proc,
     ( P ->ustate = ( P ->ustate | STATE )); \
   } while (0)
 
-#else
-define u_assert_process_dead(proc)
 #endif /* DEVELOP_MODE */
 
 
