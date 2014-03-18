@@ -38,10 +38,11 @@
  *
  * \note
  * If DEVELOP_MODE defined, this assertion is called everytime some process
- * is marked as dead, specifically on each U_PROC_STATE(P, UPROC_DEAD) macro
- * call. Assertion failure in this case is a symptom that ulatencyd core is
- * making false assumptions about /proc/ behaviour, i.e. it falsely assumes
- * some process is dead or it is a zombie, instead it is still alive.
+ * is marked as dead, specifically on each U_PROC_STATE(P, UPROC_VANISHED) or
+ * U_PROC_STATE(P, UPROC_ZOMBIE) macro call. Assertion failure in this case is
+ * a symptom that ulatencyd core is making false assumptions about /proc/<pid>/
+ * files behaviour, i.e. it falsely assumes some process disappeared or is
+ * a zombie, instead it is still alive.
  *
  */
 #define u_assert_process_dead(proc) u_assert_process_dead_real (proc,     \
@@ -57,7 +58,7 @@ void  u_assert_process_dead_real (u_proc      *proc,
 #undef U_PROC_SET_STATE
 #define U_PROC_SET_STATE(P,STATE) \
   do { \
-    if (STATE == UPROC_DEAD) \
+    if (STATE == UPROC_VANISHED || STATE == UPROC_ZOMBIE) \
       u_assert_process_dead (P); \
     ( P ->ustate = ( P ->ustate | STATE )); \
   } while (0)

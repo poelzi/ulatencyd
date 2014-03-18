@@ -312,6 +312,20 @@ U_PROC.is_valid = <boolean>
 --! function are always valid.
 --! @public @memberof U_PROC
 U_PROC.is_invalid = <boolean>
+--! kernel thread; in rare cases it may be not yet detected dead or zombie
+--! process with EUID 0; it's guaranteed there is no kernel process with
+--! UPROC_BASIC but without UPROC_KERNEL state
+--! @public @memberof U_PROC
+U_PROC.is_kernel = <boolean>
+--! \c the #U_PROC is a zombie
+--! @public @memberof U_PROC
+U_PROC.is_zombie = <boolean>
+--! \c the #U_PROC vanished from `/proc/`
+--! @public @memberof U_PROC
+U_PROC.is_vanished = <boolean>
+--! \c the #U_PROC vanished from `/proc/` or is a zombie
+--! @public @memberof U_PROC
+U_PROC.is_dead = <boolean>
 --! @see `U_PROC::clear_changed()`
 --! @public @memberof U_PROC
 U_PROC.changed = <boolean>

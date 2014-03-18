@@ -478,71 +478,81 @@ GList *u_proc_list_flags (u_proc *proc, gboolean recrusive) {
 }
 
 /**
- * fills all `#u_proc` fields containing information about the process cgroups
- * @param proc[in,out] a #u_proc
- * @param force_update Force `/proc/#/cgroup` parsing
- *
- * Ensures that fields storing the raw cgroups paths are set (`#uproc.cgroup_raw` and `#u_proc.cgroup_origin`).
- * If not or `force_update` requested, fills them with `/proc/#/cgroup` content.
- * Then parse these raw values to `#u_proc.cgroup` and `#u_proc.cgroup_origin` hash tables. Each table item is
- * cgroup path relative to the root of each hierarchy, hashed by the name of the hierarchy subsystem.
- *
- * @retval TRUE if cgroup was set
- * @retval FALSE on failure. `#u_proc.cgroup` will be set to NULL, `#u_proc.cgroup_origin` not touched.
+ * Updates #u_proc->cgroup_raw and fills #u_proc->cgroup_origin_raw if not
+ * already filled.
+ * @param proc an #u_proc
+ * @retval TRUE if #u_proc->cgroup_raw has been updated
  */
-gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
-  GHashTable *cgroups, *cgroups_origin;
-  char       *content;
-  char       *path;
-  GError     *error = NULL;
-  int        i;
+gboolean
+u_proc_update_cgroup_raw (u_proc *proc)
+{
+  char     *cgroups;
 
-  if (proc->cgroup) {
-    g_hash_table_unref(proc->cgroup);
-    proc->cgroup = NULL;
-  }
-
-  if (U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if (G_UNLIKELY (U_PROC_HAS_STATE (proc, UPROC_VANISHED)))
     return FALSE;
 
-  //  if needed or requested, read raw values from /proc/#/cgroup into proc->cgroup_raw
-  if (!proc->cgroup_raw || force_update) {
+  cgroups = u_pid_read_file (proc->pid, "cgroup", NULL);
 
-    g_strfreev(proc->cgroup_raw);
-    proc->cgroup_raw=NULL;
-
-    path = g_strdup_printf ("/proc/%u/cgroup", (guint)proc->pid);
-
-    if(g_file_get_contents(path, &content, NULL, &error)) {
-      proc->cgroup_raw = g_strsplit_set(content, "\n", -1);
-    } else {
-        g_debug("setting state UPROC_DEAD to process - pid: %d", proc->pid);
-        U_PROC_SET_STATE(proc, UPROC_DEAD);
-        g_error_free(error);
+  if (G_UNLIKELY (cgroups == NULL))
+    {
+      /* vanished process */
+      if (errno == ENOENT || errno == ESRCH)
+        {
+          U_PROC_SET_STATE (proc, UPROC_VANISHED);
+        }
+      /* empty cgroup file - this can never happen */
+      else if (errno == EEXIST)
+        {
+          g_critical ("%s: " U_PROC_FORMAT "Process cgroup file is empty!",
+                      G_STRFUNC, U_PROC_FORMAT_ARGS (proc));
+        }
+      else
+        {
+          g_critical ("%s: " U_PROC_FORMAT " error %d: %s",
+                      G_STRFUNC, U_PROC_FORMAT_ARGS (proc),
+                      errno, strerror (errno));
+        }
+      return FALSE;
     }
 
-    g_free(path);
-    g_free(content);
+  g_strfreev (proc->cgroup_raw);
+  proc->cgroup_raw = g_strsplit_set (cgroups, "\n", -1);
+  if (proc->cgroup_origin_raw == NULL)
+    proc->cgroup_origin_raw = g_strdupv (proc->cgroup_raw);
 
-    if (! proc->cgroup_raw)
-      return FALSE;
-  }
+  g_free (cgroups);
 
-  // fill proc->cgroup_origin_raw if not already set
-  if (!proc->cgroup_origin_raw)
-    proc->cgroup_origin_raw = g_strdupv(proc->cgroup_raw);
+  return TRUE;
+}
+
+/**
+ * Updates #u_proc->cgroup and related fields; #u_proc_ensure() helper function.
+ * \see #u_proc_ensure() for description of its behavior.
+ */
+gboolean u_proc_update_cgroup(u_proc *proc) {
+  GHashTable  *cgroups, *cgroups_origin;
+  char       **lines;
+
+  if (G_UNLIKELY (U_PROC_HAS_STATE (proc, UPROC_VANISHED)))
+    return proc->cgroup != NULL;
+
+  proc->ensured.cgroup = TRUE;
+
+  if (!u_proc_update_cgroup_raw (proc))
+    return proc->cgroup != NULL;
 
   /* parse */
 
-  char **lines = proc->cgroup_raw;
-  cgroups_origin = NULL;
-
   cgroups = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-  if (!proc->cgroup_origin) {
-    cgroups_origin = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-  }
+  if (G_LIKELY (proc->cgroup_origin != NULL))
+    cgroups_origin = NULL;
+  else
+    cgroups_origin = g_hash_table_new_full (g_str_hash,
+                                            g_str_equal, g_free, g_free);
 
-  for(i = 0; lines[i]; i++) {
+  lines = proc->cgroup_raw;
+  while (*lines)
+    {
       char **vals;
       /*
        * Ulatencyd will not run with multiple subsystems mounted in single
@@ -552,157 +562,417 @@ gboolean u_proc_parse_cgroup(u_proc *proc, gboolean force_update) {
        * Another approach is to use hierarchy_number as index into hash
        * table generated from /proc/cgroups. Would it be faster?
        */
-      vals = g_strsplit (lines[i], ":", 3);
-      if (vals != NULL && g_strv_length(vals) == 3) {
-        g_hash_table_insert (cgroups, g_strdup (vals[1]), g_strdup (vals[2]));
-        if (cgroups_origin)
-          g_hash_table_insert (cgroups_origin, g_strdup (vals[1]), g_strdup (vals[2]));
-      }
+      vals = g_strsplit (*lines, ":", 3);
+      if (vals != NULL && g_strv_length(vals) == 3)
+        {
+          g_hash_table_insert (cgroups, g_strdup (vals[1]), g_strdup (vals[2]));
+          if (cgroups_origin)
+            g_hash_table_insert (cgroups_origin,
+                                 g_strdup (vals[1]), g_strdup (vals[2]));
+        }
       g_strfreev (vals);
-  }
+      lines++;
+    }
 
   if (cgroups_origin)
     proc->cgroup_origin = cgroups_origin;
-  if (cgroups) {
-    proc->cgroup = cgroups;
-    return TRUE;
-  }
-  return FALSE;
+
+  if (cgroups)
+    {
+      if (proc->cgroup != NULL)
+        g_hash_table_unref (proc->cgroup);
+      proc->cgroup = cgroups;
+      return TRUE;
+    }
+  else
+    {
+      return proc->cgroup != NULL;
+    }
 }
 
 /**
- * ensures fields on #u_proc
- * @arg proc a #u_proc
- * @arg what set of varibles to fill from #ENSURE_WHAT
- * @arg update force update
- *
- * Ensures a set of varibles is filled. 
- * If update is true, the variables are updated even if they already exist.
- *
- * @return @success
+ * Updates #u_proc basic fields; #u_proc_ensure() helper function.
+ * \see #u_proc_ensure() for description of its behavior.
  */
-int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update) {
+inline static gboolean
+u_proc_update_basic (u_proc *proc)
+{
+  if (G_UNLIKELY (U_PROC_HAS_STATE (proc, UPROC_VANISHED)))
+    return U_PROC_HAS_STATE (proc, BASIC);
 
-  if(what == BASIC) {
-    if (   (update == NOUPDATE && U_PROC_HAS_STATE(proc, UPROC_BASIC))
-        || (update == UPDATE_ONCE && proc->ensured.basic)
-    ) {
-      return TRUE;
-    } else if (U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
-      return FALSE;
-    } else {
-      return (proc->ensured.basic = process_update_pid(proc->pid));
+  process_update_pid (proc->pid);
+  return U_PROC_HAS_STATE (proc, BASIC);
+}
+
+/**
+ * Updates #u_proc->environ table; #u_proc_ensure() helper function.
+ * \see #u_proc_ensure() for description of its behavior.
+ */
+static gboolean
+u_proc_update_environment (u_proc *proc)
+{
+  GHashTable *env;
+
+  /*
+   * Skip vanished, kernel and zombie processes.
+   * Kernel and zombie processes have always empty environ file.
+   */
+  if (U_PROC_HAS_STATE (proc, UPROC_KERNEL | UPROC_MASK_DEAD))
+    return proc->environ != NULL;
+
+  proc->ensured.environment = TRUE;
+  env = u_read_env_hash (proc->pid);
+
+  if (G_UNLIKELY (env == NULL))
+    {
+      /* vanished process */
+      if (errno == ENOENT || errno == ESRCH)
+        {
+          U_PROC_SET_STATE (proc, UPROC_VANISHED);
+        }
+      /* empty environ file => it is kernel process or a zombie */
+      else if (errno == EEXIST)
+        {
+          /* test if it is a sure zombie */
+          if ((proc->ustate & (UPROC_BASIC | UPROC_KERNEL)) == UPROC_BASIC
+               || proc->environ != NULL)
+            U_PROC_SET_STATE (proc, UPROC_ZOMBIE);
+        }
+      else
+        {
+          g_critical ("%s: " U_PROC_FORMAT " error %d: %s",
+                      G_STRFUNC, U_PROC_FORMAT_ARGS (proc),
+                      errno, strerror (errno));
+        }
+      return proc->environ != NULL;
     }
 
-  } else if(what == TASKS) {
+    if (proc->environ != NULL)
+      g_hash_table_unref (proc->environ);
+    proc->environ = env;
+
+    return TRUE;
+}
+
+/**
+ * Updates #u_proc->cmdline and related fields; #u_proc_ensure() helper function.
+ * \see #u_proc_ensure() for description of its behavior.
+ */
+static gboolean
+u_proc_update_cmdline (u_proc *proc)
+{
+  GPtrArray  *cmdline;
+  gchar      *cmd;
+  GString    *match;
+  int         i;
+
+  /*
+   * Skip vanished, kernel and zombie processes.
+   * Kernel and zombie processes have always empty cmdline file.
+   */
+  if (U_PROC_HAS_STATE (proc, UPROC_MASK_DEAD | UPROC_KERNEL))
+    return proc->cmdline && proc->cmdline->len > 0;
+
+  proc->ensured.cmdline = TRUE;
+
+  cmdline = u_pid_read_0file (proc->pid, "cmdline");
+
+  if (G_UNLIKELY (cmdline == NULL))
+    {
+      /* vanished process */
+      if (errno == ENOENT || errno == ESRCH)
+        {
+          U_PROC_SET_STATE (proc, UPROC_VANISHED);
+        }
+      /* empty cmdline file => it is kernel process or a zombie */
+      else if (errno == EEXIST)
+        {
+          /* test if it is a sure zombie */
+          if ((proc->ustate & (UPROC_BASIC | UPROC_KERNEL)) == UPROC_BASIC
+               || (proc->cmdline != NULL && cmdline->len > 0))
+            U_PROC_SET_STATE (proc, UPROC_ZOMBIE);
+        }
+      else
+        {
+          g_critical ("%s: " U_PROC_FORMAT " error %d: %s",
+                      G_STRFUNC, U_PROC_FORMAT_ARGS (proc),
+                      errno, strerror (errno));
+        }
+      return proc->cmdline && proc->cmdline->len > 0;
+    }
+
+  if (G_UNLIKELY (cmdline->len == 0))
+    {
       /*
-       * Tasks are available for every parsed process, regardless openproc flags,
-       * but currently when /proc is parsed it is always opened with
-       * OPENPROC_FLAGS, so we may consider TASKS equal to BASIC, except only
-       * valid processes have tasks.
+       * There was only null byte ('\0').
+       * If my understanding is correct, this can never happen.
        */
+      g_critical ("%s: " U_PROC_FORMAT
+                  "Process cmdline contains only a null byte; "
+                  "this is a sign of ulatencyd wrong assumptions.",
+                  G_STRFUNC, U_PROC_FORMAT_ARGS (proc));
+      g_ptr_array_unref (cmdline);
+      return proc->cmdline && proc->cmdline->len > 0;
+    }
+
+  if (proc->cmdline != NULL)
+    {
+      g_ptr_array_unref (proc->cmdline);
+      g_assert (proc->cmdline_match != NULL);
+      g_assert (proc->cmdfile != NULL);
+      g_free (proc->cmdline_match);
+      g_free (proc->cmdfile);
+    }
+  proc->cmdline = cmdline;
+
+  match = g_string_new ("");
+  for (i = 0; i < cmdline->len; i++)
+    {
+      if (i > 0)
+          match = g_string_append_c(match, ' ');
+      match = g_string_append (match,
+                               g_ptr_array_index(cmdline, i));
+    }
+  proc->cmdline_match = g_string_free (match, FALSE);
+
+  proc->cmdfile = NULL;
+  cmd = g_ptr_array_index (proc->cmdline, 0);
+  if (cmd)
+    {
+      gchar *slash;
+      slash = g_strrstr_len (cmd, -1, "/");
+      if (slash == NULL)
+        proc->cmdfile = g_strdup (cmd);
+      else if ((slash + 1 - cmd) < strlen(cmd))
+        proc->cmdfile = g_strdup (slash + 1);
+    }
+  if (G_UNLIKELY (proc->cmdfile == NULL))
+    proc->cmdfile = g_strdup ("");
+
+  return proc->cmdline->len > 0;
+}
+
+/**
+ * Updates #u_proc->exe field; #u_proc_ensure() helper function.
+ * \see #u_proc_ensure() for description of its behavior.
+ */
+static gboolean
+u_proc_update_exe (u_proc *proc)
+{
+  char buf[PATH_MAX+1];
+  ssize_t out;
+  char *path;
+
+  /*
+   * Skip vanished, kernel and zombie processes.
+   * Kernel and zombie processes have always exe file which cannot be
+   * dereferenced.
+   */
+  if (U_PROC_HAS_STATE (proc, UPROC_MASK_DEAD | UPROC_KERNEL))
+    return proc->exe != NULL;
+
+  proc->ensured.exe = TRUE;
+
+  path = g_strdup_printf ("/proc/%u/exe", (guint) proc->pid);
+  out = readlink (path, (char *) &buf, PATH_MAX);
+  if (out < 0)
+    {
+      if (G_LIKELY (errno == ENOENT || errno == ESRCH))
+        {
+          /*
+           * It's kernel thread, a zombie or the process vanished.
+           */
+          if ((proc->ustate & (UPROC_BASIC | UPROC_KERNEL)) == UPROC_BASIC
+              || proc->exe)
+            {
+              /*
+               * It is not a kernel thread, so it's either zombie or vanished.
+               */
+              char *pid_dir = g_strdup_printf ("/proc/%u/", (guint) proc->pid);
+              if (access(pid_dir, F_OK) == 0)
+                U_PROC_SET_STATE (proc, UPROC_ZOMBIE);
+              else if (errno == ENOENT)
+                U_PROC_SET_STATE (proc, UPROC_VANISHED);
+              else
+                {
+                  g_critical ("%s: " U_PROC_FORMAT " access '%s' error %d: %s",
+                              G_STRFUNC, U_PROC_FORMAT_ARGS (proc),
+                              pid_dir, errno, strerror(errno));
+                }
+              g_free (pid_dir);
+            }
+        }
+      else
+        {
+          g_critical ("%s: " U_PROC_FORMAT " readlink '%s' error %d: %s",
+                      G_STRFUNC, U_PROC_FORMAT_ARGS (proc),
+                      path, errno, strerror(errno));
+        }
+      g_free (path);
+      return proc->exe != NULL;
+   }
+  g_free (path);
+  buf[out] = 0;
+
+  // strip out the ' (deleted)' suffix
+  if (out > 10 && !strncmp ((char *) &buf[out-10], " (deleted)", 10))
+    {
+      buf[out-10] = 0;
+      out -= 10;
+    }
+  if (G_UNLIKELY (proc->exe ))
+    g_free (proc->exe);
+  proc->exe = g_strndup((char *)&buf, out);
+
+  return proc->exe != NULL;
+}
+
+/**
+ * Ensures if a set of #u_proc fields is filled.
+ * @param proc   an #u_proc
+ * @param what   ensure what fields
+ * @param update whether (on what occasions) fields should be updated
+ *
+ * @retval TRUE if required fields are set
+ * @retval FALSE if required fields are not set
+ *         (i.e. were __never__ successfully parsed)
+ *
+ * By calling this function you may ensure whether the set of properties is set
+ * and say whether they should be updated first. But you cannot elaborate
+ * whether or when they were actually updated or whether the update was
+ * successful; only if properties are set at the end.
+ * If the properties should be updated but weren't, because the process died,
+ * became a zombie, or it is actually a kernel process, you may test #u_proc
+ * states /#U_PROC_HAS_STATE()/ which are always set by this function on
+ * expected errors. On other (unexpected) errors, there is nothing you can do
+ * with it anyway; user has been already informed by critical warning, and the
+ * code should continue if older values of properties are available (\c TRUE was
+ * returned) or give up if required properties are not set (\c FALSE was
+ * returned).
+ * \note
+ * If called on \a proc with state #UPROC_VANISHED, this function never attempts
+ * to update fields, otherwise fields are or are not updated according passed
+ * \a update argument.
+ * \note
+ * In case fields could not be updated as result of an error indicating \a proc
+ * is gone, the \a proc state is set to #UPROC_VANISHED; fields preserve their
+ * old values until all references to \a proc drop to zero and \a proc is freed.
+ * If DEVELOP_MODE is defined, check is made whether \a proc is really not
+ * present in `/proc/` directory; critical warning is logged if it still exists,
+ * because this indicates wrong ulatencyd assumptions and should be fixed.
+ * \note
+ * Similar, if an error indicating \a proc is a zombie, its state is set to
+ * #UPROC_ZOMBIE, fields preserve their old values and in DEVELOP_MODE test
+ * is performed to ensure correctness of the decision.
+ * \note In case of other error, fields are preserved too but critical warning
+ * is logged, as this is a sign of something went unexpectedly wrong.
+ * \note If required update fails and fields do not have old values, i.e. were
+ * never successfully updated, \c FALSE is returned and consecutive calls with
+ * \a update value #UPDATE_ONCE or #UPDATE_ONCE_PER_RUN are ignored until
+ * `/proc/<PID/` directory is parsed again.
+ */
+gboolean
+u_proc_ensure (u_proc             *proc,
+               enum ENSURE_WHAT    what,
+               enum ENSURE_UPDATE  update)
+{
+  if (U_PROC_HAS_STATE(proc, UPROC_VANISHED))
+    update = UPDATE_NEVER;
+
+  if (update == UPDATE_DEFAULT)
+    {
+      switch (what)
+      {
+        case BASIC:
+        case TASKS:
+        case ENVIRONMENT:
+        case CGROUP:
+          update = UPDATE_ONCE_PER_RUN;
+          break;
+
+        case CMDLINE:
+        case EXE:
+          update = UPDATE_ONCE;
+          break;
+      }
+    }
+
+  switch (what)
+    {
+    case BASIC:
+      if (update == UPDATE_NEVER
+          || U_PROC_HAS_STATE(proc, UPROC_BASIC))
+        return U_PROC_HAS_STATE(proc, UPROC_BASIC);
+      else
+        return u_proc_update_basic (proc);
+      break;
+
+    case TASKS:
+      /*
+      * Tasks are available for every parsed process, regardless openproc flags,
+      * but currently when /proc is parsed it is always opened with
+      * OPENPROC_FLAGS, so we may consider TASKS equal to BASIC, except only
+      * valid processes have tasks.
+      */
       if (U_PROC_HAS_STATE(proc, UPROC_INVALID))
         return FALSE;
       else
         return u_proc_ensure(proc, BASIC, update);
+      break;
 
-  } else if(what == ENVIRONMENT) {
-      if(((update == UPDATE_ONCE && !proc->ensured.environment) || update == UPDATE_NOW) && proc->environ) {
-          g_hash_table_unref(proc->environ);
-          proc->environ = NULL;
-      }
-      if(!proc->environ) {
-          proc->environ = U_PROC_HAS_STATE(proc, UPROC_DEAD) ? NULL : u_read_env_hash (proc->pid);
-      }
-      return (proc->ensured.environment = (proc->environ != NULL));
+    case ENVIRONMENT:
+      if (update == UPDATE_NEVER
+          || (update == UPDATE_ONCE_PER_RUN && proc->ensured.environment)
+          || (update == UPDATE_ONCE
+              && (proc->ensured.environment || proc->environ != NULL)))
+        return proc->environ != NULL;
+      else
+        return u_proc_update_environment (proc);
+      break;
 
-  } else if(what == CGROUP) {
-      if(((update == UPDATE_ONCE && !proc->ensured.cgroup) || update == UPDATE_NOW) && proc->cgroup) {
-          g_hash_table_unref(proc->cgroup);
-          proc->cgroup = NULL;
-      }
-      if(!proc->cgroup && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
-          u_proc_parse_cgroup(proc, update);
-      }
-      return (proc->ensured.cgroup = (proc->cgroup != NULL));
-
-  } else if(what == CMDLINE) {
-      if(((update == UPDATE_ONCE && !proc->ensured.cmdline) || update == UPDATE_NOW) && proc->cmdline) {
-          g_ptr_array_unref(proc->cmdline);
-          proc->cmdline = NULL;
-          if (U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
-            g_free(proc->cmdline_match);
-            proc->cmdline_match = NULL;
-            g_free(proc->cmdfile);
-            proc->cmdfile = NULL;
-            return (proc->ensured.cmdline = FALSE);
-          }
-      }
-      if(!proc->cmdline && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
-          int i;
-          gchar *tmp, *tmp2;
-
-          g_free(proc->cmdline_match);
-          proc->cmdline_match = NULL;
-
-          proc->cmdline = u_read_0file (proc->pid, "cmdline");
-          // update cmd
-          if(proc->cmdline) {
-              GString *match = g_string_new("");
-              for(i = 0; i < proc->cmdline->len; i++) {
-                  if(i)
-                      match = g_string_append_c(match, ' ');
-                  match = g_string_append(match, g_ptr_array_index(proc->cmdline, i));
-              }
-              proc->cmdline_match = g_string_free(match, FALSE);
-              // empty command line, for kernel threads for example
-              if(!proc->cmdline->len)
-                return (proc->ensured.cmdline = FALSE);
-              if(proc->cmdfile) {
-                g_free(proc->cmdfile);
-                proc->cmdfile = NULL;
-              }
-              tmp = g_ptr_array_index(proc->cmdline, 0);
-              if(tmp) {
-                  tmp2 = g_strrstr_len(tmp, -1, "/");
-                  if(tmp2 == NULL) {
-                    proc->cmdfile = g_strdup(tmp);
-                  } else if((tmp2+1-tmp) < strlen(tmp)) {
-                    proc->cmdfile = g_strdup(tmp2+1);
-                  }
-              }
-              return (proc->ensured.cmdline = TRUE);
-          } else {
-            return (proc->ensured.cmdline = FALSE);
-          }
-      }
-      return (proc->ensured.cmdline = (proc->cmdline != NULL));
-
-  } else if (what == EXE) {
-      char buf[PATH_MAX+1];
-      ssize_t out;
-      char *path;
-      if(((update == UPDATE_ONCE && !proc->ensured.exe) || update == UPDATE_NOW) && proc->exe) {
-          g_free(proc->exe);
-          proc->exe = NULL;
-      }
-      if(!proc->exe && !U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
-        path = g_strdup_printf ("/proc/%u/exe", (guint)proc->pid);
-        out = readlink(path, (char *)&buf, PATH_MAX);
-        g_free(path);
-        buf[out] = 0;
-        if(out > 0) {
-            // strip out the ' (deleted)' suffix
-            if(out > 10 && !strncmp((char *)&buf[out-10], " (deleted)", 10)) {
-                buf[out-10] = 0;
-                out -= 10;
-            }
-            proc->exe = g_strndup((char *)&buf, out);
+    case CGROUP:
+      if (update == UPDATE_NEVER
+          || (update == UPDATE_ONCE && proc->cgroup != NULL)
+          || (update == UPDATE_ONCE_PER_RUN && proc->ensured.cgroup))
+        {
+          return proc->cgroup != NULL;
         }
-      }
-      return (proc->ensured.exe = (proc->exe != NULL));
-  }
-  return FALSE;
+      else
+        {
+          return u_proc_update_cgroup (proc);
+        }
+
+    case CMDLINE:
+      if (update == UPDATE_NEVER
+          || (update == UPDATE_ONCE_PER_RUN && proc->ensured.cmdline)
+          || (update == UPDATE_ONCE
+              && (proc->ensured.cmdline || proc->cmdline != NULL)))
+        {
+          return proc->cmdline != NULL && proc->cmdline->len > 0;
+        }
+      else
+        {
+          return u_proc_update_cmdline (proc);
+        }
+      break;
+
+    case EXE:
+      if (update == UPDATE_NEVER
+          || (update == UPDATE_ONCE_PER_RUN && proc->ensured.exe)
+          || (update == UPDATE_ONCE
+              && (proc->ensured.exe || proc->exe != NULL)))
+        {
+          return proc->exe != NULL;
+        }
+      else
+        {
+          return u_proc_update_exe (proc);
+        }
+      break;
+
+    default:
+      return FALSE;
+    }
 }
 
 
@@ -713,10 +983,10 @@ int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update
  * Returns a GArray of #pid_t of all tasks from given #u_proc process
  *
  * @return a GArray of #pid_t of all tasks from given #u_proc process
- * @retval NULL if process is dead or `/proc/#/task` could not be read
+ * @retval NULL if process vanished or `/proc/#/task` could not be read
  */
 GArray *u_proc_get_current_task_pids(u_proc *proc) {
-    if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+    if(U_PROC_HAS_STATE(proc, UPROC_VANISHED))
       return NULL;
 
     GArray *rv = g_array_new(TRUE, TRUE, sizeof(pid_t));
@@ -744,7 +1014,7 @@ GArray *u_proc_get_current_task_pids(u_proc *proc) {
 out:
     g_free(path);
     g_array_unref(rv);
-    U_PROC_SET_STATE(proc, UPROC_DEAD);
+    U_PROC_SET_STATE(proc, UPROC_VANISHED);
     return NULL;
 }
 
@@ -837,7 +1107,7 @@ static void processes_free_value(gpointer data) {
   u_proc *proc = data;
   u_filter *flt;
 
-  U_PROC_SET_STATE(proc, UPROC_DEAD);
+  U_PROC_SET_STATE(proc, UPROC_VANISHED);
 
   // run exit hooks
   GList *cur = g_list_first(filter_list);
@@ -1316,9 +1586,27 @@ int update_processes_run(PROCTAB *proctab, int full) {
       proc->changed = 1;
 
     if((proctab->flags & OPENPROC_FLAGS) == OPENPROC_FLAGS) {
+        /*
+         * Test for kernel threads and zombies or dead processes
+         */
         U_PROC_SET_STATE(proc, UPROC_BASIC);
-        proc->ensured.basic = TRUE;
-    }
+        if (proc->proc->state == 'Z')
+          U_PROC_SET_STATE(proc, UPROC_ZOMBIE);
+        else if (proc->proc->vsize == 0) {
+          if (proc->proc->euid != 0) {
+            /* a zombie or dying */
+            U_PROC_SET_STATE(proc, UPROC_ZOMBIE);
+          } else {
+            /*
+             * It may still be a dead or zombie non-kernel process with EUID 0,
+             * but it will spook for at most one iteration, so better to live
+             * with it.
+             */
+            U_PROC_SET_STATE(proc, UPROC_KERNEL);
+          }
+        }
+    } else
+        U_PROC_UNSET_STATE(proc, UPROC_BASIC);
 
     if (! new_proc) u_flag_clear_timeout(proc, timeout, -1);
     updated = g_list_append(updated, proc);
@@ -1366,17 +1654,16 @@ int update_processes_run(PROCTAB *proctab, int full) {
   }
 
   if(full) {
-    // remove dead processes
+    // remove vanished processes
     g_hash_table_foreach_remove(processes, 
                                 processes_is_last_changed,
                                 &run);
   } else {
-    // mark dead processes
+    // mark vanished processes
     while (*pids) {
       proc = proc_by_pid(*pids);
       if (proc && !g_list_find(updated, proc)) {
-        g_debug("setting state UPROC_DEAD to process - pid: %d", proc->pid);
-        U_PROC_SET_STATE(proc, UPROC_DEAD);
+        U_PROC_SET_STATE(proc, UPROC_VANISHED);
       }
       pids++;
     }
@@ -1670,8 +1957,8 @@ int process_run_one(u_proc *proc, int update, int instant) {
     process_update_pid(proc->pid);
 
   // we must ensure BASIC properties are set and not schedule already dead processes
-  if (!u_proc_ensure(proc, BASIC, NOUPDATE) || U_PROC_HAS_STATE(proc, UPROC_DEAD)) {
-    // process is dead
+  if (!u_proc_ensure(proc, BASIC, UPDATE_DEFAULT)
+      || U_PROC_HAS_STATE(proc, UPROC_VANISHED)) {
     process_remove(proc);
     return FALSE;
   }

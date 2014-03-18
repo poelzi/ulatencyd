@@ -662,7 +662,7 @@ static int u_proc_get_tasks (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int update = lua_toboolean(L, 2);
 
-  if (!u_proc_ensure(proc, TASKS, update ? UPDATE_NOW : UPDATE_ONCE))
+  if (!u_proc_ensure(proc, TASKS, update ? UPDATE_NOW : UPDATE_DEFAULT))
     return 0;
 
   lua_newtable(L);
@@ -854,7 +854,7 @@ static int u_proc_set_rtprio (lua_State *L) {
     param.sched_priority = lua_tointeger(L, 3);
 
 
-  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if(U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD))
     return 0;
 
 
@@ -927,7 +927,7 @@ static int u_proc_set_oom_score (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   int value = luaL_checkint(L, 2);
 
-  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if(U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD))
     return 0;
 
   lua_pushboolean(L, !adj_oom_killer(proc->pid, value));
@@ -939,7 +939,7 @@ static int u_proc_get_oom_score (lua_State *L) {
   int rv;
   u_proc *proc = check_u_proc(L, 1);
 
-  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if(U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD))
     return 0;
 
   if ((rv = get_oom_killer(proc->pid)) != -1) {
@@ -954,7 +954,7 @@ static int u_proc_ioprio_set (lua_State *L) {
   int prio = luaL_checkint(L, 2);
   int class = luaL_checkint(L, 3);
 
-  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if(U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD))
     return 0;
 
   lua_pushinteger(L, !ioprio_setpid(proc->pid, prio, class));
@@ -967,7 +967,7 @@ static int u_proc_ioprio_get (lua_State *L) {
   int prio = 0;
   int class = 0;
 
-  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if(U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD))
     return 0;
 
   ioprio_getpid(proc->pid, &prio, &class);
@@ -985,7 +985,7 @@ static int u_proc_get_cgroup (lua_State *L) {
   u_proc *proc = check_u_proc(L, 1);
   subsys = luaL_checkstring (L, 2);
 
-  if(!u_proc_ensure(proc, CGROUP, UPDATE_ONCE))
+  if(!u_proc_ensure(proc, CGROUP, UPDATE_ONCE_PER_RUN))
       return 0;
 
   cgroup = g_hash_table_lookup(proc->cgroup, subsys);
@@ -1004,7 +1004,7 @@ static int u_proc_set_cgroup (lua_State *L) {
   subsys = luaL_checkstring (L, 2);
   cgroup = luaL_checkstring (L, 3);
 
-  if(!u_proc_ensure(proc, CGROUP, UPDATE_ONCE))
+  if(!u_proc_ensure(proc, CGROUP, UPDATE_DEFAULT))
       // process is already dead - but we create proc->cgroup, just for sure
       proc->cgroup = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
@@ -1018,7 +1018,7 @@ static int l_u_proc_set_focused (lua_State *L) {
   time_t timestamp = 0;
 
   proc = check_u_proc(L, 1);
-  if(U_PROC_HAS_STATE(proc, UPROC_DEAD))
+  if(U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD))
     return 0;
   if (lua_isnumber(L, 3))
     timestamp = lua_tointeger(L, 3);
@@ -1161,6 +1161,7 @@ static int handle_proc_t (lua_State *L, proc_t *proc, const char *key) {
 #undef PUSH_STR
 
 
+// FIXME optimization: avoid strcmp
 static int u_proc_index (lua_State *L)
 {
   //char        path[PROCPATHLEN];
@@ -1194,6 +1195,18 @@ static int u_proc_index (lua_State *L)
     return 1;
   } else if(!strcmp(key, "is_invalid" )) {
     lua_pushboolean(L, U_PROC_IS_INVALID(proc));
+    return 1;
+  } else if(!strcmp(key, "is_kernel" )) {
+    lua_pushboolean(L, U_PROC_HAS_STATE(proc, UPROC_KERNEL));
+    return 1;
+  } else if(!strcmp(key, "is_zombie" )) {
+    lua_pushboolean(L, U_PROC_HAS_STATE(proc, UPROC_ZOMBIE));
+    return 1;
+  } else if(!strcmp(key, "is_vanished" )) {
+    lua_pushboolean(L, U_PROC_HAS_STATE(proc, UPROC_VANISHED));
+    return 1;
+  } else if(!strcmp(key, "is_dead" )) {
+    lua_pushboolean(L, U_PROC_HAS_STATE(proc, UPROC_MASK_DEAD));
     return 1;
   } else if(!strcmp(key, "pid" )) {
     lua_pushinteger(L, proc->pid);
@@ -1240,7 +1253,7 @@ static int u_proc_index (lua_State *L)
     lua_pushboolean(L, proc->received_rt);
     return 1;
   } else if(!strcmp(key, "has_basic_props" )) {
-    lua_pushboolean(L, u_proc_ensure(proc, BASIC, NOUPDATE));
+    lua_pushboolean(L, u_proc_ensure(proc, BASIC, UPDATE_NEVER));
     return 1;
   } else
   // always available basic properties
@@ -1254,35 +1267,34 @@ static int u_proc_index (lua_State *L)
   // other properties that don't need basic properties parsed
   if(!strcmp(key, "environ" )) {
     // lazy read
-    u_proc_ensure(proc, ENVIRONMENT, UPDATE_ONCE);
-    if(proc->environ) {
+    if(u_proc_ensure(proc, ENVIRONMENT, UPDATE_DEFAULT)) {
       l_hash_to_table(L, proc->environ);
       return 1;
     }
     return 0;
   } else if(!strcmp(key, "cmdline" )) {
-    if(u_proc_ensure(proc, CMDLINE, UPDATE_ONCE) && proc->cmdline) {
+    if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)) {
       l_ptrarray_to_table(L, proc->cmdline);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cmdline_match" )) {
-    if(u_proc_ensure(proc, CMDLINE, UPDATE_ONCE) && proc->cmdline_match) {
+    if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)) {
       lua_pushstring(L, proc->cmdline_match);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cmdfile" )) {
-    if(u_proc_ensure(proc, CMDLINE, UPDATE_ONCE) && proc->cmdfile) {
+    if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)) {
       lua_pushstring(L, proc->cmdfile);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "exe" )) {
-    if(u_proc_ensure(proc, EXE, UPDATE_ONCE) && proc->exe) {
+    if(u_proc_ensure(proc, EXE, UPDATE_DEFAULT)) {
       lua_pushstring(L, proc->exe);
       return 1;
     } else {
@@ -1290,28 +1302,28 @@ static int u_proc_index (lua_State *L)
     }
   } else
   if(!strcmp(key, "cgroup" )) {
-    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_DEFAULT)) {
       l_hash_to_table(L, proc->cgroup);
       return 1;
     } else {
       return 0;
     }
   } else if (!strcmp(key, "cgroup_raw" )) {
-    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup_raw) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_DEFAULT)) {
       l_vstr_to_table(L, proc->proc->cgroup, -1);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cgroup_origin" )) {
-    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup_origin) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE)) {
       l_hash_to_table(L, proc->cgroup);
       return 1;
     } else {
       return 0;
     }
   } else if(!strcmp(key, "cgroup_origin_raw" )) {
-    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE) && proc->cgroup_origin_raw) {
+    if(u_proc_ensure(proc, CGROUP, UPDATE_ONCE)) {
       l_vstr_to_table(L, proc->cgroup_origin_raw, -1);
       return 1;
     } else {
@@ -1319,7 +1331,7 @@ static int u_proc_index (lua_State *L)
     }
   }
 
-  if(!u_proc_ensure(proc, BASIC, NOUPDATE)) {
+  if(!u_proc_ensure(proc, BASIC, UPDATE_NEVER)) {
     lua_pushfstring (L, "u_proc<pid %d> basic data not available ", proc->pid);
     lua_error(L);
   }
@@ -2173,18 +2185,18 @@ int l_filter_postcheck(u_filter *flt) {
 int l_filter_check(u_proc *proc, u_filter *flt) {
   struct lua_filter *lft = (struct lua_filter *)flt->data;
 
-  if(lft->regexp_basename) {
-    u_proc_ensure(proc, CMDLINE, UPDATE_ONCE);
-    if(proc->cmdfile &&
-       g_regex_match(lft->regexp_basename, proc->cmdfile, 0, NULL))
-      return TRUE;
-  }
-  if(lft->regexp_cmdline) {
-    u_proc_ensure(proc, CMDLINE, UPDATE_ONCE);
-    if(proc->cmdline_match && 
-       g_regex_match(lft->regexp_cmdline, proc->cmdline_match, 0, NULL))
+  if (G_LIKELY (u_proc_ensure (proc, CMDLINE, UPDATE_DEFAULT)))
+    {
+      if (lft->regexp_basename
+          && G_LIKELY (*proc->cmdfile != '\0')
+          && g_regex_match(lft->regexp_basename, proc->cmdfile, 0, NULL))
         return TRUE;
-  }
+
+      if (lft->regexp_cmdline
+          && G_LIKELY (*proc->cmdline_match != '\0')
+          && g_regex_match(lft->regexp_cmdline, proc->cmdline_match, 0, NULL))
+        return TRUE;
+    }
  
 /*  lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_func);
   lua_rawgeti (cd->lua_state, LUA_REGISTRYINDEX, cd->lua_data);

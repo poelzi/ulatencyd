@@ -182,8 +182,8 @@ const void *U_DBUS_POINTER = &INTROSPECT_XML_SYSTEM;
   do { \
     PROC = proc_by_pid_with_retry (PID); \
     if (!PROC \
-        || U_PROC_HAS_STATE (PROC, UPROC_DEAD) \
-        || !u_proc_ensure (PROC, BASIC, UPDATE_ONCE)) \
+        || !u_proc_ensure (PROC, BASIC, UPDATE_DEFAULT) \
+        || U_PROC_HAS_STATE (PROC, UPROC_VANISHED)) \
       { \
         ret = dbus_message_new_error (m, \
                                       U_DBUS_ERROR_NO_PID, \

@@ -321,8 +321,8 @@ consolekit_u_proc_get_session_id (u_proc *proc)
   char       *consolekit_cookie;
   guint      retval;
 
-  if (!u_proc_ensure (proc, ENVIRONMENT, UPDATE_ONCE)) /* no environment */
-      return USESSION_UNKNOWN;
+  if (!u_proc_ensure (proc, ENVIRONMENT, UPDATE_ONCE_PER_RUN))
+      return USESSION_UNKNOWN;  /* no environment */
 
   environ = g_hash_table_ref (proc->environ);
   consolekit_cookie = g_hash_table_lookup (environ, "XDG_SESSION_COOKIE");

@@ -126,33 +126,32 @@ error:
 }
 
 /* adapted from consolekit */
+/**
+ * Returns contents of file `/proc/<pid>/environ` as a `GHashTable`.
+ *
+ * @param pid
+ *
+ * @return \a pid environment as an `GHashTable` with both keys and values
+ *         destroy functions set to `g_free()`. If `environ` file contains only
+ *         a null byte ('\0'), empty `GHashTable` is returned.
+ * @retval NULL if either reading failed or file content is empty:
+ * - If `environ` file is empty, \a errno is set to \c EEXIST.
+ * - If error occurred, \a errno is set appropriately.
+ */
+// FIXME optimize: avoid duplication of strings
 GHashTable *
 u_read_env_hash (pid_t pid)
 {
-    char       *path;
-    gboolean    res;
     char       *contents;
     gsize       length;
-    GError     *error;
     GHashTable *hash;
     int         i;
     gboolean    last_was_null;
 
-    contents = NULL;
-    hash = NULL;
+    contents = u_pid_read_file (pid, "environ", &length);
 
-    path = g_strdup_printf ("/proc/%u/environ", (guint)pid);
-
-    error = NULL;
-    res = g_file_get_contents (path,
-                               &contents,
-                               &length,
-                               &error);
-    if (! res) {
-        //g_debug("Couldn't read %s: %s", path, error->message);
-        g_error_free (error);
-        goto out;
-    }
+    if (contents == NULL)
+      return NULL;
 
     hash = g_hash_table_new_full (g_str_hash,
                                   g_str_equal,
@@ -178,48 +177,46 @@ u_read_env_hash (pid_t pid)
         last_was_null = FALSE;
     }
 
-out:
     g_free (contents);
-    g_free (path);
 
     return hash;
 }
 
+/**
+ * Returns content of variable \a var from \a pid environment.
+ *
+ * @param pid
+ * @param var name of environment variable
+ *
+ * @retval value of a environment variable as a newly allocated string, use
+ *         g_free() to free the returned string.
+ * @retval NULL if either reading of `/proc/<pid>/environ` failed, its content
+ * is empty or \a var is not defined:
+ * - If environment content is empty, \a errno is set to \c EEXIST.
+ * - If variable is not set, \a errno is set to \c ENOKEY.
+ * - If error occurred, \a errno is set appropriately.
+ */
 char *
 u_pid_get_env (pid_t       pid,
                const char *var)
 {
-    char      *path;
-    gboolean   res;
     char      *contents;
     char      *val;
     gsize      length;
-    GError    *error;
     int        i;
     char      *prefix;
     int        prefix_len;
     gboolean   last_was_null;
 
+    contents = u_pid_read_file (pid, "environ", &length);
+
+    if (contents == NULL)
+      return NULL;
+
     val = NULL;
-    contents = NULL;
-    prefix = NULL;
-
-    path = g_strdup_printf ("/proc/%u/environ", (guint)pid);
-
-    error = NULL;
-    res = g_file_get_contents (path,
-                               &contents,
-                               &length,
-                               &error);
-    if (! res) {
-        //g_debug ("Couldn't read %s: %s", path, error->message);
-        g_error_free (error);
-        goto out;
-    }
-
 
     prefix = g_strdup_printf ("%s=", var);
-    prefix_len = strlen(prefix);
+    prefix_len = strlen (prefix);
 
     /* FIXME: make more robust */
     last_was_null = TRUE;
@@ -235,42 +232,44 @@ u_pid_get_env (pid_t       pid,
         last_was_null = FALSE;
     }
 
-out:
     g_free (prefix);
     g_free (contents);
-    g_free (path);
+
+    if (val == NULL)
+      errno = ENOKEY;
 
     return val;
 }
 
-
-
+/**
+ * Returns contents of file `/proc/<pid>/<what>` containing set of strings
+ * separated by null bytes ('\0').
+ *
+ * @param pid
+ * @param what name of file in directory `/proc/<pid>/` to read contents from.
+ *
+ * @return contents of a file as a `GPtrArray` with destroy function set to
+ *         `g_free()`. If file contains only a null byte ('\0'), `GPtrArray`
+ *         with length \c 0 is returned.
+ * @retval NULL if either reading failed or content is empty:
+ * - If content is empty, \a errno is set to \c EEXIST.
+ * - If error occurred, \a errno is set appropriately.
+ */
+// FIXME optimize: avoid duplication of strings
 GPtrArray *
-u_read_0file (pid_t pid, const char *what)
+u_pid_read_0file (pid_t       pid,
+                 const char *what)
 {
-    char       *path;
-    gboolean    res;
     char       *contents;
     gsize       length;
-    GError     *error;
     GPtrArray  *rv = NULL;
     int         i;
     gboolean    last_was_null;
 
-    contents = NULL;
+    contents = u_pid_read_file (pid, what, &length);
 
-    path = g_strdup_printf ("/proc/%u/%s", (guint)pid, what);
-
-    error = NULL;
-    res = g_file_get_contents (path,
-                               &contents,
-                               &length,
-                               &error);
-    if (! res) {
-        //g_debug ("Couldn't read %s: %s", path, error->message);
-        g_error_free (error);
-        goto out;
-    }
+    if (contents == NULL)
+      return NULL;
 
     rv = g_ptr_array_new_with_free_func(g_free);
 
@@ -286,9 +285,7 @@ u_read_0file (pid_t pid, const char *what)
         last_was_null = FALSE;
     }
 
-out:
     g_free (contents);
-    g_free (path);
 
     return rv;
 }
@@ -309,10 +306,9 @@ GPtrArray* search_user_env(uid_t uid, const char *name, int update) {
         if(proc->proc->euid != uid)
             continue;
 
-        u_proc_ensure(proc, ENVIRONMENT, update ? UPDATE_NOW : UPDATE_ONCE);
-
-        if(!proc->environ)
-            continue;
+        if (!u_proc_ensure (proc, ENVIRONMENT,
+                            update ? UPDATE_NOW : UPDATE_DEFAULT))
+          continue;
 
         val = g_hash_table_lookup(proc->environ, name);
         if(val) {

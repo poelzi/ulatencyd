@@ -53,7 +53,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     cgroups_name = "rt_tasks",
     param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "949500" },
     check = function(proc)
-          local rv = proc.vm_size == 0 or proc.received_rt or check_label({"sched.rt"}, proc)
+          local rv = proc.is_kernel == 0 or proc.received_rt or check_label({"sched.rt"}, proc)
           -- note: some kernel threads cannot be moved to cgroup, ie. migration/0 and watchdog/0
           return rv
         end,
@@ -171,21 +171,20 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     label = { "daemon.media" },
   },
   {
-    name = "system_daemon",
-    cgroups_name = "sys_daemon",
-    check = function(proc)
-              -- don't put kernel threads into a cgroup
-              return (proc.pgrp > 0)
-            end,
-    param = { ["cpu.shares"]="800",
-              ["?cpu.rt_runtime_us"] = "1"},
-  },
-  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
+  },
+  {
+    name = "system_daemon",
+    cgroups_name = "sys_daemon",
+    param = { ["cpu.shares"]="800",
+              ["?cpu.rt_runtime_us"] = "1"},
+    check = function(proc)
+                return true
+              end,
   },
   {
     name = "missed",
@@ -409,20 +408,19 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     label = { "daemon.media" },
   },
   {
-    name = "system_daemon",
-    cgroups_name = "sys_daemon",
-    check = function(proc)
-              -- don't put kernel threads into a cgroup
-              return (proc.pgrp > 0)
-            end,
-    param = { ["?memory.swappiness"] = "80" },
-  },
-  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
+  },
+  {
+    name = "system_daemon",
+    cgroups_name = "sys_daemon",
+    param = { ["?memory.swappiness"] = "80" },
+    check = function(proc)
+                return true
+              end,
   },
   {
     name = "missed",
@@ -574,28 +572,24 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
                 restore_io_prio(proc)
               end,
   },
-
-
+  {
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+                return proc.is_kernel
+              end
+  },
   --! system other
   {
     name = "system",
     cgroups_name = "sys_grp_${pgrp}",
     check = function(proc)
-                -- don't put kernel threads into a cgroup
-                return (proc.pgrp > 0)
+                return true
               end,
     param = { ["blkio.weight"]="10" },
     --adjust = function(cgroup, proc)
     --            save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_BE)
     --         end,
-  },
-
-  {
-    name = "kernel",
-    cgroups_name = "",
-    check = function(proc)
-                return (proc.vm_size == 0)
-              end
   },
   {
     name = "missed",

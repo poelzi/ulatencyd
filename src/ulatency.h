@@ -96,13 +96,21 @@ struct _U_HEAD {
   (P)->exe ? (P)->exe : "??", (P)->cmdline_match ? (P)->cmdline_match : "??"
 
 enum U_PROC_STATE {
+  //!< process removed from #processes table and will be freed as soon as
+  //!< its reference count drop to zero; implicates #UPROC_VANISHED state
+  //!< drop to zero.
   UPROC_INVALID      = (1<<1),
   UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
   UPROC_HAS_PARENT   = (1<<4),
-  //! Process is dead.
-  //! This is set if the process could not be found in /proc filesystem while trying to update its properties.
-  //! Since this, no function accepting #u_proc will try to update its properties.
-  UPROC_DEAD         = (1<<5),
+  UPROC_VANISHED     = (1<<5),  //!< process directory vanished from `/proc/`
+  UPROC_ZOMBIE       = (1<<6),  //!< process is a zombie
+  //! kernel thread; in rare cases it may be one of not yet detected user space
+  //! zombies or already vanished processes (though only root processes).
+  //! But it is guaranteed there is no kernel process with UPROC_BASIC but
+  //! without UPROC_KERNEL state set.
+  UPROC_KERNEL       = (1<<7),
+  //! mask for process vanished from `/proc/` and zombies
+  UPROC_MASK_DEAD    = UPROC_VANISHED | UPROC_ZOMBIE,
 };
 
 #define U_PROC_OK_MASK ~UPROC_INVALID
@@ -168,15 +176,20 @@ struct filter_block {
   int flags;
 };
 
+/**
+ * Identifies which #u_proc properties have been update since `/proc/<PID>/`
+ * directory was parsed last time, i.e. since last time the process was passed
+ * to #update_processes_run()
+ * \see #u_proc_ensure()
+ */
 typedef struct {
-  gboolean basic;
+  //gboolean basic; // use U_PROC_SET_STATE(proc, UPROC_BASIC) instead
   gboolean environment;
   gboolean cmdline;
   gboolean exe;
-  gboolean tasks;
+  //gboolean tasks; // not implemented
   gboolean cgroup;
 } u_proc_ensured;
-
 
 typedef struct {
   U_HEAD;
@@ -230,7 +243,6 @@ typedef struct {
 } u_task;
 
 #ifdef DEVELOP_MODE
-
 static inline gboolean U_TASK_IS_INVALID(u_task *T) {
   if (T->proc) { g_assert(T->task); g_assert(U_PROC_IS_VALID(T->proc)); return FALSE; }
   else { g_assert(T->task == NULL); return TRUE; }
@@ -432,7 +444,14 @@ int load_lua_file(lua_State *L, const char *name);
 u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 
+//! @name Ensure #u_proc properties
+//! @{
 
+//! @public @memberof u_proc
+
+/**
+ * What fields should be ensured by #u_proc_ensure().
+ */
 enum ENSURE_WHAT {
   BASIC,
   ENVIRONMENT,
@@ -442,13 +461,31 @@ enum ENSURE_WHAT {
   CGROUP
 };
 
+/**
+ * On what conditions #u_proc_ensure() updates #u_proc fields.
+ */
 enum ENSURE_UPDATE {
-  NOUPDATE = 0,
-  UPDATE_NOW = 1,
-  UPDATE_ONCE = 2
+  //! do not update fields
+  UPDATE_NEVER = -1,
+  //! update conditions are selected according the field type
+  //! \see #ENSURE_WHAT for more information.
+  UPDATE_DEFAULT = 0,
+  //! fields are updated unless already set and unless another attempt to update
+  //! them occurred since `/proc/<PID>/` directory was parsed last time
+  UPDATE_ONCE =  1,
+  //! update fields unless an attempt to update them occurred since
+  //! `/proc/<PID>/` directory was parsed last time, i.e. since the last time
+  //! the process was passed to #update_processes_run()
+  UPDATE_ONCE_PER_RUN =  2,
+  //! update fields now
+  UPDATE_NOW = 3
 };
 
 int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update);
+
+//! @} End of "Ensure #u_proc properties"
+
+
 void u_proc_set_changed_flag_recursive(u_proc *proc);
 void u_proc_clear_changed_flag_recursive(u_proc *proc);
 GList *u_proc_list_flags (u_proc *proc, gboolean recrusive);
@@ -560,10 +597,11 @@ int adj_oom_killer(pid_t pid, int adj);
 int get_oom_killer(pid_t pid);
 
 // sysinfo.c
-GHashTable * u_read_env_hash (pid_t pid);
+gchar *      u_pid_read_file (pid_t pid, const char *what, gsize *length) G_GNUC_WARN_UNUSED_RESULT;
+GPtrArray *  u_pid_read_0file (pid_t pid, const char *what) G_GNUC_WARN_UNUSED_RESULT;
+GHashTable * u_read_env_hash (pid_t pid) G_GNUC_WARN_UNUSED_RESULT;
 char *       u_pid_get_env (pid_t pid, const char *var);
 GPtrArray *  search_user_env(uid_t uid, const char *name, int update);
-GPtrArray *  u_read_0file (pid_t pid, const char *what);
 uint64_t     get_number_of_processes();
 
 // dbus consts

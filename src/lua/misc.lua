@@ -99,6 +99,12 @@ do
       -- the moving process is a thread (task) or thread leader (process)
       local proc = ulatency.get_pid(value)
       local task = ulatency.get_tid(value)
+
+      -- skip vanished and zombie processes, zombies cannot be moved
+      if proc and proc.is_dead then
+        return
+      end
+
       -- skip if the task should be reported only once and
       -- this already happened
       if task and task.data.do_not_report_move_errors and
@@ -116,8 +122,8 @@ do
 
       -- if kernel process failed to be moved and was never moved before
       -- in any cgroup subsystem then skip future scheduling
-      if task and task.euid == 0 and task.egid == 0 and
-            task.vm_size == 0
+      if (proc and proc.is_kernel)
+          or (task and task.euid == 0 and task.egid == 0 and task.vm_size == 0)
       then
         if not task.data.do_not_report_move_errors then
           task.data.do_not_report_move_errors = {}
@@ -160,7 +166,6 @@ do
                   " already been moved from root cgroup in some subsystem!"
             info[#info+1] = "Therefore it won't be blocked from scheduling"..
                   " but this error won't be printed again."
-            --proc:set_block_scheduler(0)
           end
         end -- proc
 

@@ -538,7 +538,7 @@ function Scheduler:_one(proc, single)
         -- skip foreign cgroups
         local cgr_path = proc:get_cgroup(subsys)
         if not cgr_path then
-          if ulatency.is_pid_alive(proc.pid) then
+          if not proc.is_vanished and ulatency.is_pid_alive(proc.pid) then
             if LOG_WARNING then u_warning(
                   "no cgroup for process, assuming '/' - "..
                   "subsys: %s, pid: %d, cmdfile: %s, exe: %s",

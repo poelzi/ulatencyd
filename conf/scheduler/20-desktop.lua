@@ -21,7 +21,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     cgroups_name = "rt_tasks",
     param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "949500" },
     check = function(proc)
-          local rv = proc.received_rt or check_label({"sched.rt"}, proc) or proc.vm_size == 0
+          local rv = proc.received_rt or check_label({"sched.rt"}, proc) or proc.is_kernel
           -- note: some kernel threads cannot be moved to cgroup, ie. migration/0 and watchdog/0
           return rv
         end,
@@ -115,7 +115,7 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
     cgroups_name = "sys_daemon",
     check = function(proc)
               -- don't put kernel threads into a cgroup
-              return (proc.pgrp > 0)
+              return not proc.is_kernel
             end,
     param = { ["cpu.shares"]="800",
               ["?cpu.rt_runtime_us"] = "1"},
@@ -251,7 +251,7 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
     cgroups_name = "",
     check = function(proc)
     		  -- don't put kernel threads into a cgroup
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
   },
   {
@@ -318,17 +318,6 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
              end,
   },
   {
-    name = "group",
-    param = { ["blkio.weight"]="300" },
-    cgroups_name = "grp_${pgrp}",
-    check = function(proc)
-              return proc.pgrp > 0
-            end,
-    adjust = function(cgroup, proc)
-                restore_io_prio(proc)
-             end,
-  },
-  {
     name = "system_media",
     param = { ["blkio.weight"]="300" },
     label = { "daemon.media"},
@@ -337,10 +326,21 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
              end,
   },
   {
+    name = "group",
+    param = { ["blkio.weight"]="300" },
+    cgroups_name = "grp_${pgrp}",
+    check = function(proc)
+              return not proc.is_kernel
+            end,
+    adjust = function(cgroup, proc)
+                restore_io_prio(proc)
+             end,
+  },
+  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
   },
 }
@@ -392,17 +392,6 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
              end,
   },
   {
-    name = "group",
-    param = { ["bfqio.weight"]="300" },
-    cgroups_name = "grp_${pgrp}",
-    check = function(proc)
-              return proc.pgrp > 0
-            end,
-    adjust = function(cgroup, proc)
-                restore_io_prio(proc)
-             end,
-  },
-  {
     name = "system_media",
     param = { ["bfqio.weight"]="300" },
     label = { "daemon.media"},
@@ -411,10 +400,21 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
              end,
   },
   {
+    name = "group",
+    param = { ["bfqio.weight"]="300" },
+    cgroups_name = "grp_${pgrp}",
+    check = function(proc)
+              return not proc.is_kernel
+            end,
+    adjust = function(cgroup, proc)
+                restore_io_prio(proc)
+             end,
+  },
+  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
   },
 }

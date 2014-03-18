@@ -201,8 +201,11 @@ u_session_id_find_by_proc (u_proc *proc)
   guint sess_id; // retval
   pid_t sid;
 
-  if (!u_proc_ensure (proc, BASIC, NOUPDATE) ||
-      U_PROC_HAS_STATE (proc, UPROC_DEAD))
+  /*
+   * Do not return session for vanished or zombie processes
+   */
+  if (!u_proc_ensure (proc, BASIC, UPDATE_NEVER)
+      || U_PROC_HAS_STATE (proc, UPROC_MASK_DEAD))
     return USESSION_UNKNOWN;
 
   sid = proc->proc->session;
@@ -389,7 +392,7 @@ u_session_get_leader (USession *session)
 
       leader = proc_by_pid (session->leader_pid);
       if (leader &&
-          U_PROC_IS_VALID (leader) && ! U_PROC_HAS_STATE(leader, UPROC_DEAD))
+          U_PROC_IS_VALID (leader) && ! U_PROC_HAS_STATE(leader, UPROC_MASK_DEAD))
         {
           return leader;
         }
