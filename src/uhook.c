@@ -206,24 +206,6 @@ u_hook_add_full (UHookType          type,
 }
 
 /**
- * Add hook to the list of specified type.
- * @param type    defines to the which list of hooks should this hook be added
- * @param owner   pointer to unique, statically allocated string which
- *                identifies the hook source; must be obtain by
- *                `g_intern_string()` or `g_intern_static_string()`
- * @param func    function to call when the hook list is invoked
- *
- * @return Identifier, that can be used to find the hook inside the list.
- */
-inline gulong
-u_hook_add (UHookType    type,
-            const gchar *owner,
-            UHookFunc    func)
-{
-  return u_hook_add_full(type, owner, func, NULL, NULL);
-}
-
-/**
  * Invokes all hooks from a hook list determined by \a type.
  *
  * @param type an #UHookType

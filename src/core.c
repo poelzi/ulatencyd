@@ -2484,27 +2484,6 @@ gboolean iteration_request_seconds_full(gint priority, guint seconds) {
   return TRUE;
 }
 
-/**
- * Schedule iteration, shortcut to `iteration_request_full()`.
- *
- * Same as calling `iteration_request_full()` with `G_PRIORITY_DEFAULT`+1 priority.
- * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
- */
-inline gboolean iteration_request(guint milliseconds) {
-  return iteration_request_full(G_PRIORITY_DEFAULT+1, milliseconds, FALSE);
-}
-
-
-/**
- * Schedule iteration with seconds granularity delay, shortcut to `iteration_request_seconds()`.
- *
- * Same as calling `iteration_request_seconds()` with `G_PRIORITY_DEFAULT`+1 priority.
- * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
- */
-inline gboolean iteration_request_seconds(guint seconds) {
-  return iteration_request_seconds_full(G_PRIORITY_DEFAULT+1, seconds);
-}
-
 int iterate(gpointer ignored) {
   time_t timeout = time(NULL);
   GTimer *timer = g_timer_new();

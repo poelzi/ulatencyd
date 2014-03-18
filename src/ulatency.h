@@ -560,8 +560,8 @@ extern int iteration_interval;
 
 gboolean iteration_request_full(gint priority, guint milliseconds, gboolean force);
 gboolean iteration_request_seconds_full(gint priority, guint seconds);
-inline gboolean iteration_request(guint milliseconds);
-inline gboolean iteration_request_seconds(guint seconds);
+static inline gboolean iteration_request(guint milliseconds);
+static inline gboolean iteration_request_seconds(guint seconds);
 
 int iterate(void *);
 
@@ -626,5 +626,35 @@ uint64_t     get_number_of_processes();
 extern gboolean netlink_proc_listening; //!< Linux netlink module listening to proc events
 
 #include "uassert.h"
+
+/* --- implemtation --- */
+
+/**
+ * Schedule iteration, shortcut to `iteration_request_full()`.
+ *
+ * Same as calling `iteration_request_full()` with `G_PRIORITY_DEFAULT`+1 priority.
+ * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
+ */
+static inline gboolean
+iteration_request(guint milliseconds)
+{
+  return iteration_request_full (G_PRIORITY_DEFAULT+1, milliseconds, FALSE);
+}
+
+
+/**
+ * Schedule iteration with seconds granularity delay, shortcut to `iteration_request_seconds()`.
+ *
+ * Same as calling `iteration_request_seconds()` with `G_PRIORITY_DEFAULT`+1 priority.
+ * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
+ */
+static inline gboolean
+iteration_request_seconds(guint seconds)
+{
+  return iteration_request_seconds_full (G_PRIORITY_DEFAULT+1, seconds);
+}
+
+
+
 
 #endif /* __ulatency_h__ */
