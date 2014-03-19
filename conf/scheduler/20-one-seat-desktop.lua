@@ -291,7 +291,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "20" },
         check = function(proc)
-                if not proc.focus_position then
+                if not (proc.focus_position == 1
+                        or (proc.focus_position
+                            and not check_label({"user.idle"}, proc)))
+                then
                   return false
                 end
                 for j, flag in pairs(ulatency.list_flags()) do

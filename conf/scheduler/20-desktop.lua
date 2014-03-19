@@ -75,8 +75,10 @@ SCHEDULER_MAPPING_DESKTOP["cpu"] =
         name = "active",
         param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.focus_position
-          end
+                  return proc.focus_position == 1
+                         or (proc.focus_position
+                             and not check_label({"user.idle"}, proc))
+                end
       },
       { 
         name = "idle",
@@ -217,8 +219,10 @@ SCHEDULER_MAPPING_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "0" },
         check = function(proc)
-            return proc.focus_position
-          end
+                  return proc.focus_position == 1
+                         or (proc.focus_position
+                             and not check_label({"user.idle"}, proc))
+                end
       },
       { 
         name = "idle",
@@ -287,8 +291,10 @@ SCHEDULER_MAPPING_DESKTOP["blkio"] =
     cgroups_name = "usr_${session_id}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
-        return proc.focus_position
-      end,
+              return proc.focus_position == 1
+                     or (proc.focus_position
+                         and not check_label({"user.idle"}, proc))
+            end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)
              end,
@@ -361,8 +367,10 @@ SCHEDULER_MAPPING_DESKTOP["bfqio"] =
     cgroups_name = "usr_${session_id}_active",
     param = { ["bfqio.weight"]="1000" },
     check = function(proc)
-        return proc.focus_position
-      end,
+              return proc.focus_position == 1
+                     or (proc.focus_position
+                         and not check_label({"user.idle"}, proc))
+            end,
     adjust = function(cgroup, proc)
                 save_io_prio(proc, 3, ulatency.IOPRIO_CLASS_BE)
              end,
