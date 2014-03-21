@@ -1,3 +1,137 @@
+0.6.0-alpha.2
+=============
+
+  * building (CMAKE stuff):
+    - set initial flags for each BUILD_TYPE (Debug, Release, MinSizeRel,
+      RelWithDebInfo)
+    - use GCC link time optimization (LTO) by default
+    - use BUILD_TYPE "Release" as default
+  * add ulatencyd --version option, which prints ulatencyd version,
+    used build configuration and flags, and some definitions like
+    install directories, rule directories etc.
+
+  * implemented USession subsystem: tracks real user sessions; has
+    interface for session tracking agents (modules); different agents
+    may register, but only one may be active
+    - consolekit agent for USession
+    - LUA and DBUS bindings
+    Documented in doxygen USession module.
+
+  * implemented UFocus subsystem which replaces active lists (and other
+    stuff from groups.c) - works on real user sessions, different focus
+    tracker may be active for each user session
+    - xwatch module updated to work on real sessions (USession) and
+    adapted to be focus tracker (UFocus)
+    - LUA and DBUS bindings
+
+  * ulatency client
+    - updated to above changes
+
+  * initial hooks implementation, code may currently trigger/listen to
+    following events (no LUA binding yet):
+    - session added / removed / active hint changed / idle hint changed
+    - focus tracker changed / unset tracker request triggered
+    - process major property changed
+    - process exits
+    - all modules loaded
+    - measures time elapsed in hooks; logged with verbosity level
+      G_LOG_LEVEL_DEBUG
+    Documented in doxygen UHook module.
+
+  * mappings
+    - consider process w/ user.idle label being active only if focused,
+    this allows attach user.idle labels to processes which creates X
+    window (high priority if focused, otherwise user.idle)
+    - attached user.idle labels to Dropbox, Ubuntu-One, Deja-dup
+    - attached user.media label to MPV
+    [thanks Feminist-Software-Foundation]
+    - distinguish kernel processes from dead and zombies
+
+  * add more run-time tests and assertions, especially in DEVELOP_MODE
+    - Briefly documented in doxygen UAssert module
+
+    - fix and improve assertions while decrementing/incrementing
+      reference counters
+    - addes assert alternatives to DEC_REF(P)/INC_REF(P) macros:
+      - INC_REF_FORBID_UNREF(P) - forbids reference count drop to 0 in
+      future
+      - DEC_REF_ALLOW_UNREF(P) - allows reference count drop to 0 in
+      future
+      - INC_REF_ASSERT_VAL(P, VAL)
+      - INC_REF_ASSERT_NOT_VAL(P, VAL)
+
+  * improved parsing of /proc/<pid>/ files
+    - g_file_get_contents() no more used because it is not suitable for
+    reading files from procfs
+    - implemented u_pid_read_file() which is more suitable: it uses
+    unbuffered read(), allocates less memory, uses standard errno
+    reporting (including important ESRCH which GLib does not define),
+    makes it easier to detect whether file is empty or contains a null
+    byte (precisely: makes it easier detectable by callers without need
+    to propagate number of read bytes), and should be faster
+    - this also allows to detect whether a process vanished or is a
+    zombie or whether other - unexpected - error occurred
+    - most other function reading from procfs were updated to use
+      u_pid_read_file()
+    - u_read_0file() renamed to u_pid_read_0file(); for consistant
+    naming
+
+  * u_proc_ensure() reworked
+    - internally splits to separate function to update each of sets
+        of properties, which
+      - use u_pid_read_file()
+      - handles read errors more strictly; any unexpected error triggers
+        critical warning to ensure ulatencyd assumptions of processes
+    states and behaviour are/will be correct (this also helps debugging
+    for different Linux kernel versions)
+    - u_proc properties preserves their values once successfully parsed,
+    until the u_proc instance is freed
+    - more precise way to specify on what condition properties should
+    be updated (each time; once per iteration; only once in an u_proc
+    life; never)
+    - allows to invalidate properties and force re-parsing on next call
+    to u_proc_ensure() (used on netlink EXEC events)
+    - avoids useless parsing of EXE, CMDLINE, ENVIRON if process is
+    zombie or kernel thread
+    - u_proc_ensure() returns success (TRUE) if required properties are
+    set (were parsed successfully at least once)
+    - fixed ensuring of task property
+    - U_PROC_HAS_STATE() macro made more robust
+    - more precise detection of vanished processes / kernel processes
+    and newly - zombies
+    - avoids handling more them aggressive, if it's useless
+    - this changes also fixes warnings triggered when ulatencyd tried to
+    handle kernel / zombie processes as user-space alive processes and
+    allows more strictly handling of other errors
+    - new process states UPROC_KERNEL, UPROC_VANISHED, UPROC_ZOMBIE
+    - removed states UPROC_NEW, UPROC_ALIVE, UPROC_DEAD
+    - new UPROC_MASK_DEAD - mask to test if a process vanished or is a
+    zombie
+
+  * Added U_PROC_FORMAT and U_PROC_FORMAT_ARGS(P) macros which make easy
+    adding u_proc instance description to printf(), e.g. to log
+    messages
+
+  * scheduler: avoids scheduling of dead (including zombie processes)
+
+  * proc_by_pid_with_retry() - returns an #u_proc instance each time it
+    is possible (parses a pid if not yet known; determines if given pid
+    is a process or a task (thread), in the later case parse and
+    returns its thread leader
+  * really avoid tasks (threads) pollute the process tree
+  * make sure no tasks (threads) go unnoticed through
+    update_processes_run()
+  * netlink:
+    - fixed handling of fork events: forks were unintentionally ignored
+      in 0.6.0-alpha.1 and their parents (forking processes) were not
+      reliable determined since linux_netlink support was implemented
+    - minor improvement to netlink_fallback
+
+  * dbus.c: updated + ensures correctness of PID arguments passed by
+    dbus
+  * fixed a small memory leak in consolekit module
+
+
 0.6.0-alpha.1
 =============
 
