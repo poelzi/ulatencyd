@@ -12,3 +12,5 @@ else()
           "You seem not using GCC compiler, please add compiler flags to"
           " InitialFlags.cmake")
 endif()
+
+set(CMAKE_BUILD_TYPE_INIT "Release")
