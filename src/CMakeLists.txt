@@ -7,8 +7,6 @@ add_definitions(-DHAVE_INLINE)
 #add_definitions(-DINSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DCONFIG_PREFIX=${CONFIG_PREFIX})
 
 #set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_DEBUG BLUBB=1)
-#set_directory_properties(PROPERTIES COMPILE_FLAGS "-pg -Wall")
-#set_directory_properties(APPEND PROPERTY COMPILE_FLAGS -Wall)
 
 
 IF(DBUS_FOUND AND ENABLE_DBUS)
@@ -28,8 +26,6 @@ target_link_libraries (ulatencyd dl ${MY_LUA_LIBRARIES}
                        ${GLIB2_LIBRARIES} ${GIO_LIBRARIES} ${GTHREAD_LIBRARIES}
                        ${GMODULE_LIBRARIES}
                        ${POLKIT_LIBRARIES} ${PROCPS_LIBRARIES} )
-
-SET_TARGET_PROPERTIES(ulatencyd PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 
 configure_file(ulatencyd_cleanup.sh.tmpl ulatencyd_cleanup.sh)
 

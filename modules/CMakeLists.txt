@@ -6,7 +6,6 @@ macro(add_module LNAME)
   if(NOT "${LNAME}" STREQUAL "test_module")
     install(TARGETS ${LNAME} LIBRARY DESTINATION lib/ulatencyd/modules) 
   endif(NOT "${LNAME}" STREQUAL "test_module")
-  SET_TARGET_PROPERTIES(${LNAME} PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS}")
 endmacro(add_module)
 
 # test
@@ -46,7 +45,7 @@ if (DBUS_FOUND AND ENABLE_DBUS)
     target_link_libraries (xwatch ${GLIB2_LIBRARIES} ${GMODULE_LIBRARIES} ${DBUS_LIBRARIES} 
                            ${XCB_LIBRARIES} ${XAU_LIBRARIES})
     if (DEBUG_XWATCH)
-      SET_TARGET_PROPERTIES(xwatch PROPERTIES COMPILE_FLAGS "${ADD_COMPILE_FLAGS} -DDEBUG_XWATCH")
+      SET_TARGET_PROPERTIES(xwatch PROPERTIES COMPILE_FLAGS "-DDEBUG_XWATCH")
     endif (DEBUG_XWATCH)
   else (XCB_FOUND AND XAU_FOUND AND DBUS_FOUND AND ENABLE_DBUS)
     message("xcb, xau or dbus headers missing. disable xwatch module")

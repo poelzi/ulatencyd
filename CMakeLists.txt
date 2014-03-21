@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
+set(CMAKE_USER_MAKE_RULES_OVERRIDE
+    "${CMAKE_SOURCE_DIR}/cmake/InitialFlags.cmake")
+
 project(ulatency C)
 
 INCLUDE(FindPkgConfig)
@@ -153,21 +156,35 @@ ELSE(LUA_JIT AND LUAJIT_FOUND)
 ENDIF(LUA_JIT AND LUAJIT_FOUND)
 
 
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-  set(ADD_COMPILE_FLAGS "-g -pg -Wall -Wformat -Werror=format-security")
-endif("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+
+# -----------------------------------------------------------------------------
+#  Begin handling compile / linker flags
+# -----------------------------------------------------------------------------
+
+string(TOUPPER "${CMAKE_BUILD_TYPE}" U_BUILD_TYPE)
+
+# Add warnings to CMAKE_C_FLAGS
+string(STRIP
+       "-Wall -Wformat -Werror=format-security ${CMAKE_C_FLAGS}"
+       CMAKE_C_FLAGS)
+
+# Make linker use same flags used by compiler (mainly due LTO)
+if(CMAKE_BUILD_TYPE)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_C_FLAGS_${U_BUILD_TYPE}} ${CMAKE_EXE_LINKER_FLAGS}")
+  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_C_FLAGS_${U_BUILD_TYPE}} ${CMAKE_MODULE_LINKER_FLAGS}")
+endif()
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}")
+set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
+
+# -----------------------------------------------------------------------------
+#  End handling compile / linker flags
+# -----------------------------------------------------------------------------
+
 
 add_subdirectory(src)
 add_subdirectory(modules)
 add_subdirectory(tests)
 add_subdirectory(docs)
-
-
-#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall")
-#SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pg -Wall")
-
-#SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS  "-Wall")
-SET_PROPERTY(GLOBAL APPEND PROPERTY CMAKE_C_FLAGS "-Wall -uiaeiaue")
 
 
 # FIXME make distclean recrusive
