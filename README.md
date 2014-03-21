@@ -1,4 +1,5 @@
-== What is ulatency ==
+What is ulatency
+================
 
 Ulatency is a daemon that controls how the Linux kernel will spend it's
 resources on the running processes. It uses dynamic cgroups to give the kernel
@@ -7,7 +8,7 @@ hints and limitations on processes.
 It strongly supports the lua scripting language for writing rules and the
 scheduler code.
 
-== What tries it to fix ==
+### What tries it to fix
 
 The Linux scheduler does a pretty good job to give the available resources to
 all processes, but this may not be the best user experience in the desktop case.
@@ -15,7 +16,7 @@ ulatencyd monitors the system and categorizes the running processes into cgroups
 Processes that run wild to slow down the system by causing massive swaping will
 be isolated.
 
-== Isn't CONFIG_SCHED_DESKTOP enough ? ==
+### Isn't CONFIG_SCHED_DESKTOP enough ?
 
 There is a patch for 2.6.38 in pipeline, see http://thread.gmane.org/gmane.linux.kernel/1050575
 
@@ -28,9 +29,14 @@ can't give realtime priorities to processes like jackd, etc...
 
 ulatencyd is designed for fixing exactly that.
 
-== Building ==
 
-Build Requirements:
+
+Building
+--------
+
+
+### Build Requirements ###
+
   - libglib2.0-dev
   - libdbus-glib-1-dev
   - liblua5.1-0-dev | libluajit-5.1-dev
@@ -56,25 +62,27 @@ GUI:
   - python-qt4-dbus
 
 
-Compiling:
 
- # cmake .
- # make DEBUG=1
+### Compiling ###
+
+    $ cmake .
+    $ make DEBUG=1
 
 Configure options (optional):
 
- # ccmake .
+    $ ccmake .
 
-Compilation troubleshooting (libprocps)
 
-  ulatencyd needs some symbols that libprocps does not export, therefore
+### Compilation troubleshooting (libprocps)
+
+  ulatencyd needs some symbols that `libprocps` does not export, therefore
   you must either link to static libprocps or patch that library to
   export all needed symbols.
 
   By default ulatencyd satically links to libprocps.
 
   You can override location of static libprocps library and the include
-  directory by setting PROCPS_STATIC_LIBRARY and PROCPS_STATIC_INCLUDE_DIR
+  directory by setting `PROCPS_STATIC_LIBRARY` and `PROCPS_STATIC_INCLUDE_DIR`
   cmake variables. By default locations will be detected with help
   from pkg-config.
 
@@ -84,46 +92,58 @@ Compilation troubleshooting (libprocps)
                                  the proc/procps.h header.
 
   e.g.:
-  # cmake -D PROCPS_STATIC_LIBRARY:FILEPATH=/path/to/libprocps.a \
-	  -D PROCPS_STATIC_INCLUDE_DIR:PATH=/path/to/include/dir .
+
+    $ cmake -D PROCPS_STATIC_LIBRARY:FILEPATH=/path/to/libprocps.a \
+            -D PROCPS_STATIC_INCLUDE_DIR:PATH=/path/to/include/dir .
 
   If you insist on dynamic linkage to shared libprocps, update or patch
   libprocps to export all symbols that application needs. CMake will
   output the list during configuration phase, alternatively you can get
-  them from CMakeLists.txt. If you manage your solution to be persistent,
+  them from `CMakeLists.txt`. If you manage your solution to be persistent,
   future proof (in sense of API changes) and officially accepted by your
   GNU/Linux distribution, please contact ulatencyd authors.
 
   Dynamic linkage to shared libprocps may be enabled by setting
-  PROCPS_STATIC to OFF, e.g.:
+  `PROCPS_STATIC` to `OFF`, e.g.:
 
-  # cmake -D PROCPS_STATIC:BOOL=ON .
+    $ cmake -D PROCPS_STATIC:BOOL=OFF .
 
   Location of shared libprocps and include dir may be overridden by
-  cmake variable PROCPS_SHARED_LIBRARY ans PROCPS_SHARED_INCLUDE_DIR.
+  cmake variable `PROCPS_SHARED_LIBRARY` and `PROCPS_SHARED_INCLUDE_DIR`.
 
-Building Documentation:
 
- # make docs
+### Building Documentation ###
 
-Install:
- # sudo make install
+    $ make docs
 
-Running:
 
- # sudo /usr/local/sbin/ulatencyd -v -f /var/log/ulatencyd
+### Install ###
 
-== Links ==
+    $ sudo make install
 
-       Website  -  https://github.com/poelzi/ulatencyd
-         Infos  -  https://github.com/poelzi/ulatencyd/wiki
-           FAQ  -  https://github.com/poelzi/ulatencyd/wiki/Faq
-Reporting Bugs  -  https://github.com/poelzi/ulatencyd/issues
 
-== Architecture ==
 
-See docs/architecture.svg for a general overview.
+Running
+-------
 
+    $ sudo /usr/local/sbin/ulatencyd -v -f /var/log/ulatencyd
+
+
+
+Links
+-----
+
+- Website         -  https://github.com/poelzi/ulatencyd
+- Infos           -  https://github.com/poelzi/ulatencyd/wiki
+- FAQ             -  https://github.com/poelzi/ulatencyd/wiki/Faq
+- Reporting Bugs  -  https://github.com/poelzi/ulatencyd/issues
+
+
+
+Architecture
+------------
+
+![See docs/architecture.svg for a general overview.](docs/architecture.png "Overview")
 
 The core of the daemon is written in c, embedding a lua interpreter.
 Most of the rules are written in lua scripts, as heuristics for system behavior
@@ -146,4 +166,5 @@ The processes are traveld in tree order. This means that the progress tree is
 mapped into the data structure and traveled from top (id = 1, which is the init)
 and then trough all the children.
 
-For more informations see docs/RULES_HOWTO.txt
+For more informations see [wiki](docs/wiki/Home.md).
+
