@@ -1,156 +1,19 @@
-0.5.0+exp0.6.0-pre1 / 2012-01-04
-==================
+0.6.0-alpha.1
+=============
 
-  This is fork of original https://github.com/poelzi/ulatencyd, which seems
-  to be inactive for last 6 month. This fork introduce many bugfixes and new
-  features and I want to release it as 0.5.0+exp0.6.0 version once release bugs
-  get fixed.
-
-[ Open release bugs ]
-
-  * one_seat_desktop scheduler mappings:
-    - thaw frozen applications whenever X session manager is going to shutdown/save
-    related session
-
-[ Summary ]
-
-  * new experimental scheduler mappings "one_seat_desktop"
-  * removed embedded libproc and coreutils, statically linked against system
-  libproc
-  * a lot updated simple rules
-  * io.rule turns NCQ (IOPS) mode on block devices under load
-  * doxygen documentation
-  * make U_PROC extensible in LUA
-  * CGROUPS handling changes
-    - don't touch foreign cgroups!
-    - store own cgroups in ulatencyd private cgroup hierarchies
-    - clean unused cgroups via DBUS
-    - new cgroups release agent script (passes request to scheduler via dbus)
-    - clean cgroups on exit
-    - remove cgroups left behind the previous ulatencyd instance
-    - reimplement u_proc.cgroup* stuff in the C core
-  * support for process isolation (Isolate filter, via isolate flag)
-  * add flexibility to scheduler mappings
-    - sysflags prefilter
-    - mulitple checks functions
-    - the rule may be skipped till end of current scheduler run
-    - multiple adjusts function
-    - adjust functions to be run only once per scheduler run
-    - ulatency.match_flag()
-    - scheduler:register_after_hook() 
-    - string:rtrim()
-    - fix CGroup:get_value()
-    - ulatency.is_pid_alive(pid)
-  * system "startup" flag set until first iteration finished
-  * commit a new cgroup settings prior any process is added
-  * tasks reimplemented (now stored in the hash table, persistent across
-  iterations and usable/extensible in LUA)
-  * netlink_fallback module, used if kernel is not compiled with PROC_EVENTS
-  * delay queue related fixes and optimizations
-  * u_proc_ensure() optimizations
-    - it is now possible to update property once per scheduler run
-  * improve signal handling (quit, suspend)
-  * fix linux signal handling to be async safe
-  * logging enhancements
-  * sessions
-    + disable xwatch polling and clear the active pids lists of users with no
-    active session
-    + on session change run full iteration and make sure it is run before next
-    xwatch poll
-  * ulatency client:
-    - fix sysflags command
-    - ulatency clear <cgroup>|ALL
-      + try to thaw frozen groups
-      + does not clear cgroups not created by ulatencyd
-      + clear ulatencyd private hierarchies too
-      + keep ulatencyd private hierarchy and real hierarchy with cgroup
-      controller synced
-    - ulatency mounts: add column with ulatencyd private hierarchies
-    - new command "clear-empty": clears all empty cgroups created by ulatencyd.
-  * configuration changes for ulatencyd.conf:
-    - raise default io.threshold from 500 to 3000, 500 was IMHO too low
- * configuration changes for cgroups.conf:
-    - add memory.move_charge_at_immigrate'] = 1 to memory subsys defaults.
-    - remove broken support for complex cgroups hierarchies and mount points,
-    only the most usual scenario with each cgroup subsystem mounted
-    under separate hierarchy under CGROUP_ROOT/<subsystem> is supported.
-  * sample logrotate file (scripts/logrotate)
-  * sample sysv-rc init file (scripts/service/sysv-rc/)
-  * restore sched_autogroup in linux kernel on shutdown
-  * set umask to 022 instead of 0
-  * don't die when cgroup subsystem cannot be mounted, just print warning
-    One subsystem and ulatencyd running should be better than no ulatencyd :)
-  * fixed a lot of memory leaks
-  * handle cgroups removed outside ulatencyd (issue #28)
-  * fix blkio.weight
-  * fix merge_config pre rules handling (scheduler/00-common)
-  * fix io priority for user.media (to real-time)
-  * default scheduler fixes (desktop.lua)
-  * fix the out of source directory build
-
-[ Details ]
-
-  * new experimental scheduler mappings "one_seat_desktop"
-  Advanced scheduler for one seat desktop, processes under inactive sessions
-  are scheduled with idle priority or even frozen. You may try to enable the
-  `freezer` cgroup subsystem in cgroups.conf. This scheduler mapping is not
-  used by default, as is not fully mater, though I am using it.
-    - responding to active session change
-    - inactive session processes have idle priority, swappiness 100, soft
-    memory limit 0 etc.
-    - useless processes (flagged with inactive_user.useless, user.media, user.ui,
-    user.games, user.idle, daemon.idle) may be frozen, though freezer
-    subsystem is disabled by default (see cgroups.conf).
-    - boost for starting applications (flagged application.starting), see
-    scripts/update-user-apps.sh, scripts/cron.daily/99ulatencyd, generated
-    conf/simple.d/applications.conf
-    - if starting app is the top most active process at same time, it is
-    iosched with real-time policy
-    - sets memory.move_charge_at_immigrate = 3 for system essential cgroup
-    - BUGS with freezer cgroup subsystem enabled:
-      + requires console-kit
-      + If multiple users are logged in, you must quit ulatencyd daemon
-      before shutting the system down. Otherwise other users applications
-      may remain frozen and will not get chance to shutdown properly.
-      Possible solution:  We need to be informed by session manager.
-      Possible workarounds: quit ulatencyd before shutdown, or disable
-      freezer subsystem in cgroups.conf.  
-      + Processes are not correctly assigned to user sessions (ulatencyd
-      check processes UIDs, not the value of XDG_SESSION_COOKIE variable
-      in a process environment).
-      If you sudo to root or other user, processeses you
-      run will be considered for members of that user session you have
-      sudo to. Processes with EUID 0 are not scheduled by the mappings,
-      so if you sudo to root, you only loss some boosts for application
-      executed under sudo. But if you sudo to other user, spawn processes
-      may get even frozen!
-
-  * removed embedded libproc and coreutils, statically linked against system
-  libprocps (issue #37). Static libprocps must be installed on the system
-  because libprocps does not export enough symbols, and this won't probably
-  changed in the near future. On Debian systems the static lib is provided by
-  libprocps0-dev package.
-
-  * a lot updated simple rules
-  * io.rule turns NCQ (IOPS) mode on block devices under load
-  * doxygen documentation
-  * make U_PROC extensible in LUA
+  * removed embedded libproc, coreutils, lbc; but needs to be statically linked
+    against external (system) libproc (issue #37)
 
   * CGROUPS handling changes
-    * don't touch foreign cgroups!
-      - Detect and handle foreign cgroups using ulatencyd private cgroup hierarchies.
-      - scheduler skips processes in cgroups created outside ulatencyd
-    * clean unused cgroups via DBUS
+    - ulatencyd does not touch foreign cgroups
+    - scheduler skips processes in groups created outside ulatencyd
+    - stores own cgroups in private cgroup hierarchies
+    - unused cgroups may manually removed via DBUS call
       - org.quamquam.ulatencyd.System.cgroupsCleanup method
       - new cgroups release agent script (passes request to scheduler via dbus)
-    * clean cgroups on exit
-      - cleanup rules (99-cleanup.lua)
-      - facility to quit the daemon with scheduler cleanup (including cgroups
-      removal). Scheduler quits when 'suspend' or 'quit' (this is with cgroups
-      cleanup) system flag set. Flags are set in signal handlers or manually
-      (ulatency.quit() in LUA rules).
-    * remove cgroups left behind the previous ulatencyd instance
-    * reimplement u_proc.cgroup* stuff in the C core
+    - cleans cgroups on exit (scheduler switches to 99-cleanup.lua mappings)
+    - removes cgroups left behind the previous ulatencyd instance
+    - reimplemented u_proc.cgroup* stuff in the C core
       + U_PROC:get_cgroup(subsys)
       + U_PROC:set_cgroup(subsys, cgroup_path)
       + U_PROC.cgroup => u_proc.cgroup (GHashTable)
@@ -160,54 +23,23 @@
       + u_proc_ensure(proc, CGROUP, ...)
 
   * support for process isolation (Isolate filter, via isolate flag)
-    - see simple.d/isolate.conf, rules/zz_isolate.lua
-    - The isolate flag marks processes that should be isolated in
-    some way.  Threshold and reason values defines how: If threshold is not
-    set or is set to value lower than 1, the process will be normally
-    scheduled. Scheduler rules will be responsible for isolating it (or not).
-    If threshold is set to value 1 or greater, process will be handled by
-    Isolate filter in zz_isolate.lua rule:
-      + threshold = 1 - Not scheduled but cleaned up before ulatencyd exits
-      (e.g. moved to root cgroup)
-      + threshold >= 2 - Not scheduled and not cleaned up before ulatencyd
-      exists.
-      + reason="" or not set - No isolation cgroup will be created, process
-      will stay in its origin cgroup.
-      + reason="<reason>" Process will be moved to /iso_<reason> cgroup of
-      each subsystem defined in cgroups.conf. CGroup parameters may be defined
-      in Isolate filter (zz_isolate.lua).
-    - cgroups (and processes in them) created outside ulatencyd are never
-    touched (i.e. libvirt)
+      see simple.d/isolate.conf, rules/zz_isolate.lua
 
-  * add flexibility to scheduler mappings
+  * added flexibility to scheduler mappings
     - sysflags prefilter
     - mulitple checks functions
-    - the rule may be skipped till end of current scheduler run
+    - rule may be skipped till end of current scheduler run
     - multiple adjusts function
     - adjust functions to be run only once per scheduler run
     - ulatency.match_flag()
-    - scheduler:register_after_hook() 
-      + Register function to be run after the scheduling of process(es) is
-        finished.
+    - scheduler:register_after_hook(): registers function to be run after the 
+      scheduling of processes is finished.
     - string:rtrim()
     - fix CGroup:get_value()
-    - ulatency.is_pid_alive(pid)
-      + Check `/proc` subsystem and return TRUE if process/task with `pid`
-      exists.
-  * system "startup" flag set until first iteration finished
+    - ulatency.is_pid_alive(pid): tests if /proc/pid/ exists
 
-  * other scheduler changes
-    - commit a new cgroup settings prior any process is added (or adjust_new
-    called): This is necessary to memory.move_charge_at_immigrate has effect.
-    Without moving charges, setting the memory limits for poisonous processes is
-    nearly useless.
-
-  * tasks are now stored in the hash table and usable in LUA
-    - tasks can be used in lua without caughting SIGSEGV (because reference
-    counting now implemented)
-    - tasks are persistent across iterations
-    - tasks may be valid / invalid
-    - tasks pushed to lua as U_TASK "type", available fields:
+  * reimplemented tasks (now stored in a hash table, persistent across
+    iterations and usable/extensible in LUA, reference counting)
       + U_TASK.is_valid
       + U_TASK.is_invalid
       + U_TASK.data
@@ -216,108 +48,72 @@
       (if U_TASK.is_valid:)
       + U_TASK.proc
       + all proc_t fields (ppid,tgid,euid, etc.)
-    - U_TASK table is extensible via lu
-    - u_task *task_by_tid(pid_t tid), ulatency.get_tid(tid) from LUA
-    - ulatency.get_pid(pid,include_tasks) has optional `include_tasks`
-    parameter. If TRUE and u_proc with `pid` not found, test if task
-    with `pid` exists and return its thread leader u_proc.
-
-  * netlink_fallback module, used if kernel is not compiled
-    with PROC_EVENTS
-
-  * delay queue related fixes and optimizations:
-    - fix normal filters were not been run on processes leaving the delay
-    queue prematurely because changed by fast filters.
-    - fix processes doing exec leave delay stack even if not affected by fast
-    filters
-    - make sure processes leaving delay stack are updated
-    - optimize parent_proc_by_pid() and update_processes_run() a bit
-    - optimize u_proc_ensure, parse process cgroups only when needed
-      + The property to ensure could be either updated or not. Now you have
-      three options
-        - NOUPDATE    - update only if property not parsed
-	- UPDATE_NOW  - always update
-	- UPDATE_ONCE - update if was not updated since current iteration
-	start
-    - scheduler skips already dead processes
-
-  * fix linux signal handling
-    All signals are now handled in async safe way to avoid crashes
-    (e.g g_log recursions)
-
-  * logging enhancements:
-    - prepend times to log messages
-    - improve reporting of cgroup/sysfs filesystem write errors
-    - better log messages on daemon start
-    - lower the log level in proc:set_block_scheduler() to debug
-    - suppress warning if the task that can't be added to cgroup is already
-    dead
-    - log only block devices which parameters were really changed, prevent
-    useless logging for e.g. loopbacks
-    - more minor changes
+    - ulatency.get_tid(tid) from LUA
+    - ulatency.get_pid(pid,include_tasks) if `include_tasks` and pid is a
+      thread, returns its thread leader.
 
   * sessions
     + disable xwatch polling and clear the active pids lists of users with no
     active session
-    + on session change make sure full iteration is run before next xwatch
-    poll, if we allow xwatch poll on server running some frozen application it
-    may lock.
+    + on session change run full iteration and make sure it is run before next
+    xwatch poll
 
   * ulatency client:
-    - fix sysflags command
+    - fixed sysflags command
     - ulatency clear <cgroup>|ALL
-      + try to thaw frozen groups
+      + tries to thaw frozen groups
       + does not clear cgroups not created by ulatencyd
-      + clear ulatencyd private hierarchies too
-      + keep ulatencyd private hierarchy and real hierarchy with cgroup
-      controller synced.
-    - ulatency mounts
-      + add column with ulatencyd private hierarchies
-    - new command "clear-empty"
-      + Clears all empty cgroups created by ulatencyd.
-      + This is like calling org.quamquam.ulatencyd.System.cgroupsCleanup dbus
-      method, except it work even if ulatencyd not running.
+      + clears ulatencyd private hierarchies
+      + keeps ulatencyd private hierarchy synced with cgroup hierarchy that
+        subsystem controller
+    - ulatency mounts: added column with ulatencyd private hierarchies
+    - new command "clear-empty": clears all empty cgroups created by ulatencyd;
+    - ulatency --cmd: fixed if /proc/#/cmdline contains UTF-8 chars
 
   * configuration changes for ulatencyd.conf:
-    - raise default io.threshold from 500 to 3000, 500 was IMHO too low
+    - raised default io.threshold from 500 to 3000, 500 was IMHO too low
 
- * configuration changes for cgroups.conf:
-    - add memory.move_charge_at_immigrate'] = 1 to memory subsys defaults.
-    Moving memory charges along with processes is necessary to handling
-    poisonous processes. Without this it is nearly useless.
-    - remove broken support for complex cgroups hierarchies and mount points
-      ulatencyd now supports only the most usual scenario, where each cgroup
-      subsystem is mounted under separate hierarchy under
-      CGROUP_ROOT/<subsystem>.  CGROUP_MOUNTPOINTS option was replaced with
-      CGROUP_SUBSYSTEMS - simple array of enabled subsystems.
-      CGROUP_MOUNTPOINTS table was misleading: mount points different from
-      cgroup subsystem names and hierarchies with multiple subsystems weren't
-      correctly handled.  It was silently supposed that each subsystem is
-      mounted under separate hierarchy under the directory with the name of
-      cgroup subsystem. Hierarchy mount points, cgroup subsystem names and
-      scheduler mapping keys were used interchanging.
+ * configuration changes in cgroups.conf:
+    - added memory.move_charge_at_immigrate'] = 1 to memory subsys defaults.
+    - remove support for complex cgroups hierarchies and mount points,
+      supports only the most usual scenario with each cgroup subsystem mounted
+      in separate hierarchy (unde CGROUP_ROOT/<subsystem>).
+      CGROUP_MOUNTPOINTS option was replaced with CGROUP_SUBSYSTEMS - simple
+      array of enabled subsystems.
 
+  * split src/core.lua to modules inside src/lua/
+  * U_PROC extensible in LUA
+  * modules are loaded vie gmodule (from GLib)
+  * netlink_fallback module; used if kernel is not compiled with PROC_EVENTS
+  * delay queue related fixes and optimizations
+  * u_proc_ensure() optimizations
+  * improved signal handling (quit, suspend)
+  * fixed linux signal handling to be async safe
+  * logging enhancements
+  * system "startup" flag set until first iteration finished
+  * commit a new cgroup setting prior any process is added
   * sample logrotate file (scripts/logrotate)
-  * sample sysv-rc init file (scripts/service/sysv-rc/)
-    - probably containing Debian specific code
-
-[ OTHER CHANGES ]
-
-  * restore sched_autogroup in linux kernel on shutdown
-  * set umask to 022 instead of 0
-  * don't die when cgroup subsystem cannot be mounted, just print warning
-    One subsystem and ulatencyd running should be better than no ulatencyd :)
+  * sample sysv-rc init file (scripts/service/sysv-rc/); probably containins
+    Debian specific code.
+  * sched_autogroup in linux kernel is restored on shutdown
+  * umask is set to 022 instead of 0
+  * doesn't die when cgroup subsystem cannot be mounted, just print warning
   * fixed a lot of memory leaks
-  * handle cgroups removed outside ulatencyd (issue #28)
-  * fix blkio.weight
-  * fix merge_config pre rules handling (scheduler/00-common)
-    - Pre rules used to be overwritten by template rules.
-  * fix io priority for user.media (to real-time)
-  * default scheduler fixes (desktop.lua)
-    - fix kernel threads detection
+  * cgroups removed outside ulatencyd now correctly handled (issue #28)
+  * detects valid range of values of cgroup parameters (issue #36)
+  * if process is blocked from scheduling, print the reason
+  * fix SMP: Attach isolated cpuset cgroups to all online CPUs
+  * fixed merge_config pre rules handling (scheduler/00-common)
+  * fixed io priority for user.media (to real-time)
+  * fixes in default scheduler (20-desktop.lua)
   * fix the out of source directory build
-
-
+  * io.rule turns NCQ (IOPS) mode on block devices under load
+  * limits user.* labels to users and {daemon,system}.* to system processes
+  * added daemon.media label (for mpd)
+  * doxygen documentation (not finished)
+  * a lot updated simple rules
+  * new __experimental__ scheduler mappings "one_seat_desktop"
+  * other bug fixes not mentioned here
 
 0.5.0 / 2011-04-05 
 ==================
