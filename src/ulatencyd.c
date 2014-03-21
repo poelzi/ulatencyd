@@ -73,6 +73,7 @@ static gboolean beep = FALSE;
 //static gboolean rand = FALSE;
 
 static gboolean opt_daemon = FALSE;
+static gboolean opt_version = FALSE;
 
 int init_netlink(GMainLoop *loop);
 
@@ -103,6 +104,7 @@ static GOptionEntry entries[] =
   { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
   { "log-file", 'f', 0, G_OPTION_ARG_FILENAME, &log_file, "Log to file", NULL},
   { "daemonize", 'd', 0, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
+  { "version", 0, 0, G_OPTION_ARG_NONE, &opt_version, "Print version information", NULL },
   { NULL }
 };
 
@@ -555,6 +557,49 @@ int main (int argc, char *argv[])
       exit (1);
     }
   g_option_context_free (context);
+
+  if (opt_version)
+    {
+      g_print ("ulatencyd version %s\n\n", QUOTEME(VERSION));
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "BUILD_TYPE", BUILD_TYPE,
+          "BUILD_C_FLAGS", BUILD_C_FLAGS,
+          "BUILD_EXE_LINKER_FLAGS", BUILD_EXE_LINKER_FLAGS,
+          "BUILD_MODULE_LINKER_FLAGS", BUILD_MODULE_LINKER_FLAGS);
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "BUILD_PROCPS_LIBRARIES", BUILD_PROCPS_LIBRARIES,
+          "BUILD_PROCPS_VERSION_STRING", BUILD_PROCPS_VERSION_STRING,
+          "BUILD_LUA_LIBRARIES", BUILD_LUA_LIBRARIES);
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "CONFIG_PREFIX", QUOTEME(CONFIG_PREFIX),
+          "INSTALL_PREFIX", QUOTEME(INSTALL_PREFIX));
+#ifdef DEVELOP_MODE
+      g_print ("%-28s: %s\n\n", "DEVELOP_MODE", "ON");
+#else
+      g_print ("%-28s: %s\n\n", "DEVELOP_MODE", "OFF");
+#endif
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "RELEASE_AGENT", QUOTEME(RELEASE_AGENT),
+          "CONFIG_PATH", QUOTEME(CONFIG_PATH),
+          "RULES_DIRECTORY", QUOTEME(RULES_DIRECTORY),
+          "MODULES_DIRECTORY", QUOTEME(MODULES_DIRECTORY),
+          "LUA_CORE_DIR", QUOTEME(LUA_CORE_DIR));
+      exit (0);
+    }
 
   pid_t pid, sid;
   if (opt_daemon) {

@@ -20,7 +20,17 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-// ioprio
+// CMake build type, compile flags and link flags
+
+#define BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define BUILD_C_FLAGS "@U_C_FLAGS@"
+#define BUILD_EXE_LINKER_FLAGS "@U_EXE_LINKER_FLAGS@"
+#define BUILD_MODULE_LINKER_FLAGS "@U_MODULE_LINKER_FLAGS@"
+#define BUILD_PROCPS_LIBRARIES "@PROCPS_LIBRARIES@"
+#define BUILD_PROCPS_VERSION_STRING "@PROCPS_VERSION_STRING@"
+#define BUILD_LUA_LIBRARIES "@LUA_LIBRARIES@"
+
+// FIXME ioprio
 
 #cmakedefine ENABLE_NLS
 #cmakedefine CONFIG_PREFIX @CONFIG_PREFIX@

@@ -139,9 +139,6 @@ if(GETTEXT_FOUND)
   set(ENABLE_NLS 1)
 endif(GETTEXT_FOUND)
 
-configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
-
-
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src
                      ${GLIB2_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS}
                      ${GIO_INCLUDE_DIRS} ${POLKIT_INCLUDE_DIRS}
@@ -176,10 +173,31 @@ endif()
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}")
 set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
 
+#
+# Create U_*_FLAGS variables containing all compile and link flags for
+# current CMAKE_BUILD_TYPE and pass them to config.h, so we may print them
+# in --version
+#
+set(U_C_FLAGS "${CMAKE_C_FLAGS}")
+set(U_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+set(U_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}")
+
+if(CMAKE_BUILD_TYPE)
+    set(U_C_FLAGS "${U_C_FLAGS} ${CMAKE_C_FLAGS_${U_BUILD_TYPE}}")
+    set(U_EXE_LINKER_FLAGS "${U_EXE_LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS_${U_BUILD_TYPE}}")
+    set(U_MODULE_LINKER_FLAGS "${U_MODULE_LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS_${U_BUILD_TYPE}}")
+endif()
+
+string(STRIP "${U_C_FLAGS}" U_C_FLAGS)
+string(STRIP "${U_EXE_LINKER_FLAGS}" U_EXE_LINKER_FLAGS)
+string(STRIP "${U_MODULE_LINKER_FLAGS}" U_MODULE_LINKER_FLAGS)
+
 # -----------------------------------------------------------------------------
 #  End handling compile / linker flags
 # -----------------------------------------------------------------------------
 
+
+configure_file(src/config.h.tmpl ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
 add_subdirectory(src)
 add_subdirectory(modules)
