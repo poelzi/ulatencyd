@@ -428,6 +428,9 @@ endmacro()
 
 msg_debug("FindProcps starts.")
 
+set(__procps_CMAKE_FIND_LIBRARY_PREFIXES "${CMAKE_FIND_LIBRARY_PREFIXES}")
+set(__procps_CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+
 ## setup linkage type (static or dynamic)
 if (PROCPS_STATIC)
   set(desc_PROCPS_STATIC_LIBRARY # list will be displayed joined with semi-colon
@@ -654,6 +657,8 @@ if(found_lib)
   
 endif()
 
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${__procps_CMAKE_FIND_LIBRARY_SUFFIXES}")
+set(CMAKE_FIND_LIBRARY_PREFIXES "${__procps_CMAKE_FIND_LIBRARY_PREFIXES}")
 
 # -----------------------------------------------------------------------------
 #  End finding procps library and headers
