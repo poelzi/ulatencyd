@@ -58,7 +58,7 @@ extern gint U_log_level; //!< Current log level
 #endif
 
 
-#define VERSION 0.6.0-alpha.2.1
+#define VERSION 0.6.0-alpha.2.1+git
 
 //FIXME enable PROC_FILLSUPGRP once adapted to the new libprocps
 
