@@ -269,9 +269,15 @@ if(NOT "${SYSTEMD_DIR}" STREQUAL "")
 endif (NOT "${SYSTEMD_DIR}" STREQUAL "")
 
 if(NOT "${UPSTART_DIR}" STREQUAL "")
-  install(FILES scripts/service/upstart/ulatencyd.conf
-          DESTINATION ${UPSTART_DIR})
-endif (NOT "${UPSTART_DIR}" STREQUAL "")
+  if(ENABLE_DBUS)
+    install(FILES scripts/service/upstart/ulatencyd-dbus.conf
+            DESTINATION ${UPSTART_DIR}
+            RENAME ulatencyd.conf)
+  else(ENABLE_DBUS)
+    install(FILES scripts/service/upstart/ulatencyd.conf
+            DESTINATION ${UPSTART_DIR})
+  endif(ENABLE_DBUS)
+endif(NOT "${UPSTART_DIR}" STREQUAL "")
 
 # FIXME how to find out where to put it ???
 IF(DBUS_FOUND AND ENABLE_DBUS)
