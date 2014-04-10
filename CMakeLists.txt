@@ -100,6 +100,8 @@ SET(CONFIG_PREFIX "/etc" CACHE PATH
       "Config prefix")
 SET(SYSTEMD_DIR "/lib/systemd/system" CACHE PATH
       "systemd service file directory")
+SET(UPSTART_DIR "/etc/init" CACHE PATH
+      "Upstart job configuration directory")
 
 if(DEVELOP_MODE)
   message("don't forget to copy conf/org.quamquam.ulatencyd.conf to /etc/dbus-1/system.d and reload dbus")
@@ -265,6 +267,17 @@ if(NOT "${SYSTEMD_DIR}" STREQUAL "")
   install(FILES scripts/service/systemd/ulatencyd.service
           DESTINATION ${SYSTEMD_DIR})
 endif (NOT "${SYSTEMD_DIR}" STREQUAL "")
+
+if(NOT "${UPSTART_DIR}" STREQUAL "")
+  if(ENABLE_DBUS)
+    install(FILES scripts/service/upstart/ulatencyd-dbus.conf
+            DESTINATION ${UPSTART_DIR}
+            RENAME ulatencyd.conf)
+  else(ENABLE_DBUS)
+    install(FILES scripts/service/upstart/ulatencyd.conf
+            DESTINATION ${UPSTART_DIR})
+  endif(ENABLE_DBUS)
+endif(NOT "${UPSTART_DIR}" STREQUAL "")
 
 # FIXME how to find out where to put it ???
 IF(DBUS_FOUND AND ENABLE_DBUS)
