@@ -627,8 +627,7 @@ if(found_lib)
   unset(PROCPS_${libtype}_VERSION_STRING CACHE) # check eachtime
 
   execute_process(
-              COMMAND "strings" "${PROCPS_${libtype}_LIBRARY}"
-              COMMAND "sed" "-n" "${ver_rexp}"
+              COMMAND "pkg-config" "--modversion" "libprocps"
               OUTPUT_VARIABLE PROCPS_${libtype}_VERSION_STRING
               ERROR_QUIET )
 
