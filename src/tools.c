@@ -1,7 +1,7 @@
 #include "config.h"
 #include "ulatency.h"
 #include <stdio.h>
-#include <fts.h>
+#include "fts.h"
 #include <unistd.h>
 #include <glib.h>
 
