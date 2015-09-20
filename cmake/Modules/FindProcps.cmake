@@ -72,7 +72,7 @@
 #  
 #  Because of this you don't need to clean the CMake cache to reconfigure
 #  procps. If you need just change PROCPS_STATIC, PROCPS_LIBRARY and
-#  PROCPS_INCLUDE_DIR variable. Simple running of "cmake ." should be
+#  PROCPS_INCLUDE_DIR variable. Simply running "cmake ." should be
 #  sufficient to reconfigure the project.
 #  
 # -----------------------------------------------------------------------------
@@ -260,10 +260,10 @@ function(save_files_stat linkage)
 endfunction()
 
 #
-# detect_changed_files: Detect if library or headers files has been changed.
+# detect_changed_files: Detect if library or headers files have been changed.
 # Usage: detect_changed_files ( "STATIC" | "SHARED" )
 # 
-# Detect if library or headers files has been changed since last
+# Detect if library or headers files have been changed since last
 # save_files_stat(). Sets internal variables 
 # PROCPS_CHANGED_{LIBRARY,INCLUDE_DIR,VERSION_STRING} to ON/OFF.
 #
@@ -364,7 +364,7 @@ endmacro()
 # fail("error message to display" ...)
 #
 # Fail the module and print all errors from the `errors` list as reasons
-# of failure. Optional arguments are appended to the end of the `errors` list
+# for failure. Optional arguments are appended to the end of the `errors` list
 # before printing.
 #
 macro(fail)
@@ -791,7 +791,7 @@ endif()
 
 
 # -----------------------------------------------------------------------------
-#  Begin outputing missing symbols and proc_t members.
+# Begin outputting missing symbols and proc_t members.
 # -----------------------------------------------------------------------------
 # Send error and help message if required symbols and proc_t members not found.
 # -----------------------------------------------------------------------------
@@ -830,7 +830,7 @@ check_failed()
 
 
 # -----------------------------------------------------------------------------
-#  Return results (code steps here only if confugiration was successfull)
+#  Return results (code steps here only if configuration was successful)
 # -----------------------------------------------------------------------------
 
 set(__procps_saved_OK TRUE CACHE INTERNAL "")
