@@ -6,8 +6,6 @@ ulatency.add_flag(flag)
 print("-------")
 pprint(ulatency.get_sessions())
 print("-------")
-act, idle = ulatency.get_uid_stats(1000)
-print("act:", act, "idle:", idle)
 
 PrintProcTest = {
   name = "Test",

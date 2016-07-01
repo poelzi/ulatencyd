@@ -44,14 +44,14 @@ SCHEDULER_MAPPING_SINGLE_TASK["cpu"] =
         name = "task",
         param = { ["cpu.shares"]="3000", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.active_pos == 1 or check_label({"cmd.config.single_task"}, proc)
+            return proc.focus_position == 1 or check_label({"cmd.config.single_task"}, proc)
           end
       },
       {
         name = "active",
         param = { ["cpu.shares"]="30", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.active_pos == 1
+            return proc.focus_position == 1
           end
       },
       {
@@ -68,7 +68,7 @@ SCHEDULER_MAPPING_SINGLE_TASK["cpu"] =
     name = "task",
     param = { ["cpu.shares"]="3000", ["?cpu.rt_runtime_us"] = "1"},
     check = function(proc)
-        return proc.active_pos == 1 or check_label({"cmd.config.single_task"}, proc)
+        return proc.focus_position == 1 or check_label({"cmd.config.single_task"}, proc)
       end
   },
   {

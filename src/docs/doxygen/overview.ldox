@@ -44,8 +44,9 @@
 --! functionality exported via lua bindings. For example most variables and functions implemented in the C code are 
 --! exported in `#ulatency` global lua table. 
 --!
---! The core functionality is further extended by the `src/core.lua` file, i.e, extending `#ulatency` class and creating
---! new classes (`#CGroup` for instance) and functions the rules (filters, timeout functions and scheduler) may use.
+--! The core functionality is further extended by the `src/lua/*.lua` files which extend `#ulatency` and `#U_PROC`
+--! classes, define `#CGroup` class and other miscellaneous functions that rules (filters, timeout functions and
+--! scheduler) may use.
 --!
 --! The core of course has much more duties, e.g.:
 --! - registering available modules (DBUS, xwatch)

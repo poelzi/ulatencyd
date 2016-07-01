@@ -53,7 +53,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     cgroups_name = "rt_tasks",
     param = { ["cpu.shares"]="3048", ["?cpu.rt_runtime_us"] = "949500" },
     check = function(proc)
-          local rv = proc.vm_size == 0 or proc.received_rt or check_label({"sched.rt"}, proc)
+          local rv = proc.is_kernel == 0 or proc.received_rt or check_label({"sched.rt"}, proc)
           -- note: some kernel threads cannot be moved to cgroup, ie. migration/0 and watchdog/0
           return rv
         end,
@@ -67,18 +67,18 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
 
   {
     name = "idle_user",
-    cgroups_name = "idle_usr_${euid}",
+    cgroups_name = "idle_usr_${session_id}",
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+              return proc.session_id > ulatency.USESSION_NONE and not proc.session_is_active
             end,
     param = { ["cpu.shares"]="1",  ["?cpu.rt_runtime_us"] = "100" }
   },
 
   {
     name = "user",
-    cgroups_name = "usr_${euid}",
+    cgroups_name = "usr_${session_id}",
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 )
+              return proc.session_id > ulatency.USESSION_NONE
             end,
     param = { ["cpu.shares"]="3048",  ["?cpu.rt_runtime_us"] = "100" },
     children = {
@@ -88,7 +88,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
         cgroups_name = "active",
         param = { ["cpu.shares"]="1500", ["?cpu.rt_runtime_us"] = "1"},
         check = function(proc)
-            return proc.is_active and proc.active_pos == 1
+            return proc.focus_position == 1
           end
       },
       {
@@ -171,21 +171,20 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
     label = { "daemon.media" },
   },
   {
-    name = "system_daemon",
-    cgroups_name = "sys_daemon",
-    check = function(proc)
-              -- don't put kernel threads into a cgroup
-              return (proc.pgrp > 0)
-            end,
-    param = { ["cpu.shares"]="800",
-              ["?cpu.rt_runtime_us"] = "1"},
-  },
-  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
+  },
+  {
+    name = "system_daemon",
+    cgroups_name = "sys_daemon",
+    param = { ["cpu.shares"]="800",
+              ["?cpu.rt_runtime_us"] = "1"},
+    check = function(proc)
+                return true
+              end,
   },
   {
     name = "missed",
@@ -194,8 +193,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["cpu"] =
               return true
             end,
     adjust = function(cgroup, proc)
-              ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                    proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>"))
+              u_warning(
+                    'scheduler: missed process %d (%s), euid: %d, cmdline: %s',
+                    proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>")
             end,
   },
 }
@@ -210,10 +210,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
   },
   {
     name = "idle_user",
-    cgroups_name = "idle_usr_${euid}",
+    cgroups_name = "idle_usr_${session_id}",
     check = function(proc)
-              -- FIXME: proc.euid is probably not always the best choice.
-              return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+              return proc.session_id > ulatency.USESSION_NONE and not proc.session_is_active
             end,
     param = { ["memory.soft_limit_in_bytes"] = "1", ["?memory.swappiness"] = "100", ["?memory.use_hierarchy"] = "1" },
     children = {
@@ -233,7 +232,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                   local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"),
                                                    Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
                                                max_rss)
-                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit: 1")
+                  u_info(
+                        "memory container created: %s, max_rss: %d, "..
+                        "max_total: %d, soft_limit: 1",
+                        cgroup.name, max_rss, total_limit)
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
                   cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                 end
@@ -257,7 +259,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                   local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"),
                                                    Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
                                                max_rss)
-                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit: 1")
+                  u_info(
+                        "memory container created: %s, max_rss: %d, "..
+                        "max_total: %d, soft_limit: 1",
+                        cgroup.name, max_rss, total_limit)
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
                   cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                 end
@@ -265,12 +270,11 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     },
   },
 
-
   {
-    name = "user",
-    cgroups_name = "usr_${euid}",
+    name = "active_user",
+    cgroups_name = "active_usr_${session_id}",
     check = function(proc)
-              return ( proc.euid > 999 and proc.euid < 60000 )
+              return proc.session_id > ulatency.USESSION_NONE
             end,
     children = {
       {
@@ -287,10 +291,15 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         name = "active",
         param = { ["?memory.swappiness"] = "20" },
         check = function(proc)
-                if not proc.is_active then return false end
+                if not (proc.focus_position == 1
+                        or (proc.focus_position
+                            and not check_label({"user.idle"}, proc)))
+                then
+                  return false
+                end
                 for j, flag in pairs(ulatency.list_flags()) do
                   if flag.name == "pressure" or flag.name == "emergency" then
-                  return proc.active_pos == 1
+                  return proc.focus_position == 1
                 end
               end
               return true
@@ -309,9 +318,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
         adjust_new = function(cgroup, proc)
                   cgroup:add_task(proc.pid)
                   cgroup:commit()
-                  bytes = cgroup:get_value("memory.usage_in_bytes")
+                  local bytes = cgroup:get_value("memory.usage_in_bytes")
                   if not bytes then
-                    ulatency.log_warning("can't access memory subsystem")
+                    u_warning("can't access memory subsystem")
                     return
                   end
                   bytes = math.floor(bytes*(tonumber(ulatency.get_config("memory", "process_downsize")) or 0.95))
@@ -323,7 +332,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                   local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"),
                                                    Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
                                                max_rss)
-                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
+                  u_info(
+                        "memory container created: %s, max_rss: %d, "..
+                        "max_total: %d, soft_limit: %d",
+                        cgroup.name, max_rss, total_limit, bytes)
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
                   cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                 end
@@ -342,7 +354,8 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                                                     { name = "user.poison.group",
                                                       value = proc.pgrp })
                   cgroup:add_task(proc.pid)
-                  cgroup:set_value("memory.soft_limit_in_bytes", math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95))))
+                  local bytes = math.ceil(flag.threshold*(tonumber(ulatency.get_config("memory", "group_downsize") or 0.95)))
+                  cgroup:set_value("memory.soft_limit_in_bytes", bytes)
                   -- we use soft limit, but without limit we can't set the memsw limit
                   local max_rss = math.floor(num_or_percent(ulatency.get_config("memory", "max_rss"),
                                                  Scheduler.meminfo.kb_main_total,
@@ -350,7 +363,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
                   local total_limit = math.max(math.floor(num_or_percent(ulatency.get_config("memory", "total_limit"),
                                                    Scheduler.meminfo.kb_main_total + Scheduler.meminfo.kb_swap_total) * 1024),
                                                max_rss)
-                  ulatency.log_info("memory container created: ".. cgroup.name .. " max_rss:" .. tostring(max_rss) .. " max_total:" .. tostring(total_limit) .. " soft_limit:".. tostring(bytes))
+                  u_info(
+                        "memory container created: %s, max_rss: %d, "..
+                        "max_total: %d, soft_limit: %d",
+                        cgroup.name, max_rss, total_limit, bytes)
                   cgroup:set_value("memory.limit_in_bytes", max_rss)
                   cgroup:set_value("?memory.memsw.limit_in_bytes", total_limit, max_rss)
                 end
@@ -376,6 +392,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
       },
     },
   },
+
   {
     name = "system_idle",
     cgroups_name = "sys_idle",
@@ -394,20 +411,19 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
     label = { "daemon.media" },
   },
   {
-    name = "system_daemon",
-    cgroups_name = "sys_daemon",
-    check = function(proc)
-              -- don't put kernel threads into a cgroup
-              return (proc.pgrp > 0)
-            end,
-    param = { ["?memory.swappiness"] = "80" },
-  },
-  {
     name = "kernel",
     cgroups_name = "",
     check = function(proc)
-              return (proc.vm_size == 0)
+              return proc.is_kernel
             end
+  },
+  {
+    name = "system_daemon",
+    cgroups_name = "sys_daemon",
+    param = { ["?memory.swappiness"] = "80" },
+    check = function(proc)
+                return true
+              end,
   },
   {
     name = "missed",
@@ -416,8 +432,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["memory"] =
               return true
             end,
     adjust = function(cgroup, proc)
-              ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                    proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>"))
+              u_warning(
+                    'scheduler: missed process %d (%s), euid: %d, cmdline: %s',
+                    proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>")
             end,
   },
 }
@@ -438,9 +455,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
 
   {
     name = "idle_user",
-    cgroups_name = "idle_usr_${euid}",
+    cgroups_name = "idle_usr_${session_id}",
     check = function(proc)
-                return ( proc.euid > 999 and proc.euid < 60000 and not ulatency.get_uid_stats(proc.euid) )
+                return proc.session_id > ulatency.USESSION_NONE and not proc.session_is_active
               end,
     param = { ["blkio.weight"]="10" },
     adjust = function(cgroup, proc)
@@ -465,18 +482,16 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
   },
   {
     name = "active",
-    cgroups_name = "usr_${euid}_active",
+    cgroups_name = "usr_${session_id}_active",
     param = { ["blkio.weight"]="1000" },
     check = function(proc)
-                return proc.active_pos == 1
+                return proc.focus_position == 1
               end,
     adjust = function(cgroup, proc)
                 if ulatency.match_flag({"application.starting"}, proc) then
-                  ulatency.log_info(
-                    string.format("Boosting starting active application to Real-Time IO policy: %s [%d]",
-                      (proc.cmdfile or "(no cmdline)"), proc.pid
-                    )
-                  )
+                  u_info(
+                        "Boosting starting active application to Real-Time IO policy: %s [%d]",
+                         proc.cmdfile or "(no cmdline)", proc.pid)
                   save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_RT)
                 else
                   save_io_prio(proc, 0, ulatency.IOPRIO_CLASS_BE)
@@ -505,11 +520,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
     },
     adjust = function(cgroup, proc)
                 --if proc.is_valid and proc.changed then
-                  ulatency.log_info(
-                    string.format("Boosting starting application IO priority: %s [%d]",
-                      (proc.cmdfile or "(no cmdline)"), proc.pid
-                    )
-                  )
+                  u_info(
+                        "Boosting starting application IO priority: %s [%d]",
+                        proc.cmdfile or "(no cmdline)", proc.pid)
                 --end
                 save_io_prio(proc, 1, ulatency.IOPRIO_CLASS_BE)
 
@@ -562,28 +575,24 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
                 restore_io_prio(proc)
               end,
   },
-
-
+  {
+    name = "kernel",
+    cgroups_name = "",
+    check = function(proc)
+                return proc.is_kernel
+              end
+  },
   --! system other
   {
     name = "system",
     cgroups_name = "sys_grp_${pgrp}",
     check = function(proc)
-                -- don't put kernel threads into a cgroup
-                return (proc.pgrp > 0)
+                return true
               end,
     param = { ["blkio.weight"]="10" },
     --adjust = function(cgroup, proc)
     --            save_io_prio(proc, 7, ulatency.IOPRIO_CLASS_BE)
     --         end,
-  },
-
-  {
-    name = "kernel",
-    cgroups_name = "",
-    check = function(proc)
-                return (proc.vm_size == 0)
-              end
   },
   {
     name = "missed",
@@ -592,8 +601,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["blkio"] =
                 return true
               end,
     adjust = function(cgroup, proc)
-                ulatency.log_warning(string.format('scheduler: missed process %d (%s), euid: %d, cmdline: %s',
-                      proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>"))
+                u_warning(
+                      'scheduler: missed process %d (%s), euid: %d, cmdline: %s',
+                      proc.pid, proc.cmdfile or "NONE", proc.euid, proc.cmdline_match or "<no cmdline>")
               end,
   },
 }
@@ -603,9 +613,9 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
 {
   {
     name = "user",
-    cgroups_name = "usr_${euid}",
+    cgroups_name = "usr_${session_id}",
     check = function(proc)
-                return ( proc.euid > 999 and proc.euid < 60000 )
+                return proc.session_id > ulatency.USESSION_NONE
               end,
     param = { ["freezer.state"] = "THAWED" },
     children = {
@@ -613,10 +623,10 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
         name = "inactive_user.useless",
         label = { "inactive_user.useless", "user.media", "user.ui", "user.game", "user.idle", "daemon.idle" },
         adjust = function(cgroup, proc)
-                if ulatency.get_uid_stats(proc.euid) or ulatency.match_flag({"quit","suspend"}) then
+                if proc.session_is_active or ulatency.match_flag({"quit","suspend"}) then
                   if cgroup:get_value("freezer.state") == 'FROZEN' then
                     Scheduler:register_after_hook('thaw group ' .. cgroup.name, function()
-                        ulatency.log_info('thawing group ' .. cgroup.name)
+                        u_info('thawing group %s', cgroup.name)
                       end
                     )
                   end
@@ -624,7 +634,7 @@ SCHEDULER_MAPPING_ONE_SEAT_DESKTOP["freezer"] =
                 else
                   Scheduler:register_after_hook('freeze group ' .. cgroup.name, function()
                       if cgroup:get_value("freezer.state") == 'THAWED' then
-                        ulatency.log_info('freezing group ' .. cgroup.name)
+                        u_info('freezing group %s', cgroup.name)
                         cgroup:set_value("freezer.state", 'FROZEN')
                         cgroup:commit()
                       end

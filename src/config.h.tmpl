@@ -20,10 +20,19 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-// ioprio
+// CMake build type, compile flags and link flags
+
+#define BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define BUILD_C_FLAGS "@U_C_FLAGS@"
+#define BUILD_EXE_LINKER_FLAGS "@U_EXE_LINKER_FLAGS@"
+#define BUILD_MODULE_LINKER_FLAGS "@U_MODULE_LINKER_FLAGS@"
+#define BUILD_PROCPS_LIBRARIES "@PROCPS_LIBRARIES@"
+#define BUILD_PROCPS_VERSION_STRING "@PROCPS_VERSION_STRING@"
+#define BUILD_LUA_LIBRARIES "@LUA_LIBRARIES@"
+
+// FIXME ioprio
 
 #cmakedefine ENABLE_NLS
-#cmakedefine LIBCGROUPS
 #cmakedefine CONFIG_PREFIX @CONFIG_PREFIX@
 #cmakedefine INSTALL_PREFIX @INSTALL_PREFIX@
 #cmakedefine ENABLE_DBUS
@@ -36,13 +45,13 @@
 #define CONFIG_PATH conf
 #define RULES_DIRECTORY rules
 #define MODULES_DIRECTORY modules
-#define LUA_CORE_FILE src/core.lua
+#define LUA_CORE_DIR src/lua
 #else
 #define RELEASE_AGENT ${INSTALL_PREFIX}/lib/ulatencyd/ulatencyd_cleanup.sh
 #define CONFIG_PATH ${CONFIG_PREFIX}/ulatencyd
 #define RULES_DIRECTORY ${CONFIG_PREFIX}/ulatencyd/rules
 #define MODULES_DIRECTORY ${INSTALL_PREFIX}/lib/ulatencyd/modules
-#define LUA_CORE_FILE ${INSTALL_PREFIX}/lib/ulatencyd/core.lua
+#define LUA_CORE_DIR ${INSTALL_PREFIX}/lib/ulatencyd/lua
 #endif
 
 #define QUOTEME_(x) #x

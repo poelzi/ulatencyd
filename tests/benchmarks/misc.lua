@@ -46,3 +46,15 @@ function test_match_flag()
   )
   ulatency.clear_flag_source(proc)
 end
+
+
+function test_function_parameters()
+  local function empty() end
+  local nothing = false
+  benchmark("function with params vs no params", 1e5,
+    { "function with two tostring params", function() empty(tostring(23), tostring(53)) end },
+    { "function with two numeric params", function() empty(23, 53) end },
+    { "function without params", function() empty() end },
+    { "false condition", function() if nothing then end end }
+  )
+end

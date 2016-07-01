@@ -16,8 +16,11 @@
     You should have received a copy of the GNU General Public License 
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
+#define _GNU_SOURCE
+
 #include "config.h"
 #include "ulatency.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,9 +36,6 @@
 #include <err.h>
 #include <linux/oom.h>
 #include "nls.h"
-#ifndef __USE_GNU
-#define __USE_GNU
-#endif
 #include <fcntl.h>
 
 #ifndef OOM_SCORE_ADJ_MIN
@@ -148,6 +148,11 @@ int adj_oom_killer(pid_t pid, int adj)
   return -1;
 }
 
+/**
+ * Returns number of how oom-killer score is adjusted for #U_PROC
+ * @retval >=0 score adjust
+ * @retval -1 on failure
+ */
 int get_oom_killer(pid_t pid)
 {
     char       *contents, *path;
@@ -163,10 +168,10 @@ int get_oom_killer(pid_t pid)
                                &error);
     if (!res) {
         g_error_free (error);
-        return 0;
+        return -1;
     }
     if(!sscanf(contents, "%d", &rv))
-      rv = 0;
+      rv = -1;
 
     g_free(contents);
     g_free(path);

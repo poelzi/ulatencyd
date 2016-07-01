@@ -43,7 +43,8 @@
 --!    - on new processes comming from the delay stack (`run_new_pid()`),
 --!    - on process if its important parameters like `UID` or `GID` change (`process_new()`),
 --!    - if a single process is scheduled (`process_run_one()`), e.g. `scheduleTask` DBUS request, and
---!    - if a process is added to or removed from user active list (see `ulatency.set_active_pid()`).
+--!    - if a process is added to or removed from a focus stack or its position
+--!      in the stack changed (see `U_PROC::set_focused()`).
 --!
 --!    The process will be scheduled immediately with the `Scheduler.one()` function.
 --!

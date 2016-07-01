@@ -11,7 +11,7 @@
  * @ingroup lua_PSEUDO lua_FLAGS
  */
 
-typedef struct _FLAG {
+typedef struct U_FLAG {
   U_HEAD;
   /**
    * @details This pointer is passed to the flag constructor `u_flag_new()` and is later used by
@@ -31,4 +31,10 @@ typedef struct _FLAG {
   int64_t        value;         //!< custom data: value
   int64_t        threshold;     //!< custom data: threshold
   uint32_t       inherit : 1;      //!< will apply to all children
+  /**
+   * @details (boolean) If TRUE, adding/removing the flag to/from an entity (u_proc or system flags) will
+   * tag the entity as changed, i.e. u_proc.changed or system_flags_changed variable will be set.
+   * Default value for new flags is 1 (TRUE).
+   */
+  uint32_t       urgent: 1;     //!< adding/removing the flag will tag the holder as changed
 } u_flag;

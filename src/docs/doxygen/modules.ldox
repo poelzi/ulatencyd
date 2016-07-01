@@ -11,6 +11,10 @@
 --!   @todo Describe CGroup.
 --!   @ingroup lua_API
 
+--!     @defgroup lua_LOGGING Logging facilities
+--!     @brief Logging facilities accessible from LUA
+--!     @ingroup  lua_CORE
+
 --!     @defgroup lua_CGROUPS CGroups
 --!     @todo Describe CGroups
 --!     @ingroup  lua_CORE
@@ -84,6 +88,26 @@
 
 --!  @defgroup DBUS DBUS interface
 --!  @todo Describe DBUS interface
+
+--! @defgroup core The C core
+
+--!   @defgroup USession
+--!   @brief Sessions subsystem
+--!   @ingroup core
+
+--!     @defgroup USession-agent-api USession API for agents
+--!     @brief Sessions subsystem interface for session tracking agents.
+--!     @ingroup USession
+
+--!   @defgroup UFocus
+--!   @brief Track applications that have user focus
+--!   @ingroup core
+
+--!   @defgroup UHook Hooks
+--!   @ingroup core
+
+--!   @defgroup UAssert Debug assertions
+--!   @ingroup core
 
 
 ----- hidden groups ------

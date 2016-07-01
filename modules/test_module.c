@@ -1,5 +1,5 @@
 /*
-    Copyright 2010,2011 ulatencyd developers
+    Copyright 2010,2011,2013 ulatencyd developers
 
     This file is part of ulatencyd.
 
@@ -17,10 +17,19 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#include <ulatency.h>
+
+#include <glib.h>
+#include <gmodule.h>
 #include <string.h>
 #include <stdio.h>
 
-int test_init() {
-  printf("test module loaded\n");
-  return 0;
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
+  printf ("Test module loaded\n");
+  g_message ("Test module: loaded.");
+  u_module_close_me (module);
+  g_message ("Test module: unloading requested.");
+  return NULL;
 }

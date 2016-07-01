@@ -86,7 +86,7 @@ BottleNeck = {
     if not fp then
       return
     end
-    ulatency.log_info("IO: set slice idling on dev "..dev.." to "..tostring(value))
+    u_info("IO: set slice idling on dev %s to %d", dev, value)
     fp:write(tostring(value))
     fp:close()
   end,

@@ -19,41 +19,139 @@
 
 #include "config.h"
 #include "ulatency.h"
+
 #include <glib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
 
+/**
+ * Returns contents of file `/proc/<pid>/<what>`.
+ *
+ * @param pid
+ * @param what        name of file in directory `/proc/<pid>/` to read contents
+ *                    from.
+ * @param[out] length location to store length in bytes of the contents,
+ *                    or \c NULL.
+ *
+ * @return contents of a file as a newly allocated string, use g_free() to free
+ *         the returned string.
+ * @retval NULL if either reading failed or content is empty:
+ * - If content is empty, \a errno is set to \c EEXIST and \a length to \c 0.
+ * - If error occurred, \a errno is set appropriately and \a length is not set.
+ */
+gchar *
+u_pid_read_file (pid_t       pid,
+                 const char *what,
+                 gsize      *length)
+{
+  gchar *path;
+  gchar *contents;
+  gint fd;
+  gchar buf[4096];
+  ssize_t bytes;
+  gsize total_bytes;
+  gsize total_allocated;
+  gint save_errno;
 
-GList *U_session_list;
+  path = g_strdup_printf ("/proc/%u/%s", (guint)pid, what);
 
+  fd = open (path, O_RDONLY);
+  g_free (path);
+
+  if (fd < 0)
+    return NULL;
+
+  contents = NULL;
+  total_bytes = 0;
+  total_allocated = 0;
+
+  while (TRUE)
+    {
+      bytes = read (fd, buf, sizeof buf);
+
+      if (bytes == -1)
+        {
+          if (G_UNLIKELY (errno == EINTR))
+            continue;
+          goto error;
+        }
+      else if (bytes == 0)
+        {
+          break;
+        }
+      else if (G_UNLIKELY (total_bytes > G_MAXSIZE - bytes))
+        {
+          goto file_too_large;
+        }
+      else if (G_UNLIKELY (bytes < 0)) {
+          g_assert_not_reached();
+      }
+
+      if (!contents)
+        total_allocated = bytes + 1;
+      else
+        total_allocated += bytes;
+
+      contents = g_realloc (contents, total_allocated);
+      memcpy (contents + total_bytes, buf, bytes);
+
+      total_bytes += bytes;
+    }
+
+  close (fd);
+
+  if (G_UNLIKELY (total_allocated == 0))
+    errno = EEXIST;
+  else
+    contents[total_bytes] = '\0';
+
+  if (length)
+    *length = total_bytes;
+
+  return contents;
+
+file_too_large:
+  errno = EFBIG;
+
+error:
+  save_errno = errno;
+  g_free (contents);
+  close (fd);
+  errno = save_errno;
+
+  return NULL;
+}
 
 /* adapted from consolekit */
+/**
+ * Returns contents of file `/proc/<pid>/environ` as a `GHashTable`.
+ *
+ * @param pid
+ *
+ * @return \a pid environment as an `GHashTable` with both keys and values
+ *         destroy functions set to `g_free()`. If `environ` file contains only
+ *         a null byte ('\0'), empty `GHashTable` is returned.
+ * @retval NULL if either reading failed or file content is empty:
+ * - If `environ` file is empty, \a errno is set to \c EEXIST.
+ * - If error occurred, \a errno is set appropriately.
+ */
+// FIXME optimize: avoid duplication of strings
 GHashTable *
 u_read_env_hash (pid_t pid)
 {
-    char       *path;
-    gboolean    res;
     char       *contents;
     gsize       length;
-    GError     *error;
     GHashTable *hash;
     int         i;
     gboolean    last_was_null;
 
-    contents = NULL;
-    hash = NULL;
+    contents = u_pid_read_file (pid, "environ", &length);
 
-    path = g_strdup_printf ("/proc/%u/environ", (guint)pid);
-
-    error = NULL;
-    res = g_file_get_contents (path,
-                               &contents,
-                               &length,
-                               &error);
-    if (! res) {
-        //g_debug("Couldn't read %s: %s", path, error->message);
-        g_error_free (error);
-        goto out;
-    }
+    if (contents == NULL)
+      return NULL;
 
     hash = g_hash_table_new_full (g_str_hash,
                                   g_str_equal,
@@ -79,48 +177,46 @@ u_read_env_hash (pid_t pid)
         last_was_null = FALSE;
     }
 
-out:
     g_free (contents);
-    g_free (path);
 
     return hash;
 }
 
+/**
+ * Returns content of variable \a var from \a pid environment.
+ *
+ * @param pid
+ * @param var name of environment variable
+ *
+ * @retval value of a environment variable as a newly allocated string, use
+ *         g_free() to free the returned string.
+ * @retval NULL if either reading of `/proc/<pid>/environ` failed, its content
+ * is empty or \a var is not defined:
+ * - If environment content is empty, \a errno is set to \c EEXIST.
+ * - If variable is not set, \a errno is set to \c ENOKEY.
+ * - If error occurred, \a errno is set appropriately.
+ */
 char *
 u_pid_get_env (pid_t       pid,
                const char *var)
 {
-    char      *path;
-    gboolean   res;
     char      *contents;
     char      *val;
     gsize      length;
-    GError    *error;
     int        i;
     char      *prefix;
     int        prefix_len;
     gboolean   last_was_null;
 
+    contents = u_pid_read_file (pid, "environ", &length);
+
+    if (contents == NULL)
+      return NULL;
+
     val = NULL;
-    contents = NULL;
-    prefix = NULL;
-
-    path = g_strdup_printf ("/proc/%u/environ", (guint)pid);
-
-    error = NULL;
-    res = g_file_get_contents (path,
-                               &contents,
-                               &length,
-                               &error);
-    if (! res) {
-        //g_debug ("Couldn't read %s: %s", path, error->message);
-        g_error_free (error);
-        goto out;
-    }
-
 
     prefix = g_strdup_printf ("%s=", var);
-    prefix_len = strlen(prefix);
+    prefix_len = strlen (prefix);
 
     /* FIXME: make more robust */
     last_was_null = TRUE;
@@ -136,42 +232,44 @@ u_pid_get_env (pid_t       pid,
         last_was_null = FALSE;
     }
 
-out:
     g_free (prefix);
     g_free (contents);
-    g_free (path);
+
+    if (val == NULL)
+      errno = ENOKEY;
 
     return val;
 }
 
-
-
+/**
+ * Returns contents of file `/proc/<pid>/<what>` containing set of strings
+ * separated by null bytes ('\0').
+ *
+ * @param pid
+ * @param what name of file in directory `/proc/<pid>/` to read contents from.
+ *
+ * @return contents of a file as a `GPtrArray` with destroy function set to
+ *         `g_free()`. If file contains only a null byte ('\0'), `GPtrArray`
+ *         with length \c 0 is returned.
+ * @retval NULL if either reading failed or content is empty:
+ * - If content is empty, \a errno is set to \c EEXIST.
+ * - If error occurred, \a errno is set appropriately.
+ */
+// FIXME optimize: avoid duplication of strings
 GPtrArray *
-u_read_0file (pid_t pid, const char *what)
+u_pid_read_0file (pid_t       pid,
+                 const char *what)
 {
-    char       *path;
-    gboolean    res;
     char       *contents;
     gsize       length;
-    GError     *error;
     GPtrArray  *rv = NULL;
     int         i;
     gboolean    last_was_null;
 
-    contents = NULL;
+    contents = u_pid_read_file (pid, what, &length);
 
-    path = g_strdup_printf ("/proc/%u/%s", (guint)pid, what);
-
-    error = NULL;
-    res = g_file_get_contents (path,
-                               &contents,
-                               &length,
-                               &error);
-    if (! res) {
-        //g_debug ("Couldn't read %s: %s", path, error->message);
-        g_error_free (error);
-        goto out;
-    }
+    if (contents == NULL)
+      return NULL;
 
     rv = g_ptr_array_new_with_free_func(g_free);
 
@@ -187,9 +285,7 @@ u_read_0file (pid_t pid, const char *what)
         last_was_null = FALSE;
     }
 
-out:
     g_free (contents);
-    g_free (path);
 
     return rv;
 }
@@ -210,10 +306,9 @@ GPtrArray* search_user_env(uid_t uid, const char *name, int update) {
         if(proc->proc->euid != uid)
             continue;
 
-        u_proc_ensure(proc, ENVIRONMENT, update ? UPDATE_NOW : UPDATE_ONCE);
-
-        if(!proc->environ)
-            continue;
+        if (!u_proc_ensure (proc, ENVIRONMENT,
+                            update ? UPDATE_NOW : UPDATE_DEFAULT))
+          continue;
 
         val = g_hash_table_lookup(proc->environ, name);
         if(val) {
@@ -251,341 +346,3 @@ uint64_t get_number_of_processes() {
 
     return rv;
 }
-
-
-#ifdef ENABLE_DBUS
-
-// things would be so much easier here when consolekit would just emit a 
-// SessionAdded/SessionRemoved in the manager, we so don't care about seats...
-
-static DBusGProxy *ck_manager_proxy = NULL;
-
-struct ck_seat {
-  DBusGProxy *proxy;
-  char *name;
-};
-
-// list of current seats
-static GList *ck_seats = NULL;
-
-gint match_session(gconstpointer a, gconstpointer b) {
-  const u_session *sa = a;
-  return g_strcmp0(sa->name, (const char *)b);
-}
-
-// updates the idle hint of a session
-static void session_idle_hint_changed(DBusGProxy *proxy, gboolean hint, u_session *sess) {
-  g_debug("CK: idle changed %s -> %d", sess->name, hint);
-  sess->idle = hint;
-}
-
-static void session_active_changed(DBusGProxy *proxy, gboolean active, u_session *sess) {
-  g_debug("CK: active changed %s -> %d", sess->name, active);
-  sess->active = active;
-  // Disable (and clear) or enable list of this user active processes.
-  // xwatch will not update X servers of disabled (inactive) users. This is needed
-  // to avoid freezes while requesting active atom from Xorg where some application
-  // is frozen.
-  GList *cur = U_session_list;
-  u_session *s;
-  int act = 0;
-  while(cur) {
-      s = cur->data;
-      if(s->uid == sess->uid) {
-          if(s->active)
-              act = 1;
-      }
-      cur = g_list_next(cur);
-  }
-  enable_active_list(sess->uid, act);
-
-  if (active) {
-    // iterate
-    g_message("CK: Active session changed to %s (UID: %d)", sess->name, sess->uid);
-    // TODO: add system flag, but it is probably useless
-    //const void *U_FLAG_SOURCE = (void *)ck_session_changed
-    //u_flag_clear_source(NULL, U_FLAG_SOURCE);
-    //u_flag *flg = u_flag_new(U_FLAG_SOURCE, "session.active.uid");
-    //flg->reason  = "ConsoleKit";
-    //flg->value = sess->uid;
-    //u_flag_add(NULL, flg);
-    //u_trace("added system flag: session.active.uid");
-    system_flags_changed = 1;
-    // iteration must be run before xwatch poll, hopefully G_PRIORITY_HIGH is sufficient,
-    // otherwise we would have to temporary disable xwatch polling to avoid freezes on
-    // some systems
-    g_timeout_add_full(G_PRIORITY_HIGH, 0, iterate, GUINT_TO_POINTER(0), NULL);
-  } else {
-    g_message("CK: Session %s (UID: %d) became inactive", sess->name, sess->uid);
-  }
-}
-
-static void ck_session_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
-    GError *error = NULL;
-    u_session *sess = g_malloc0(sizeof(u_session));
-    g_message("CK: Session added %s", name);
-
-    sess->proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
-                                                "org.freedesktop.ConsoleKit",
-                                                name,
-                                                "org.freedesktop.ConsoleKit.Session",
-                                                &error);
-    if(error) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_free(name);
-        g_free(sess);
-        g_error_free(error);
-        return;
-    }
-
-    sess->name = g_strdup(name);
-    U_session_list = g_list_append(U_session_list, sess);
-    // connect to signals
-    dbus_g_proxy_add_signal (sess->proxy, "IdleHintChanged",
-                             G_TYPE_BOOLEAN, G_TYPE_INVALID);
-    dbus_g_proxy_connect_signal(sess->proxy,
-                                "IdleHintChanged",
-                                G_CALLBACK(session_idle_hint_changed),
-                                sess,
-                                NULL);
-    dbus_g_proxy_add_signal (sess->proxy, "ActiveChanged",
-                             G_TYPE_BOOLEAN, G_TYPE_INVALID);
-    dbus_g_proxy_connect_signal(sess->proxy,
-                                "ActiveChanged",
-                                G_CALLBACK(session_active_changed),
-                                sess,
-                                NULL);
-
-    if(!dbus_g_proxy_call (sess->proxy, "GetIdleHint", &error, G_TYPE_INVALID,
-                            G_TYPE_BOOLEAN,
-                            &sess->idle, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-    if(!dbus_g_proxy_call (sess->proxy, "IsActive", &error, G_TYPE_INVALID,
-                            G_TYPE_BOOLEAN,
-                            &sess->active, G_TYPE_INVALID)) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        error = NULL;
-    }
-    if (!dbus_g_proxy_call (sess->proxy, "GetUnixUser", &error, G_TYPE_INVALID,
-                            G_TYPE_UINT,
-                            &sess->uid, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
-    }
-    if (!dbus_g_proxy_call (sess->proxy, "GetX11Display", &error, G_TYPE_INVALID,
-                            G_TYPE_STRING,
-                            &sess->X11Display, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
-    }
-    if (!dbus_g_proxy_call (sess->proxy, "GetX11DisplayDevice", &error, G_TYPE_INVALID,
-                            G_TYPE_STRING,
-                            &sess->X11Device, G_TYPE_INVALID)) {
-      g_warning ("CK Error: %s\n", error->message);
-      g_error_free(error);
-      error = NULL;
-    }
-
-    session_active_changed(NULL, sess->active, sess);
-}
-
-static void ck_session_removed(DBusGProxy *proxy, gchar *name, gpointer ignored) {
-    u_session *sess = NULL;
-    GList *cur = U_session_list;
-    g_message("CK: Session removed %s", name);
-    while(cur) {
-      sess = cur->data;
-      if(g_strcmp0(name, sess->name) == 0) {
-        g_object_unref(sess->proxy);
-        g_free(sess->name);
-        g_free(sess->X11Display);
-        g_free(sess->X11Device);
-        g_free(sess->dbus_session);
-
-        U_session_list = g_list_remove(U_session_list, sess);
-        g_free(sess);
-        break;
-      }
-      cur = g_list_next(cur);
-    }
-}
-
-
-static void ck_seat_added(DBusGProxy *proxy, gchar *name, gpointer ignored) {
-    GError *error = NULL;
-    g_debug("CK: Seat added %s", name);
-    struct ck_seat *seat = g_malloc0(sizeof(struct ck_seat));
-    seat->proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
-                                            "org.freedesktop.ConsoleKit",
-                                            name,
-                                            "org.freedesktop.ConsoleKit.Seat",
-                                            &error);
-    if(error) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_free(name);
-        g_free(seat);
-        g_error_free(error);
-        return;
-    }
-    seat->name = name;
-    ck_seats = g_list_append(ck_seats, seat);
-
-    dbus_g_proxy_add_signal (seat->proxy, "SessionAdded",
-                             DBUS_TYPE_G_OBJECT_PATH, G_TYPE_INVALID);
-    dbus_g_proxy_connect_signal(seat->proxy,
-                                "SessionAdded",
-                                G_CALLBACK(ck_session_added),
-                                NULL,
-                                NULL);
-    dbus_g_proxy_add_signal (seat->proxy, "SessionRemoved",
-                             DBUS_TYPE_G_OBJECT_PATH, G_TYPE_INVALID);
-    dbus_g_proxy_connect_signal(seat->proxy,
-                                "SessionRemoved",
-                                G_CALLBACK(ck_session_removed),
-                                NULL,
-                                NULL);
-
-}
-
-static void ck_seat_removed(DBusGProxy *proxy, gchar *name, gpointer ignored) {
-    struct ck_seat *seat = NULL;
-    g_debug("CK: Seat removed %s", name);
-    GList *cur = ck_seats;
-    while(cur) {
-      seat = cur->data;
-      if(g_strcmp0(name, seat->name) == 0) {
-        g_object_unref(seat->proxy);
-        g_free(seat->name);
-        ck_seats = g_list_remove(ck_seats, seat);
-        break;
-      }
-      cur = g_list_next(cur);
-    }
-}
-
-void consolekit_init() {
-    GPtrArray *array;
-    GError *error = NULL;
-    int i;
-
-    if(!U_dbus_connection_system)
-      return;
-
-    // cleanup first. the dbus connection could be new
-    struct ck_seat *seat = NULL;
-    GList *cur = ck_seats;
-
-    if(ck_manager_proxy)
-      g_object_unref (ck_manager_proxy);
-
-    while(cur) {
-      seat = cur->data;
-      g_object_unref(seat->proxy);
-      g_free(seat->name);
-      cur = g_list_next(cur);
-    }
-    g_list_free(ck_seats);
-
-    while(U_session_list) {
-      u_session *sess= U_session_list->data;
-      ck_session_removed(NULL, sess->name, NULL);
-    }
-
-    ck_manager_proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
-                                      "org.freedesktop.ConsoleKit",
-                                      "/org/freedesktop/ConsoleKit/Manager",
-                                      "org.freedesktop.ConsoleKit.Manager",
-                                      &error);
-    if(error) {
-        g_warning ("CK Error: %s\n", error->message);
-        g_error_free(error);
-        return;
-    }
-
-    dbus_g_proxy_add_signal (ck_manager_proxy, "SeatAdded",
-                             G_TYPE_STRING, G_TYPE_INVALID);
-
-    dbus_g_proxy_connect_signal(ck_manager_proxy,
-                                "SeatAdded",
-                                G_CALLBACK(ck_seat_added),
-                                NULL,
-                                NULL);
-
-    dbus_g_proxy_add_signal (ck_manager_proxy, "SeatRemoved",
-                             G_TYPE_STRING, G_TYPE_INVALID);
-
-    dbus_g_proxy_connect_signal(ck_manager_proxy,
-                                "SeatRemoved",
-                                G_CALLBACK(ck_seat_removed),
-                                NULL,
-                                NULL);
-
-    if (!dbus_g_proxy_call (ck_manager_proxy, "GetSeats", &error, G_TYPE_INVALID,
-                          dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
-                          &array, G_TYPE_INVALID)) {
-        g_warning("CK Error: %s\n", error->message);
-        g_error_free(error);
-    }
-    for (i = 0; i < array->len; i++) {
-        ck_seat_added(NULL, g_ptr_array_index(array, i), NULL);
-    }
-    g_ptr_array_free(array, TRUE);
-    if (!dbus_g_proxy_call (ck_manager_proxy, "GetSessions", &error, G_TYPE_INVALID,
-                          dbus_g_type_get_collection("GPtrArray", DBUS_TYPE_G_OBJECT_PATH),
-                          &array, G_TYPE_INVALID)) {
-        g_warning("CK Error: %s\n", error->message);
-        g_error_free(error);
-    }
-    for (i = 0; i < array->len; i++) {
-        ck_session_added(NULL, g_ptr_array_index(array, i), NULL);
-    }
-    g_ptr_array_free(array, TRUE);
-}
-
-#if 0
-
-// systemd does not yet support setting properties
-
-void systemd_init() {
-    GError *error = NULL;
-    DBusGProxy *systemd_proxy = dbus_g_proxy_new_for_name_owner(U_dbus_connection_system,
-                                      "org.freedesktop.systemd1",
-                                      "/org/freedesktop/systemd1",
-                                      DBUS_INTERFACE_PROPERTIES,
-                                      &error);
-    if(error) {
-        g_message ("systemd: %s\n", error->message);
-        g_error_free(error);
-        goto out;
-    }
-
-    char **empty = NULL;
-    GValue val = {0, };
-
-    g_value_init (&val, G_TYPE_STRV);
-    //g_value_set_string (&val, &empty);
-
-    if(!dbus_g_proxy_call(systemd_proxy, "Set", &error,
-                          G_TYPE_STRING, "org.freedesktop.systemd1.Manager",
-                          G_TYPE_STRING, "DefaultControllers",
-                          G_TYPE_VALUE, &val,
-                          G_TYPE_INVALID)) {
-        g_debug("can't unset systemd DefaultControllers: %s", error->message);
-        g_error_free(error);
-        goto out;
-    }
-
-out:
-    g_object_unref (systemd_proxy);
-}
-
-#endif
-
-#endif
-

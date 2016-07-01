@@ -25,6 +25,9 @@ ulatency = {}
 ulatency.version="VERSION"
 --! @public @memberof ulatency
 ulatency.release_agent = "/PATH/TO/RELEASEAGENT"
+--! Directory with lua core files (like core.lua). Defined on compile time.
+--! @public @memberof ulatency
+ulatency.path_core_directory = "${CONFIG_PREFIX}/ulatencyd/lua"
 --! The rules directory.
 --! This is defined on compile time. Defaults to ${CONFIG_PREFIX}/ulatencyd/rules.
 --! @bug The rules directory may be changed via `-r` parameter when invoking ulatencyd,
@@ -40,9 +43,11 @@ ulatency.path_config_directory = "/PATH/TO/CONFIG"
 ulatency.smp_num_cpus = 23
 --! @} End of "misc"
 
---! @name glib log level
---! @memberof ulatency
+
+--! @name log levels
 --! @{
+
+--! @ingroup lua_LOGGING
 
 --! @public @memberof ulatency
 ulatency.LOG_LEVEL_ERROR =  G_LOG_LEVEL_ERROR
@@ -60,6 +65,12 @@ ulatency.LOG_LEVEL_DEBUG = G_LOG_LEVEL_DEBUG
 ulatency.LOG_LEVEL_SCHED = U_LOG_LEVEL_SCHED
 --! @public @memberof ulatency
 ulatency.LOG_LEVEL_TRACE = U_LOG_LEVEL_TRACE
+--! Current log level; only messages with equal or lower level will be logged.
+--! Default level is `G_LOG_LEVEL_MESSAGE`; user may increase/decrease the level
+--! by passing `-v`/`-q` options to ulatencyd.
+--! @public @memberof ulatency
+ulatency.LOG_LEVEL = U_log_level
+
 --! @}
 
 --! @name Return values of Filter:check()
@@ -137,11 +148,33 @@ ulatency.SCHED_RR = SCHED_RR
 --! @{
 
 --! @public @memberof ulatency
-ulatency.UPROC_NEW = UPROC_NEW
---! @public @memberof ulatency
 ulatency.UPROC_INVALID = UPROC_INVALID
+--! @}
+
+--! @name U_PROC.session_id values
+--! @{
+
+--! @ingroup lua_USER_SESSIONS
+
+--! The session could not be determined, process already dead or consolekit/logind error.
 --! @public @memberof ulatency
-ulatency.UPROC_ALIVE = UPROC_ALIVE
+ulatency.USESSION_UNKNOWN      = 0
+--! the init (pid 1).
+--! @public @memberof ulatency
+ulatency.USESSION_INIT         = 1
+--! kernel threads
+--! @public @memberof ulatency
+ulatency.USESSION_KERNEL       = 2
+--! process does not belong to any user session
+--! @public @memberof ulatency
+ulatency.USESSION_NONE         = 3
+--! unknown user session (wrong consolekit cookie or consolekit error)
+--! @public @memberof ulatency
+ulatency.USESSION_USER_UNKNOWN = 5
+--! first user session
+--! @public @memberof ulatency
+ulatency.USESSION_USER_FIRST   = 10
+
 --! @}
 
 ------------------ ulatency class functions -----------
@@ -220,9 +253,9 @@ end
 --! Returns process `U_PROC` with `pid`.
 --! @param pid A PID of the process to return.
 --! @param include_tasks (optional, default FALSE) If TRUE and `U_PROC` with `pid` not found, return
---! the thread leader of the task `pid`.
+--! the thread leader of the task which tid = `pid`.
 --! @retval `U_PROC` If process with `pid` exists in ulatency #processes table.
---! @retval 0 If process with `pid` does not exists in ulatency #processes table.
+--! @retval nil If process with `pid` does not exists in ulatency #processes table.
 --! @public @memberof ulatency
 function ulatency.get_pid(pid, include_tasks)
 end
@@ -230,7 +263,7 @@ end
 --! Returns `#U_TASK` with `tid`.
 --! @param tid A TID of the task to return.
 --! @retval `#U_TASK` instance if a task with `tid` exists in ulatency internal `#tasks` table.
---! @retval 0 If a task with `tid` does not exists in ulatency `#tasks` table.
+--! @retval nil If a task with `tid` does not exists in ulatency `#tasks` table.
 --! @public @memberof ulatency
 function ulatency.get_tid(tid)
 end
@@ -243,7 +276,7 @@ end
 
 --! Returns array with `U_PROC` processes from ulatency #processes table.
 --! @param changed TRUE if only changed processes should be included.
---! @return Array of `U_PROC` instances.
+--! @return Array of `U_PROC` instances excluding zombies and vanished processes.
 --! @public @memberof ulatency
 function ulatency.list_processes(changed)
 end
@@ -305,39 +338,54 @@ function ulatency.list_flags()
 end
 
 --! Adds the flag #u_flag to the system flags.
---! @note The `system_flags_changed` variable is **not touched**.
 --! @param flag a #u_flag to add
+--! @param (optional) set_flags_changed (boolean) If TRUE,
+--! the `system_flags_changed` variable will be set. If FALSE,
+--! it won't. Default behaviour is determined by
+--! `u_flag.urgent`. See `ulatency.set_flags_changed()`.
 --! @public @memberof ulatency
-function ulatency.add_flag(flag)
+function ulatency.add_flag(flag, set_flags_changed)
 end
 
 --! @brief Removes a system flag #u_flag.
---! @note The `system_flags_changed` variable is **not touched**.
 --! @param flag a #u_flag to delete
+--! @param (optional) set_flags_changed (boolean) If TRUE and a flag is removed,
+--! the `system_flags_changed` variable will be set. If FALSE,
+--! the `system_flags_changed` won't be set. Default behaviour is determined by
+--! `u_flag.urgent`. See `ulatency.set_flags_changed()`.
 --! @public @memberof ulatency
-function ulatency.del_flag(flag)
+function ulatency.del_flag(flag, set_flags_changed)
 end
 
 --! @brief Removes system flags with the `name`.
---! @note If a flag is removed, the `system_flags_changed` variable is set, see ulatency.set_flags_changed().
 --! @param name System flags (#u_flag instances) with this name will be deleted.
+--! @param (optional) set_flags_changed (boolean) If TRUE and a flag is removed,
+--! the `system_flags_changed` variable will be set. If FALSE,
+--! the `system_flags_changed` won't be set. Default behaviour is determined by
+--! `u_flag.urgent`. See `ulatency.set_flags_changed()`.
 --! @public @memberof ulatency
-function ulatency.clear_flag_name(name)
+function ulatency.clear_flag_name(name, set_flags_changed)
 end
 
 --! @brief Removes all system flags that was created by current lua thread.
 --! Specifically, all flags created with same lua state will be removed.
 --! There is one main lua state and additional lua states for every lua thread created by
 --! ulatency.add_timeout() and ulatency.register_filter().
---! @note If a flag is removed, the `system_flags_changed` variable is set, see ulatency.set_flags_changed().
+--! @param (optional) set_flags_changed (boolean) If TRUE and a flag is removed,
+--! the `system_flags_changed` variable will be set. If FALSE,
+--! the `system_flags_changed` won't be set. Default behaviour is determined by
+--! `u_flag.urgent`. See `ulatency.set_flags_changed()`.
 --! @public @memberof ulatency
-function ulatency.clear_flag_source()
+function ulatency.clear_flag_source(set_flags_changed)
 end
 
 --! Removes all system flags.
---! @note If a flag is removed, the `system_flags_changed` variable is set, see ulatency.set_flags_changed().
+--! @param (optional) set_flags_changed (boolean) If TRUE and a flag is removed,
+--! the `system_flags_changed` variable will be set. If FALSE,
+--! the `system_flags_changed` won't be set. Default behaviour is determined by
+--! `u_flag.urgent`. See `ulatency.set_flags_changed()`.
 --! @public @memberof ulatency
-function ulatency.clear_flag_all()
+function ulatency.clear_flag_all(set_flags_changed)
 end
 
 --! Returns the value of the `system_flags_changed` variable.
@@ -350,58 +398,15 @@ end
 
 --! Sets the value of the `system_flags_changed` variable.
 --! @param value a boolean
---! @note The `system_flags_changed` is automatically set if:
---! - Some of the system flags has timed out.
---! - Some of the system flags has been removed as result of calling `ulatency.clear_flag_name()`,
---!   `ulatency.clear_flag_source()` or `ulatency.clear_flag_all()`.
---! @note The `system_flags_changed` is not set by:
---! - `ulatency.add_flag()` or `ulatency.del_flag()`
---! - changing a flag values
---! @note The `system_flags_changed` is cleared after every iteration, see ulatency.run_iteration().
 --! @note `Scheduler::all()` will normally schedule only processes that are marked as changed (see `U_PROC.clear_changed()`
---! for description of what processes are considered changed). If you want to force rescheduling of all processes, e.g.
---! because you have added some important system flag, set the `system_flags_changed` manually.
+--! for description of what processes are considered changed). If you want to force rescheduling of all processes,
+--! set the `system_flags_changed` manually.
+--! @note The `system_flags_changed` is cleared after every iteration, see ulatency.run_iteration().
 --! @relatesalso Scheduler
 --! @public @memberof ulatency
 function ulatency.set_flags_changed(value)
 end
 --! @} End of "system flag manipulation"
-
--------------------------------------------------------
-
---! @name group code
---! @{
-
---! @ingroup lua_USER_SESSIONS
-
---! Manually add process with `pid` to the active list of user `uid`.
---! - Newly added process is marked as changed.
---! - Then the list is reordered (the most recent changed processes first).
---! - If there are too many processes in the list the least recent changed are removed.
---!
---! @param uid UID of the user.
---! @param pid PID of the process to add.
---! @param (optional) timestamp (as the number of seconds since the Epoch) of last process activity.
---! If not set current time will be used.
---! @public @memberof ulatency
-function ulatency.set_active_pid(uid, pid, timestamp)
-end
-
---! Returns array of #__ACTIVE_UIDS structures for every user with the active list.
---! @return Array of #__ACTIVE_UIDS tables.
---! @public @memberof ulatency
-function ulatency.get_active_uids()
-end
-
---! Returns array of #__ACTIVE_PIDS structures for every process in the user active list.
---! @param uid User UID
---! @return Array #__ACTIVE_PIDS tables.
---! @public @memberof ulatency
-function ulatency.get_active_pids(uid)
-end
---! @} End of "group code"
-
--------------------------------------------------------
 
 --! @name config
 --! @{
@@ -424,19 +429,10 @@ end
 
 --! @ingroup lua_USER_SESSIONS
 
---! Returns array of ConsoleKit sessions.
---! @return array of #u_session structures.
+--! Returns all user sessions.
+--! @return table of #U_SESSION tables.
 --! @public @memberof ulatency
 function ulatency.get_sessions()
-end
-
---! @brief Returns status of ConsoleKit sessions for user `uid`.
---! @param uid User UID
---! @return active, idle Returns two values.
---! @retval active If any of the user `uid` ConsoleKit sessions is active this values is 1, otherwise 0.
---! @retval idle If at least one of the user sessions is not idle this value is 0, otherwise 1.
---! @public @memberof ulatency
-function ulatency.get_uid_stats(uid)
 end
 
 --! @brief Gets array of unique values of environment variable `key` across all processes of the `uid` user.
@@ -465,11 +461,13 @@ end
 
 -------------------------------------------------------
 
---! @name misc
+--! @name low level logging API
 --! @{
 
+--! @ingroup lua_LOGGING
+
 --! Log message `msg` with severity `level`.
---! @param level glib log level, you may use one of following constants:
+--! @param level ulatency log level, you may use one of following constants:
 --! - ulatency.LOG_LEVEL_ERROR
 --! - ulatency.LOG_LEVEL_CRITICAL
 --! - ulatency.LOG_LEVEL_WARNING
@@ -479,17 +477,20 @@ end
 --! - ulatency.LOG_LEVEL_SCHED
 --! - ulatency.LOG_LEVEL_TRACE
 --! @param msg A message to log.
---! You can use following shortcut functions:
---! - ulatency.log_trace(msg)
---! - ulatency.log_sched(msg)
---! - ulatency.log_debug(msg)
---! - ulatency.log_info(msg)
---! - ulatency.log_warning(msg)
---! - ulatency.log_error(msg)
---! - ulatency.log_critical(msg)
+--! @note
+--! You must use this function if you want to log something before
+--! `ulatency.lua` loaded. Otherwise use `ulatency.log()` or one of
+--! shortcut functions, e.g. `u_warning()`.
 --! @public @memberof ulatency
-function ulatency.log(level, msg)
+function ulatency._log(level, msg)
 end
+
+--! @} End of "low level API to C functions"
+
+-------------------------------------------------------
+
+--! @name misc
+--! @{
 
 --! Returns the real user ID of the calling process.
 --! @see man 2 getuid
@@ -521,6 +522,13 @@ end
 --! See similar ulatency.fallback_quit() that will dispatch pending main loop events.
 --! @public @memberof ulatency
 function ulatency.die(exit_code)
+end
+
+--! Load and execute the lua file.
+--! @param filename The file inside or relative to ulatency.path_core_directory
+--! @return boolean TRUE on success.
+--! @public @memberof ulatency
+function ulatency.load_core_file(filename)
 end
 
 --! Load the rule file.
@@ -560,26 +568,19 @@ function ulatency.process_update(pid)
 end
 
 --! Wrapper to invoke scheduler iteration.
---! @details The core listens on the kernel when new processes are spawned or exit and runs the
+--!
+--! @details The core listens on the kernel if new processes are spawned or exit and runs the
 --! @link lua_FILTERS filters@endlink and @link lua_SCHEDULER scheduler@endlink (specifically the
 --! `Scheduler:one()` method) on them.
---! Additionally, a full @ref ulatency.run_iteration "iteration" is run every configurable number of seconds
---! (*every `interval` seconds defined in the `core` configuration group, defaults to 12 seconds*)
---! on all processes. This is required for example when @link lua_FLAGS flags@endlink, set on a process, expire and the
---! scheduler will make another decision. Beside this interval you may want to invoke a full iteration manually, e.g.
---! if you detect (*usually inside a registered @ref lua_TIMEOUTS "timeout function"*) such important changes in the 
---! system environment requiring processes rescheduling.
 --!
---! Note, that invoking the iteration alone is not sufficient as scheduler (`Scheduler::all()`) will usually skip unchanged
---! processes. You should discuss the Scheduler documentation to find out how force it to reschedule affected processes.
---! The general way to force **all** processes to be rescheduled is to set `system_flags_changed` variable 
+--! Additionally, all changed processes are scheduled in regular interval. This defaults to 60 seconds
+--! and can be changed setting `interval` option in the configuration file.
+--!
+--! This function invokes this iteration manually.
+--!
+--! If you want to reschedule all processes, beside those changed, set `system_flags_changed`
 --! (@link ulatency.set_flags_changed `ulatency.set_flags_changed(1)`@endlink) before you invoke `ulatency.run_iteration()`.
---! Scheduler should detect this and reschedule all processes.
---!
---! `ulatency.run_iteration()` calls the @link iterate(gpointer rv) `iterate()`@endlink function implemented in the core, though indirectly, 
---! via `g_timeout_add(0, ...)`, that is, any pending main loop events will be dispatched first, including eventually
---! already running iteration.
---! @warning Can cause endless loop if you call this within iteration scope!
+--! Note that this won't work inside scheduler or the mappings as the flag at the end of every iteration.
 --!
 --! ##Iteration consists of following steps:
 --! - clears timed out system flags

@@ -32,11 +32,13 @@
 #include <string.h>
 #include <errno.h>
 #include <glib.h>
+#include <gmodule.h>
 #include <sys/stat.h>
 #include <fnmatch.h>
 
-int simplerules_id;
-int simplerules_debug;
+int       simplerules_id;
+int       simplerules_debug;
+GModule  *simplerules_module;
 
 struct simple_rule {
   gid_t         gid;
@@ -309,7 +311,9 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
 //    printf("add proc %d to %s\n", proc->pid, proc->exe);
     gboolean match = FALSE;
     if(rule->glob_cmd) {
-        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdline_match) {
+        if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)
+            && *proc->cmdline_match != '\0')
+        {
            match = g_pattern_match_string(rule->glob_cmd, proc->cmdline_match);
            simple_debug("match pid:%d cmdline glob:'%s' cmdline:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
            if(match)
@@ -317,7 +321,9 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->glob_basename) {
-        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdfile) {
+        if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)
+            && *proc->cmdfile != '\0')
+        {
            match = g_pattern_match_string(rule->glob_basename, proc->cmdfile);
            simple_debug("match pid:%d basename glob:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdfile, match)
            if(match)
@@ -325,7 +331,7 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->glob_exe) {
-        if(u_proc_ensure(proc, EXE, NOUPDATE) && proc->exe) {
+        if(u_proc_ensure(proc, EXE, UPDATE_DEFAULT) && *proc->exe != '\0') {
            match = g_pattern_match_string(rule->glob_exe, proc->exe);
            simple_debug("match pid:%d exe glob:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->exe, match)
            if(match)
@@ -333,15 +339,17 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->re_exe) {
-        if(u_proc_ensure(proc, EXE, NOUPDATE) && proc->exe) {
+        if(u_proc_ensure(proc, EXE, UPDATE_DEFAULT) && *proc->exe != '\0') {
            match = g_regex_match(rule->re_exe, proc->exe, 0, NULL);
-           simple_debug("match pid:%d cmdline re:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
+           simple_debug("match pid:%d exe re:'%s' exe:'%s' = %d", proc->pid, rule->pattern, proc->exe, match)
            if(match)
               return TRUE;
         }
     }
     if(rule->re_cmd) {
-        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdline) {
+        if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)
+            && *proc->cmdline_match != '\0')
+        {
            match = g_regex_match(rule->re_cmd, proc->cmdline_match, 0, NULL);
            simple_debug("match pid:%d cmdline re:'%s' cmdline:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
            if(match)
@@ -349,9 +357,11 @@ int rule_applies(u_proc *proc, struct simple_rule *rule) {
         }
     }
     if(rule->re_basename) {
-        if(u_proc_ensure(proc, CMDLINE, NOUPDATE) && proc->cmdfile) {
+        if(u_proc_ensure(proc, CMDLINE, UPDATE_DEFAULT)
+            && *proc->cmdfile != '\0')
+        {
            match = g_regex_match(rule->re_basename, proc->cmdfile, 0, NULL);
-           simple_debug("match pid:%d cmdline re:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdline_match, match)
+           simple_debug("match pid:%d cmdfile re:'%s' basename:'%s' = %d", proc->pid, rule->pattern, proc->cmdfile, match)
            if(match)
               return TRUE;
         }
@@ -371,10 +381,12 @@ void simple_add_flag(u_filter *filter, u_proc *proc, struct simple_rule *rule) {
     nf->value       = t->value;
     nf->threshold   = t->threshold;
     nf->inherit     = t->inherit;
+    if(t->urgent)
+        nf->urgent = t->urgent;
 
     u_trace("add flag %s to %d", nf->name, proc->pid); 
 
-    u_flag_add(proc, nf);
+    u_flag_add(proc, nf, -1);
     DEC_REF(nf);
 }
 
@@ -393,10 +405,12 @@ int simplerules_run_proc(u_proc *proc, u_filter *filter) {
     return FILTER_MIX(FILTER_RERUN_EXEC | FILTER_STOP, 0);
 }
 
-
-int simplerules_init() {
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
     int i = 0;
     simplerules_id = get_plugin_id();
+    simplerules_module = module;
     u_filter *filter;
     simplerules_debug = g_key_file_get_boolean(config_data, "simplerules", "debug", NULL);
 //    target_rules = NULL;
@@ -413,6 +427,6 @@ int simplerules_init() {
         }
     }
 //    }
-    return 0;
+    return NULL;
 }
 

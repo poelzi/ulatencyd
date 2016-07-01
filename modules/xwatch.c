@@ -17,12 +17,17 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
+#define  MODULE_NAME "xwatch"
+
 #ifndef G_LOG_DOMAIN
-#define G_LOG_DOMAIN "xwatch"
+#define G_LOG_DOMAIN MODULE_NAME
 #endif
 
 #include "config.h"
 #include "ulatency.h"
+#include "usession.h"
+#include "uhook.h"
+#include "ufocusstack.h"
 #include <dbus/dbus-glib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -35,6 +40,7 @@
 #include <X11/Xauth.h>
 #include <errno.h>
 #include <glib.h>
+#include <gmodule.h>
 #include <pwd.h>
 #include <time.h>
 
@@ -44,16 +50,17 @@
 #define dprint(...)
 #endif
 
-
+static gboolean module_debug = FALSE;
+#define m_debug(...) if (module_debug) g_debug (__VA_ARGS__)
 
 #define DEFAULT_INTERVAL 1000
 #define RETRY_TIMEOUT 30
+static int interval;
 
 struct x_server {
-  char *name; // unique name for identification
+  USession *session;
   time_t last_try;
-  uid_t uid;
-  char *display;
+  guint timeout_id;
   xcb_connection_t *connection;
   xcb_screen_t *screen;
   xcb_atom_t atom_active;
@@ -64,15 +71,7 @@ struct x_server {
   xcb_atom_t string_atom;
 };
 
-static void free_x_server(struct x_server *xs) {
-  g_debug("remove x_server display: %s", xs->display);
-  if(xs->connection)
-      xcb_disconnect (xs->connection);
-  g_free(xs->name);
-  g_free(xs->display);
-}
-
-static int xwatch_id; // unique plugin id
+static const gchar *module_name;
 static GList *server_list = NULL;  // list of x_server objects
 static char *localhost; // char of localhost
 
@@ -134,7 +133,8 @@ error:
   return NULL;
 }
 
-int create_connection(struct x_server *xs) {
+static int
+create_connection (struct x_server *xs) {
   int  screenNum, i, dsp, parsed = 0;
   char *host;
   char dispbuf[40];   /* big enough to hold more than 2^64 base 10 */
@@ -144,15 +144,19 @@ int create_connection(struct x_server *xs) {
   struct passwd *pw;
   GPtrArray *xauthptr;
   char *save_home, *save_xauth = NULL;
+  uid_t uid;
+  gchar *display;
 
+  uid = xs->session->uid;
+  display = xs->session->X11Display;
   xs->last_try = time(NULL);
 
-  g_debug("create x-watch connection: '%s'", xs->display);
+  g_debug("create x-watch connection: '%s'", display);
 
-  parsed = xcb_parse_display(xs->display, &host, &dsp, &screenNum);
+  parsed = xcb_parse_display(display, &host, &dsp, &screenNum);
   if(!parsed) {
-    g_warning("can't parse display: '%s'", xs->display);
-    return FALSE;
+    g_warning("can't parse display: '%s'", display);
+    return -1;
   }
   free(host);
 
@@ -160,29 +164,29 @@ int create_connection(struct x_server *xs) {
   dispbuflen = snprintf(dispbuf, sizeof(dispbuf), "%d", dsp);
   if(dispbuflen < 0) {
       printf("cant put display buf\n");
-      return FALSE;
+      return -1;
   }
 
-  pw = getpwuid(xs->uid);
+  pw = getpwuid(uid);
   save_home = g_strdup(getenv("HOME"));
   save_xauth = g_strdup(getenv("XAUTHORITY"));
-  xauthptr = search_user_env(xs->uid, "XAUTHORITY", TRUE);
+  xauthptr = search_user_env(uid, "XAUTHORITY", TRUE);
 
   setenv("HOME", pw->pw_dir, 1);
   unsetenv("XAUTHORITY");
   i = -1;
-  if(seteuid(xs->uid)) {
-      g_warning("can't seteuid to %d", xs->uid);
+  if(seteuid(uid)) {
+      g_warning("can't seteuid to %d", uid);
       goto error;
   }
 
   do {
-    xs->connection = xcb_connect(xs->display, &screenNum);
+    xs->connection = xcb_connect(display, &screenNum);
 
     if(xs->connection) {
       setup = xcb_get_setup(xs->connection);
       if(setup) {
-        g_debug("connected to X11 %s", xs->display);
+        g_debug("connected to X11 %s", display);
         break;
       }
       xcb_disconnect (xs->connection);
@@ -255,12 +259,12 @@ int create_connection(struct x_server *xs) {
   xs->cardinal_atom = get_atom (xs->connection, cardinal_ck);
   xs->string_atom = get_atom (xs->connection, string_ck);
 
-  return TRUE;
+  return 0;
 
 error:
   seteuid(0);
 
-  g_message("could not connect to display %s \n", xs->display);
+  g_message("could not connect to display %s \n", display);
 
   // restore env
   if(save_home)
@@ -276,18 +280,20 @@ error:
   g_free(save_home);
   g_ptr_array_unref(xauthptr);
 
-  return FALSE;
+  return 1;
 }
 
 // test if connection is alive, initiate new connection if lost etc
-int test_connection(struct x_server *xs) {
+static gboolean
+test_connection(struct x_server *xs) {
 
     if(xs->connection) {
         if(xcb_connection_has_error(xs->connection)) {
             xcb_disconnect(xs->connection);
             xs->connection = NULL;
             xs->screen = NULL;
-            g_debug("got connection problems. disconnectd %s", xs->display);
+            g_debug("got connection problems. disconnected %s",
+                    xs->session->X11Display);
         } else {
           return TRUE;
         }
@@ -296,59 +302,68 @@ int test_connection(struct x_server *xs) {
     if(!xs->connection) {
         if(xs->last_try && xs->last_try + RETRY_TIMEOUT > time(NULL))
             return FALSE;
-        return create_connection(xs);
+        return create_connection(xs) == 0;
     }
     return FALSE;
 }
 
-gint match_display(gconstpointer a, gconstpointer b) {
+static gint
+match_session(gconstpointer a, gconstpointer b) {
   const struct x_server *xa = a;
-  return strcmp(xa->display, (const char *)b);
+  return xa->session != (USession *) b;
 }
 
-
-void del_connection(struct x_server *rm) {
-  free_x_server(rm);
-  server_list = g_list_remove(server_list, rm);
-  g_free(rm);
+static void
+del_connection(struct x_server *rm) {
+  m_debug("Remove x_server display: %s", rm->session->X11Display);
+  if (rm->connection)
+    xcb_disconnect (rm->connection);
+  DEC_REF (rm->session);
+  server_list = g_list_remove (server_list, rm);
+  g_free (rm);
 }
 
-struct x_server *add_connection(const char *name, uid_t uid, const char *display) {
-  struct x_server *nc;
-  GList *cur;
-  uid_t myid = getuid();
+static inline struct x_server *
+find_connection (const USession *sess)
+{
+  GList *llink;
 
-  // test if we are root. we will not be able to connect to other users
-  // if we are not root, so skip them
-  if(myid && myid != uid)
+  llink = g_list_find_custom (server_list, sess, match_session);
+  if (llink)
+    return (struct x_server *)llink->data;
+  else
     return NULL;
+}
 
-  while(TRUE) {
-    cur = g_list_find_custom(server_list, display, match_display);
-    if(!cur)
-      break;
-    del_connection(cur->data);
-  }
+static struct x_server *
+add_connection (USession *sess)
+{
+  struct x_server *nc;
+
+  nc = find_connection (sess);
+  if (nc)
+    return nc;
 
   nc = g_malloc0(sizeof(struct x_server));
 
-  nc->name = g_strdup(name);
-  nc->display = g_strdup(display);
-  nc->uid = uid;
+  nc->session = sess;
+  INC_REF (sess);
 
-  create_connection(nc);
+  create_connection (nc);
 
   server_list = g_list_append(server_list, nc);
 
   return nc;
 }
 
-pid_t read_pid(struct x_server *conn, int *err) {
+static pid_t
+read_pid(struct x_server *conn, int *err) {
   xcb_generic_error_t *error;
   *err = 0;
   pid_t rv = 0;
 
-  dprint("dsp: %s xs: %p conn: %p\n", conn->display, conn, conn->connection);
+  dprint("dsp: %s xs: %p conn: %p\n",
+         conn->session->X11Display, conn, conn->connection);
 
   xcb_get_property_cookie_t naw =
     xcb_get_property (conn->connection,
@@ -449,113 +464,195 @@ error:
   return 0;
 }
 
+static pid_t previous_pid = 0;
 
+static gboolean //GSourceFunc
+poll_connection (gpointer data)
+{
+  struct x_server *conn;
 
-#ifndef TEST_XWATCH
+  conn = (struct x_server *) data;
+  if (test_connection (conn))
+    {
+      pid_t pid;
+      int   error;
 
-static gboolean update_all_server(gpointer data) {
-  GList *cur;
-  pid_t pid;
-  int i;
-  u_session *sess;
-  GList *csess;
-  struct x_server *xs;
+      error = 0;
+      pid = read_pid (conn, &error);
 
-  // check the session list for new/changed servers
-  // remove dead servers
-  for(i = 0; i < g_list_length(server_list);) {
-    int found = FALSE;
-    cur = g_list_nth(server_list, i);
-    xs = cur->data;
-
-    csess = g_list_first(U_session_list);
-    while(csess) {
-      sess = csess->data;
-
-      if(!strcmp(xs->name, sess->name)) {
-        found = TRUE;
-        break;
-      }
-      csess = g_list_next(csess);
-    }
-    if(!found) {
-      del_connection(xs);
-    } else {
-      i++;
-    }
-  }
-  csess = g_list_first(U_session_list);
-  while(csess) {
-    sess = csess->data;
-    int found = FALSE;
-    GList *xcur = g_list_first(server_list);
-    while(xcur) {
-      xs = xcur->data;
-      if(!strcmp(xs->name, sess->name)) {
-        found = TRUE;
-        break;
-      }
-      xcur = g_list_next(xcur);
-    }
-    if(!found && sess->X11Display && strcmp(sess->X11Display, "")) {
-      add_connection(sess->name, sess->uid, sess->X11Display);
+      if (pid && pid != previous_pid && error == 0)
+        {
+          previous_pid = pid;
+          u_focus_stack_add_pid(conn->session->focus_stack, pid, 0);
+          m_debug("PID %d polled on display %s (session %d).",
+                  pid, conn->session->X11Display, conn->session->id);
+        }
     }
 
-    csess = g_list_next(csess);
-  }
-
-  int error = 0;
-  cur = server_list;
-  while(cur) {
-    struct x_server *xs = cur->data;
-    struct user_active *ua = get_userlist(xs->uid, TRUE);
-
-    // we take over the active pid if noone is doing it
-    if(ua->active_agent == USER_ACTIVE_AGENT_NONE)
-        ua->active_agent = xwatch_id;
-
-    if(
-        ua->active_agent != xwatch_id || // test if another agent is doing the active pid
-        ua->enabled == FALSE             // test if the user's session is inactive and should be skipped
-    ){
-        cur = g_list_next(cur);
-        continue;
-    }
-
-    // if we can't connect, skip
-    if(!test_connection(xs)) {
-      cur = g_list_next(cur);
-      continue;
-    }
-
-    pid = read_pid(xs, &error);
-
-    if(pid && error == 0) {
-      //printf ("current uid: %d pid: %d\n", xs->uid, pid);
-      set_active_pid(xs->uid, pid, 0);
-    }
-
-    cur = g_list_next(cur);
-  }
   return TRUE;
 }
-#endif
 
-int xwatch_init() {
-  localhost = get_localhost();
-  if(!localhost) {
-    g_warning("can't find localhost name\n");
-    return 0;
-  }
-  xwatch_id = get_plugin_id();
-#ifndef TEST_XWATCH
-  GError *error = NULL;
-  int interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", &error);
-  if(error && error->code)
-    interval = DEFAULT_INTERVAL;
-  g_timeout_add(interval, update_all_server, NULL);
-  g_message("x server observation active. poll interval: %d", interval);
-#endif
-  return 0;
+static void
+stop_poll_connection (struct x_server *conn)
+{
+  if (conn->timeout_id) // if polling
+    {
+      g_source_remove (conn->timeout_id);
+      conn->timeout_id = 0;
+      g_info("Polling stopped on display %s (session %d).",
+              conn->session->X11Display, conn->session->id);
+    }
 }
 
+static void
+start_poll_connection (struct x_server *conn)
+{
+  if (conn->timeout_id != 0) // not polling
+    return;
+
+  conn->timeout_id = g_timeout_add (interval, poll_connection,
+                                      (gpointer) conn);
+  g_info("Polling started on display %s (session %d).",
+          conn->session->X11Display, conn->session->id);
+}
+
+static gboolean //UHookFunc
+hook_session_removed (gpointer ignored)
+{
+  UHookDataSession *hook_data;
+  USession         *sess;
+
+  hook_data = (UHookDataSession *) u_hook_list_get_data (
+      U_HOOK_TYPE_SESSION_REMOVED);
+
+  sess = hook_data->session;
+  if (sess->focus_tracker == module_name) // tracked by xwatch
+    {
+      struct x_server *conn;
+
+      conn = find_connection (sess);
+      g_assert (conn != NULL);
+      stop_poll_connection (conn);
+      del_connection (conn);
+      sess->focus_tracker = NULL;
+    }
+
+  DEC_REF (hook_data);
+  return TRUE;
+}
+
+static gboolean //UHookFunc
+hook_session_changed (gpointer ignored)
+{
+  UHookDataSession *hook_data;
+  USession        *sess;
+
+  hook_data = (UHookDataSession *) u_hook_list_get_data (
+      U_HOOK_TYPE_SESSION_ACTIVE_CHANGED);
+
+  sess = hook_data->session;
+  if (sess->focus_tracker == module_name) // tracked by xwatch
+    {
+      struct x_server *conn;
+
+      conn = find_connection (sess);;
+      g_assert(conn != NULL);
+      if (sess->active && !sess->idle)
+        start_poll_connection (conn);
+      else
+        stop_poll_connection (conn);
+    }
+
+  DEC_REF (hook_data);
+  return TRUE;
+}
+
+static gboolean //UHookFunc
+hook_tracker_unregister (gpointer ignored)
+{
+  UHookDataSession *hook_data;
+  USession         *sess;
+  struct x_server  *conn;
+
+  hook_data = (UHookDataSession *) u_hook_list_get_data (
+      U_HOOK_TYPE_SESSION_UNSET_FOCUS_TRACKER);
+
+  sess = hook_data->session;
+  g_assert (sess->focus_tracker == module_name);
+  sess->focus_tracker = NULL;
+  conn = find_connection (sess);
+  g_assert(conn != NULL);
+  stop_poll_connection (conn);
+
+  DEC_REF (hook_data);
+  return TRUE;
+}
+
+static gboolean //UHookFunc
+hook_tracker_changed (gpointer ignored)
+{
+  UHookDataSession *hook_data;
+  USession         *sess;
+  struct x_server  *conn;
+  uid_t            myid;
+
+  hook_data = (UHookDataSession *) u_hook_list_get_data (
+      U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED);
+  sess = hook_data->session;
+  if (sess->focus_tracker
+      || (g_strcmp0 (sess->session_type, "x11") != 0
+          && g_strcmp0 (sess->session_type, "LoginWindow") != 0))
+    // FIXME what about "LoginWindow" type sessions (is this always be x11?)
+    goto finish;
+
+  // test if we are root. we will not be able to connect to other users
+  // if we are not root, so skip them
+  myid = getuid ();
+  if (G_UNLIKELY (myid && myid != sess->uid))
+      goto finish;
+
+  if (G_UNLIKELY (!u_session_set_focus_tracker(sess, module_name)))
+    goto finish;
+
+  /* register xwatch as new focus tracker */
+  conn = add_connection (sess);
+  g_assert(conn != NULL);
+  if (sess->active && !sess->idle)
+    start_poll_connection (conn);
+
+finish:
+  DEC_REF (hook_data);
+  return TRUE;
+}
+
+
+G_MODULE_EXPORT const gchar*
+g_module_check_init (GModule *module)
+{
+  GError *error = NULL;
+
+  localhost = get_localhost();
+  if(!localhost)
+    return "Can't find localhost name.";
+  module_name = g_intern_string(MODULE_NAME);
+
+  interval = g_key_file_get_integer(config_data, "xwatch", "poll_interval", &error);
+  if(error) {
+    interval = DEFAULT_INTERVAL;
+    g_error_free(error);
+  }
+
+  module_debug = g_key_file_get_boolean (config_data, "consolekit",
+                                        "debug", NULL);
+
+  u_hook_add (U_HOOK_TYPE_SESSION_REMOVED, module_name, hook_session_removed);
+  u_hook_add (U_HOOK_TYPE_SESSION_ACTIVE_CHANGED, module_name, hook_session_changed);
+  u_hook_add (U_HOOK_TYPE_SESSION_IDLE_CHANGED, module_name, hook_session_changed);
+  u_hook_add (U_HOOK_TYPE_SESSION_FOCUS_TRACKER_CHANGED, module_name, hook_tracker_changed);
+  u_hook_add (U_HOOK_TYPE_SESSION_UNSET_FOCUS_TRACKER, module_name, hook_tracker_unregister);
+
+  g_message("X server observation active, poll interval: %d ms", interval);
+  return NULL;
+}
+
+#undef m_debug

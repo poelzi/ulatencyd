@@ -17,8 +17,12 @@
     along with ulatencyd. If not, see http://www.gnu.org/licenses/.
 */
 
-#include "ulatency.h"
 #include "config.h"
+
+#include "uhook.h"
+
+#include "ulatency.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -46,9 +50,6 @@ DBusGConnection *U_dbus_connection_system;
 #include <glib.h>
 #include <proc/sysinfo.h>
 #include <proc/readproc.h>
-#ifdef LIBCGROUP
-#include <libcgroup.h>
-#endif
 #include <sys/mman.h>
 #include <error.h>
 
@@ -56,8 +57,8 @@ static gchar *config_file = QUOTEME(CONFIG_PATH)"/ulatencyd.conf";
 static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);
 static gchar *modules_directory = QUOTEME(MODULES_DIRECTORY);
 static gchar *load_pattern = NULL;
-static gint verbose = 1<<5;
 static char *mount_point;
+gint U_log_level = G_LOG_LEVEL_MESSAGE; //!< Current log level
 static char *log_file = NULL;
 int          log_fd = -1;
 
@@ -72,6 +73,7 @@ static gboolean beep = FALSE;
 //static gboolean rand = FALSE;
 
 static gboolean opt_daemon = FALSE;
+static gboolean opt_version = FALSE;
 
 int init_netlink(GMainLoop *loop);
 
@@ -80,7 +82,7 @@ static gboolean opt_verbose(const gchar *option_name, const gchar *value, gpoint
   if(value) {
     i = atoi(value);
   }
-  verbose = verbose << i;
+  U_log_level = U_log_level << i;
   return TRUE;
 }
 
@@ -89,7 +91,7 @@ static gboolean opt_quiet(const gchar *option_name, const gchar *value, gpointer
   if(value) {
     i = atoi(value);
   }
-  verbose = verbose >> i;
+  U_log_level = U_log_level >> i;
   return TRUE;
 }
 
@@ -102,11 +104,10 @@ static GOptionEntry entries[] =
   { "quiet", 'q', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, &opt_quiet, "More quiet. Can be passed multiple times", NULL },
   { "log-file", 'f', 0, G_OPTION_ARG_FILENAME, &log_file, "Log to file", NULL},
   { "daemonize", 'd', 0, G_OPTION_ARG_NONE, &opt_daemon, "Run daemon in background", NULL },
+  { "version", 0, 0, G_OPTION_ARG_NONE, &opt_version, "Print version information", NULL },
   { NULL }
 };
 
-
-int filter_interval;
 
 GMainContext *main_context;
 GMainLoop *main_loop;
@@ -114,9 +115,6 @@ GMainLoop *main_loop;
 
 void cleanup() {
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "cleanup daemon");
-#ifdef LIBCGROUP
-  cgroup_unload_cgroups();
-#endif
   // for valgrind
   core_unload();
 }
@@ -271,6 +269,9 @@ static void log_file_handler (const gchar    *log_domain,
 
   write (log_fd, string, strlen (string));
   g_free (string);
+
+  if (is_fatal)
+    g_log_default_handler(log_domain, log_level, message, unused_data);
 }
 
 static void close_logfile() {
@@ -296,7 +297,7 @@ static int open_logfile(char *file) {
 static void filter_log_handler(const gchar *log_domain, GLogLevelFlags log_level,
                         const gchar *message, gpointer unused_data) {
 
-  if(log_level <= verbose) {
+  if(log_level <= U_log_level) {
     if(log_fd != -1)
       log_file_handler(log_domain, log_level, message, unused_data);
     else
@@ -313,9 +314,9 @@ void load_config() {
     g_error("could not load config file: %s: %s", config_file, error->message);
   }
 
-  filter_interval = g_key_file_get_integer(config_data, CONFIG_CORE, "interval", NULL);
-  if(!filter_interval)
-    filter_interval = 60;
+  iteration_interval = g_key_file_get_integer(config_data, CONFIG_CORE, "interval", NULL);
+  if(!iteration_interval)
+    iteration_interval = 60;
 
   mount_point = g_key_file_get_string(config_data, CONFIG_CORE, "mount_point", NULL);
   if(!mount_point)
@@ -444,10 +445,9 @@ static int signal_suspend (gpointer signal) {
   flg->reason  = "signal";
   flg->value = GPOINTER_TO_INT(signal);
   u_trace("added system flag: suspend");
-  u_flag_add(NULL, flg);
+  u_flag_add(NULL, flg, TRUE);
   DEC_REF(flg);
-  system_flags_changed = 1;
-  g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
+  iteration_request_full(G_PRIORITY_HIGH, 0, TRUE); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
   return 0;
 }
@@ -460,10 +460,9 @@ static int signal_quit(gpointer signal) {
   flg->reason  = "signal";
   flg->value = GPOINTER_TO_INT(signal);
   u_trace("added system flag: quit");
-  u_flag_add(NULL, flg);
+  u_flag_add(NULL, flg, TRUE);
   DEC_REF(flg);
-  system_flags_changed = 1;
-  g_timeout_add(0, iterate, GUINT_TO_POINTER(0)); //scheduler should detect shutdown and quit the daemon
+  iteration_request_full(G_PRIORITY_HIGH, 0, TRUE); //scheduler should detect shutdown and quit the daemon
   g_timeout_add(0, fallback_quit, GUINT_TO_POINTER(1)); //fallback quit if scheduler is buggy
   return 0;
 }
@@ -488,16 +487,16 @@ static void signal_handler(int sig) {
     sigprocmask(SIG_BLOCK, &set, NULL);
     signal(SIGABRT, SIG_IGN);
     signal(SIGINT, SIG_IGN);
-    g_timeout_add(0, signal_suspend, GUINT_TO_POINTER(sig));
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, signal_suspend, GUINT_TO_POINTER(sig), NULL);
     break;
   case SIGTERM:
     sigaddset (&set, SIGTERM);
     sigprocmask(SIG_BLOCK, &set, NULL);
     signal(SIGTERM, SIG_IGN);
-    g_timeout_add(0, signal_quit, GUINT_TO_POINTER(sig));
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, signal_quit, GUINT_TO_POINTER(sig), NULL);
     break;
   case SIGUSR1:
-    g_timeout_add(0, signal_reload, GUINT_TO_POINTER(sig));
+    g_timeout_add_full(G_PRIORITY_HIGH, 0, signal_reload, GUINT_TO_POINTER(sig), NULL);
     break;
   case SIGUSR2:
     g_timeout_add(0, signal_logrotate, GUINT_TO_POINTER(sig));
@@ -559,6 +558,49 @@ int main (int argc, char *argv[])
     }
   g_option_context_free (context);
 
+  if (opt_version)
+    {
+      g_print ("ulatencyd version %s\n\n", QUOTEME(VERSION));
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "BUILD_TYPE", BUILD_TYPE,
+          "BUILD_C_FLAGS", BUILD_C_FLAGS,
+          "BUILD_EXE_LINKER_FLAGS", BUILD_EXE_LINKER_FLAGS,
+          "BUILD_MODULE_LINKER_FLAGS", BUILD_MODULE_LINKER_FLAGS);
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "BUILD_PROCPS_LIBRARIES", BUILD_PROCPS_LIBRARIES,
+          "BUILD_PROCPS_VERSION_STRING", BUILD_PROCPS_VERSION_STRING,
+          "BUILD_LUA_LIBRARIES", BUILD_LUA_LIBRARIES);
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "CONFIG_PREFIX", QUOTEME(CONFIG_PREFIX),
+          "INSTALL_PREFIX", QUOTEME(INSTALL_PREFIX));
+#ifdef DEVELOP_MODE
+      g_print ("%-28s: %s\n\n", "DEVELOP_MODE", "ON");
+#else
+      g_print ("%-28s: %s\n\n", "DEVELOP_MODE", "OFF");
+#endif
+      g_print (
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n"
+          "%-28s: %s\n\n",
+          "RELEASE_AGENT", QUOTEME(RELEASE_AGENT),
+          "CONFIG_PATH", QUOTEME(CONFIG_PATH),
+          "RULES_DIRECTORY", QUOTEME(RULES_DIRECTORY),
+          "MODULES_DIRECTORY", QUOTEME(MODULES_DIRECTORY),
+          "LUA_CORE_DIR", QUOTEME(LUA_CORE_DIR));
+      exit (0);
+    }
+
   pid_t pid, sid;
   if (opt_daemon) {
     pid = fork();
@@ -614,6 +656,7 @@ int main (int argc, char *argv[])
     signal (SIGUSR2, SIG_IGN);
 
   core_init();
+
   // set the cgroups root path
   lua_getfield(lua_main_state, LUA_GLOBALSINDEX, "CGROUP_ROOT"); /* function to be called */
   config_cgroup_root = g_strdup(lua_tostring(lua_main_state, -1));
@@ -626,7 +669,10 @@ int main (int argc, char *argv[])
   }
 
   adj_oom_killer(getpid(), -1000);
-  load_modules(modules_directory);
+  u_module_load_directory(modules_directory);
+  g_info("Finished modules loading.");
+  u_hook_list_invoke (U_HOOK_TYPE_ALL_MODULES_LOADED);
+  u_hook_list_clear (U_HOOK_TYPE_ALL_MODULES_LOADED);
   load_rule_directory(rules_directory, load_pattern, TRUE);
 
   process_update_all();
@@ -644,7 +690,7 @@ int main (int argc, char *argv[])
   iterate(GUINT_TO_POINTER(0));
   g_timeout_add_seconds(60, timeout_long, GUINT_TO_POINTER(1));
 
-  g_timeout_add_seconds(filter_interval, iterate, GUINT_TO_POINTER(1));
+  iteration_request_seconds(0);
 
   g_log(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, "=== ulatencyd started successfully ===");
   g_main_loop_run(main_loop);

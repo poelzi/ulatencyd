@@ -48,14 +48,22 @@
                                U_LOG_LEVEL_TRACE,    \
                                __VA_ARGS__)
 
+extern gint U_log_level; //!< Current log level
 
-#define VERSION 0.5.0+exp0.6.0-pre1
+#ifndef g_info
+#define g_info(...)     g_log (G_LOG_DOMAIN,         \
+                               G_LOG_LEVEL_INFO,     \
+                               __VA_ARGS__)
+#endif
+
+
+#define VERSION 0.6.0-alpha.2
 
 //FIXME enable PROC_FILLSUPGRP once adapted to the new libprocps
 
 #define OPENPROC_FLAGS (PROC_FILLMEM | \
   PROC_FILLUSR | PROC_FILLGRP | PROC_FILLSTATUS | PROC_FILLSTAT | \
-  PROC_FILLWCHAN /*| PROC_FILLSUPGRP*/ | PROC_LOOSE_TASKS)
+  PROC_FILLWCHAN /*| PROC_FILLSUPGRP*/)
 
 #define OPENPROC_FLAGS_MINIMAL (PROC_FILLSTATUS)
 
@@ -63,23 +71,45 @@
 #define CONFIG_CORE "core"
 
 #define U_HEAD \
-  guint ref; \
+  gint ref; \
+  gint unref_forbidden; \
   void (*free_fnk)(void *data);
 
 struct _U_HEAD {
   U_HEAD;
 };
 
+/**
+ * `printf()` format string determining the #u_proc instance.
+ * \see #U_PROC_FORMAT_ARGS(P)
+ */
+#define U_PROC_FORMAT \
+  "u_proc<pid:%d, ppid:%d, euid:%d, ustate:%X, exe:%s, cmdline:%s>"
+
+/**
+ * `printf()` arguments for #U_PROC_FORMAT format
+ * @param P an #u_proc instance
+ */
+#define U_PROC_FORMAT_ARGS(P) \
+  (P)->pid, (P)->proc->ppid, (P)->proc->euid, (P)->ustate, \
+  (P)->exe ? (P)->exe : "??", (P)->cmdline_match ? (P)->cmdline_match : "??"
+
 enum U_PROC_STATE {
-  UPROC_NEW          = (1<<0),  //!< new process with basic properties not parsed, u_proc.proc is NULL
+  //!< process removed from #processes table and will be freed as soon as
+  //!< its reference count drop to zero; implicates #UPROC_VANISHED state
+  //!< drop to zero.
   UPROC_INVALID      = (1<<1),
   UPROC_BASIC        = (1<<2),  //!< process has basic properties parsed
-  UPROC_ALIVE        = (1<<3),
   UPROC_HAS_PARENT   = (1<<4),
-  //! Process is dead, but still may have UPROC_NEW or UPROC_ALIVE state.
-  //! This is set if the process could not be found in /proc filesystem while trying to update its properties.
-  //! Since this, no function accepting #u_proc will try to update its properties.
-  UPROC_DEAD         = (1<<5),
+  UPROC_VANISHED     = (1<<5),  //!< process directory vanished from `/proc/`
+  UPROC_ZOMBIE       = (1<<6),  //!< process is a zombie
+  //! kernel thread; in rare cases it may be one of not yet detected user space
+  //! zombies or already vanished processes (though only root processes).
+  //! But it is guaranteed there is no kernel process with UPROC_BASIC but
+  //! without UPROC_KERNEL state set.
+  UPROC_KERNEL       = (1<<7),
+  //! mask for process vanished from `/proc/` and zombies
+  UPROC_MASK_DEAD    = UPROC_VANISHED | UPROC_ZOMBIE,
 };
 
 #define U_PROC_OK_MASK ~UPROC_INVALID
@@ -87,9 +117,9 @@ enum U_PROC_STATE {
 #define U_PROC_IS_INVALID(P) ( P ->ustate & UPROC_INVALID )
 #define U_PROC_IS_VALID(P) ((( P ->ustate & U_PROC_OK_MASK ) & UPROC_INVALID ) == 0)
 
-#define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | STATE ))
-#define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~STATE ))
-#define U_PROC_HAS_STATE(P,STATE) ( ( P ->ustate & STATE ) == STATE )
+#define U_PROC_UNSET_STATE(P,STATE) ( P ->ustate = ( P ->ustate & ~( STATE )))
+#define U_PROC_HAS_STATE(P,STATE) ( ( P ->ustate & ( STATE )))
+#define U_PROC_SET_STATE(P,STATE) ( P ->ustate = ( P ->ustate | ( STATE ) ))
 
 
 enum FILTER_TYPES {
@@ -146,16 +176,6 @@ struct filter_block {
 };
 
 typedef struct {
-  gboolean basic;
-  gboolean environment;
-  gboolean cmdline;
-  gboolean exe;
-  gboolean tasks;
-  gboolean cgroup;
-} u_proc_ensured;
-
-
-typedef struct {
   U_HEAD;
   int           pid;            //!< duplicate of proc.tgid
   int           ustate;         //!< status bits for process
@@ -189,10 +209,23 @@ typedef struct {
   // fake pgid because it can't be changed.
   pid_t         fake_pgrp;      //!< fake value for pgrp
   pid_t         fake_pgrp_old;
-  pid_t         fake_session;   //!< fake value of session
-  pid_t         fake_session_old;
+  pid_t         fake_sid;   //!< fake value of session
+  pid_t         fake_sid_old;
 
-  u_proc_ensured ensured;       //!< properties ensured since current iteration start
+  //! Mask of properties that were already updated since `/proc/PID/` directory
+  //! was parsed last time; usually since the current iteration started.
+  //! Values are cleared by #update_processes_run() and set/used by
+  //! #u_proc_ensure() to determine whether the property should be parsed again.
+  //! \see UPDATE_ONCE_PER_RUN
+  //! \sa U_PROC_PROPERTIES
+  guint ensured_props;
+
+  //! Mask of properties that may be invalid and need to be updated. These
+  //! are set if process called a function from `exec()` family and used by
+  //! #u_proc_ensure() to determine if the property must be updated even if
+  //! update was not requested by the caller.
+  //! \sa U_PROC_PROPERTIES
+  guint invalid_props;
 } u_proc;
 
 typedef struct {
@@ -207,7 +240,6 @@ typedef struct {
 } u_task;
 
 #ifdef DEVELOP_MODE
-
 static inline gboolean U_TASK_IS_INVALID(u_task *T) {
   if (T->proc) { g_assert(T->task); g_assert(U_PROC_IS_VALID(T->proc)); return FALSE; }
   else { g_assert(T->task == NULL); return TRUE; }
@@ -238,10 +270,50 @@ typedef struct _filter {
   void *data;
 } u_filter;
 
-#define INC_REF(P) P ->ref++;
+
+//! Increments reference count of \a P
+#define INC_REF(P) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); \
+  uh->ref++; g_assert(uh->ref > 0);} while(0)
+//! Increments reference count of \a P
+//! and assert the reference count may not drop to zero in future
+#define INC_REF_FORBID_UNREF(P) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); \
+  uh->unref_forbidden++; g_assert(uh->unref_forbidden > 0); \
+  INC_REF(P);} while(0)
+//! Increments reference count of \a P
+//! and terminates application if the new reference count is not equal to \a VAL
+#define INC_REF_ASSERT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  INC_REF(P); g_assert(uh->ref == val);} while(0)
+//! Increments reference count of \a P
+//! and terminates application if the new reference count is equal to \a VAL
+#define INC_REF_ASSERT_NOT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  DEC_REF(P); g_assert(uh->ref != val1);} while(0)
+
+//! Decrements reference count of \a P; if the reference count drops to zero,
+//! free \a P with P->free_fnk
 #define DEC_REF(P) \
- do { struct _U_HEAD *uh = (struct _U_HEAD *) P ; uh->ref--; g_assert(uh->ref >= 0); \
-  if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0);
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P) ; uh->ref--; \
+  g_assert(uh->ref > 0 || (uh->ref == 0 && !uh->unref_forbidden)); \
+  if( uh->ref == 0 && uh->free_fnk) { uh->free_fnk( P ); P = NULL; }} while(0)
+//! Allows the reference count drop to zero and decrements reference count of
+//! \a P; if the reference count drops to zero, free P with P->free_fnk
+#define DEC_REF_ALLOW_UNREF(P) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); \
+  uh->unref_forbidden--; g_assert(uh->unref_forbidden >= 0); \
+  DEC_REF(P);} while(0)
+//! Decrements reference count of \a P unless new count won't be equal to
+//! \VAL in which case terminates application
+#define DEC_REF_ASSERT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  g_assert(uh->ref == val + 1); DEC_REF(P);} while(0)
+//! Decrements reference count of \a P unless new count will be equal to
+//! \VAL in which case terminates application
+#define DEC_REF_ASSERT_NOT_VAL(P, VAL) \
+ do { struct _U_HEAD *uh = (struct _U_HEAD *) (P); gint val = (VAL); \
+  g_assert(uh->ref != val + 1); DEC_REF(P);} while(0)
 
 #define FREE_IF_UNREF(P,FNK) if( P ->ref == 0 ) { FNK ( P ); }
 
@@ -253,7 +325,7 @@ typedef struct _filter {
   NONE = 0,
   REPLACE_SOURCE,
   ADD,
-} FLAG_BEHAVIOUR;
+} FLAG_TIMEOUT_BEHAVIOUR;
 */
 typedef struct _FLAG {
   U_HEAD;
@@ -267,19 +339,20 @@ typedef struct _FLAG {
   int64_t        value;         //!< custom data: value
   int64_t        threshold;     //!< custom data: threshold
   uint32_t       inherit : 1;      //!< will apply to all children
+  uint32_t       urgent: 1;     //!< adding/removing the flag will tag the holder (u_proc or system flags) as changed
 } u_flag;
 
 
 u_flag *u_flag_new(u_filter *source, const char *name);
 void u_flag_free(void *data);
 
-int u_flag_add(u_proc *proc, u_flag *flag);
-int u_flag_del(u_proc *proc, u_flag *flag);
-int u_flag_clear_source(u_proc *proc, const void *source);
-int u_flag_clear_name(u_proc *proc, const char *name);
-int u_flag_clear_all(u_proc *proc);
-int u_flag_clear_flag(u_proc *proc, const void *flag);
-int u_flag_clear_timeout(u_proc *proc, time_t timeout);
+int u_flag_add(u_proc *proc, u_flag *flag, gint set_changed);
+int u_flag_del(u_proc *proc, u_flag *flag, gint set_changed);
+int u_flag_clear_source(u_proc *proc, const void *source, gint set_changed);
+int u_flag_clear_name(u_proc *proc, const char *name, gint set_changed);
+int u_flag_clear_all(u_proc *proc, gint set_changed);
+int u_flag_clear_flag(u_proc *proc, const void *flag, gint set_changed);
+int u_flag_clear_timeout(u_proc *proc, time_t timeout, gint set_changed);
 
 struct u_cgroup {
   struct cgroup *group;
@@ -293,47 +366,12 @@ struct u_cgroup_controller {
   int ref; // struct 
 };
 
-
-struct user_active_process {
-  guint pid;
-  time_t last_change;
-};
-
-enum USER_ACTIVE_AGENT {
+enum USER_ACTIVE_AGENT {       // FIXME remove?
   USER_ACTIVE_AGENT_NONE = 0,
   USER_ACTIVE_AGENT_DISABLED,
   USER_ACTIVE_AGENT_DBUS,
   USER_ACTIVE_AGENT_MODULE=1000,
 };
-
-// tracking for user sessions
-typedef struct {
-  gchar     *name;
-  gchar     *X11Display;
-  gchar     *X11Device;
-  // most likely dbus session
-  gchar     *dbus_session;
-  uid_t     uid;
-  uint32_t  idle;
-  uint32_t  active;
-#ifdef ENABLE_DBUS
-  DBusGProxy *proxy;
-#endif
-} u_session;
-
-// list of active sessions
-extern GList *U_session_list;
-
-struct user_active {
-  uid_t uid;
-  guint max_processes;
-  guint active_agent;   // tracker of the active list
-  // FIXME: last change time
-  time_t last_change;   // time when the last change happend
-  GList *actives;       // list of user_active_process
-  gboolean enabled;     // if false, ignore this user active list - useful if the user is not active (or frozen)
-};
-
 
 typedef struct {
   int (*all)(void);    //!< make scheduler run over all processes
@@ -345,10 +383,10 @@ typedef struct {
   char *(*get_config_description)(char *name);
 } u_scheduler;
 
-
-// module prototype
-int (*MODULE_INIT)(void);
-
+// umodule.c
+gboolean u_module_load_directory (char    *modules_directory);
+gboolean u_module_close          (GModule *module);
+void     u_module_close_me       (GModule *caller);
 
 // global variables
 extern GMainLoop *main_loop;
@@ -396,40 +434,69 @@ int check_polkit(const char *methode,
 int fallback_quit(gpointer exit_code);
 
 // core.c
-int load_modules(char *path);
 int load_rule_directory(const char *path, const char *load_pattern, int fatal);
 int load_rule_file(const char *name);
-int load_lua_rule_file(lua_State *L, const char *name);
+int load_lua_file(lua_State *L, const char *name);
 
-/* u_proc* u_proc_new(proc_t proc)
- *
- * Allocates a new u_proc structure.
- *
- * @param proc: optional proc_t to copy data from. Will cause state U_PROC_ALIVE.
- * Returns: new allocated u_proc with refcount 1
- */
 u_proc* u_proc_new(proc_t *proc);
 void cp_proc_t(const struct proc_t *src,struct proc_t *dst);
 
+//! @name Ensure u_proc properties
+//! @{
 
-enum ENSURE_WHAT {
-  BASIC,
-  ENVIRONMENT,
-  CMDLINE,
-  EXE,
-  TASKS,
-  CGROUP
+/**
+ * Sets of #u_proc properties that are updated as an unit.
+ *
+ * These are used:
+ *  - As argument passed to #u_proc_ensure() to make sure the properties are
+ *    available and/or should be updated.
+ *  - #u_proc.ensured_props
+ *  - #u_proc.invalid_props
+ */
+enum U_PROC_PROPERTIES {
+  BASIC        = (1<<0), //!< all #u_proc properties except those mentioned
+                         //!< below
+  ENVIRONMENT  = (1<<1), //!< #u_proc.environ
+  CMDLINE      = (1<<2), //!< #u_proc.cmdline, #u_proc.cmdline_match,
+                         //!< #u_proc.cmdfile
+  EXE          = (1<<3), //!< #u_proc.exe
+  TASKS        = (1<<4), //!< #u_proc.tasks
+  CGROUP       = (1<<5)  //!< #u_proc.cgroup, #u_proc.cgroup_raw and
+                         //!< #u_proc.cgroup_origin
 };
 
+/**
+ * On what conditions #u_proc_ensure() updates #u_proc fields.
+ */
 enum ENSURE_UPDATE {
-  NOUPDATE = 0,
-  UPDATE_NOW = 1,
-  UPDATE_ONCE = 2
+  //! do not update fields
+  UPDATE_NEVER = -1,
+  //! update conditions are selected according the field type
+  //! \see #U_PROC_PROPERTIES for more information.
+  UPDATE_DEFAULT = 0,
+  //! fields are updated unless already set and unless another attempt to update
+  //! them occurred since `/proc/<PID>/` directory was parsed last time
+  UPDATE_ONCE =  1,
+  //! update fields unless an attempt to update them occurred since
+  //! `/proc/<PID>/` directory was parsed last time, i.e. since the last time
+  //! the process was passed to #update_processes_run()
+  UPDATE_ONCE_PER_RUN =  2,
+  //! update fields now
+  UPDATE_NOW = 3
 };
 
-int u_proc_ensure(u_proc *proc, enum ENSURE_WHAT what, enum ENSURE_UPDATE update);
+int u_proc_ensure(u_proc *proc, enum U_PROC_PROPERTIES what, enum ENSURE_UPDATE update);
+
+//! @} End of "Ensure #u_proc properties"
+
+
+void u_proc_set_changed_flag_recursive(u_proc *proc);
+void u_proc_clear_changed_flag_recursive(u_proc *proc);
 GList *u_proc_list_flags (u_proc *proc, gboolean recrusive);
 GArray *u_proc_get_current_task_pids(u_proc *proc);
+gboolean u_proc_set_focused (u_proc *proc, time_t timestamp);
+guint16 u_proc_get_focus_position (u_proc *proc, gboolean force);
+
 
 
 u_filter *filter_new();
@@ -456,27 +523,44 @@ void clear_process_skip_filters(u_proc *proc, int block_types);
 
 int process_update_all();
 
+/**
+ * Returns #u_proc of PID if already known to ulatencyd
+ * @param pid PID of process
+ * @return #u_proc
+ * @retval NULL if process with given \a pid is not in internal #processes hash
+ * table, i.e. it was not yet parsed or it is a task not thread leader
+ * \see #proc_by_pid_with_retry
+ */
 static inline u_proc *proc_by_pid(pid_t pid) {
   return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
 }
 
-static inline u_proc *proc_by_pid_with_retry(pid_t pid) {
-  u_proc *proc = g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
-  if(proc)
-    return proc;
-  if(process_update_pid(pid))
-    return g_hash_table_lookup(processes, GUINT_TO_POINTER(pid));
-  return NULL;
-}
-
+/**
+ * Returns #u_task of TID if already known to ulatencyd
+ * @param tid TID of task
+ * @return #u_proc
+ * @retval NULL if task with given \a tid is not in internal #tasks hash table,
+ * i.e. it was not yes parsed or it is a process (thread leader)
+ * \see #proc_by_pid_with_retry
+ */
 static inline u_task *task_by_tid(pid_t tid) {
   return g_hash_table_lookup(tasks, GUINT_TO_POINTER(tid));
 }
+
+u_proc *proc_by_pid_with_retry (pid_t pid);
+
 
 int scheduler_run_one(u_proc *proc);
 int scheduler_run();
 u_scheduler *scheduler_get();
 int scheduler_set(u_scheduler *scheduler);
+
+extern int iteration_interval;
+
+gboolean iteration_request_full(gint priority, guint milliseconds, gboolean force);
+gboolean iteration_request_seconds_full(gint priority, guint seconds);
+static inline gboolean iteration_request(guint milliseconds);
+static inline gboolean iteration_request_seconds(guint seconds);
 
 int iterate(void *);
 
@@ -516,19 +600,12 @@ int ioprio_setpid(pid_t pid, int ioprio, int ioclass);
 int adj_oom_killer(pid_t pid, int adj);
 int get_oom_killer(pid_t pid);
 
-// group.c
-void set_active_pid(guint uid, guint pid, time_t timestamp);
-struct user_active* get_userlist(guint uid, gboolean create);
-int is_active_pid(u_proc *proc);
-int get_active_pos(u_proc *proc);
-void enable_active_list(guint uid, gboolean enable);
-void clear_active_list(guint uid);
-
 // sysinfo.c
-GHashTable * u_read_env_hash (pid_t pid);
+gchar *      u_pid_read_file (pid_t pid, const char *what, gsize *length) G_GNUC_WARN_UNUSED_RESULT;
+GPtrArray *  u_pid_read_0file (pid_t pid, const char *what) G_GNUC_WARN_UNUSED_RESULT;
+GHashTable * u_read_env_hash (pid_t pid) G_GNUC_WARN_UNUSED_RESULT;
 char *       u_pid_get_env (pid_t pid, const char *var);
 GPtrArray *  search_user_env(uid_t uid, const char *name, int update);
-GPtrArray *  u_read_0file (pid_t pid, const char *what);
 uint64_t     get_number_of_processes();
 
 // dbus consts
@@ -544,7 +621,39 @@ uint64_t     get_number_of_processes();
 #endif
 #define U_DBUS_RETRY_WAIT       500 * 1000
 
-#endif
-
 // linux_netlink.c
 extern gboolean netlink_proc_listening; //!< Linux netlink module listening to proc events
+
+#include "uassert.h"
+
+/* --- implemtation --- */
+
+/**
+ * Schedule iteration, shortcut to `iteration_request_full()`.
+ *
+ * Same as calling `iteration_request_full()` with `G_PRIORITY_DEFAULT`+1 priority.
+ * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
+ */
+static inline gboolean
+iteration_request(guint milliseconds)
+{
+  return iteration_request_full (G_PRIORITY_DEFAULT+1, milliseconds, FALSE);
+}
+
+
+/**
+ * Schedule iteration with seconds granularity delay, shortcut to `iteration_request_seconds()`.
+ *
+ * Same as calling `iteration_request_seconds()` with `G_PRIORITY_DEFAULT`+1 priority.
+ * `G_PRIORITY_DEFAULT`+1 because we want other events dispatched first.
+ */
+static inline gboolean
+iteration_request_seconds(guint seconds)
+{
+  return iteration_request_seconds_full (G_PRIORITY_DEFAULT+1, seconds);
+}
+
+
+
+
+#endif /* __ulatency_h__ */
