@@ -1,3 +1,14 @@
+  * fixed build
+
+0.6.0-alpha.2.1
+===============
+
+  * session tracker required (consolekit for now); if not available, ulatencyd
+    is aborted with descriptive error
+  * fixed SIGSEGV and critical GLib warning if none session tracker successfully
+    registered
+  * fixed handling of focused processes
+
 0.6.0-alpha.2
 =============
 

@@ -406,7 +406,11 @@ static gboolean
 u_session_check_agent (gpointer ignored)
 {
   if (!u_session_agent)
-    g_warning ("No session tracking agent registered, sessions are not tracked!");
+    g_error ("No session tracking agent successfully registered!\n"
+             "If you need to run ulatencyd without ConsoleKit or logind, report"
+             " a bug to https://github.com/poelzi/ulatencyd/issues."
+             "\n(logind support is planned but not yet finished)");
+
   return FALSE;
 }
 

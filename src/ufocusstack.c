@@ -234,7 +234,6 @@ u_focus_stack_add_pid (UFocusStack *stack,
   stack->last_change = time (NULL);
 
   /* update process flags according their position and trim the list */
-  pos++;
   llink = update_stack_list (llink, pos, stack->max_count - 1);
   g_assert (llink); // the list must contain at least the currently added PID
   if (llink->prev)
