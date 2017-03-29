@@ -1,5 +1,5 @@
 **This version of ulatencyd is considered abondend.**
-A new version is under development using the based on rust and lua.
+A new version is under development based on [rust](https://www.rust-lang.org/en-US/) and lua.
 
 
 What is ulatency
