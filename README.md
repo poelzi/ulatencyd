@@ -1,3 +1,7 @@
+**This version of ulatencyd is considered abondend.**
+A new version is under development using the based on rust and lua.
+
+
 What is ulatency
 ================
 
