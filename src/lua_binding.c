@@ -34,7 +34,6 @@
 #include <glib.h>
 #include <signal.h>
 #include <time.h>
-#include <bits/signum.h>
 //#include <errno.h>
 #include <sched.h>
 #include <linux/sched.h>

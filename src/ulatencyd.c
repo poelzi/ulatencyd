@@ -27,7 +27,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <errno.h>
 #include <glib.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +50,6 @@ DBusGConnection *U_dbus_connection_system;
 #include <proc/sysinfo.h>
 #include <proc/readproc.h>
 #include <sys/mman.h>
-#include <error.h>
 
 static gchar *config_file = QUOTEME(CONFIG_PATH)"/ulatencyd.conf";
 static gchar *rules_directory = QUOTEME(RULES_DIRECTORY);

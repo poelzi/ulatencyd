@@ -19,7 +19,7 @@ ENDIF(DBUS_FOUND AND ENABLE_DBUS)
 add_executable(ulatencyd core.c ulatencyd.c sysinfo.c sysctl.c
                linux_netlink.c umodule.c uhook.c
                usession.c ufocusstack.c uassert.c
-               ${EXTRA_C} lua_binding.c tools.c)
+               ${EXTRA_C} lua_binding.c tools.c fts.c)
 
 target_link_libraries (ulatencyd dl ${MY_LUA_LIBRARIES}
                        ${DBUS_LIBRARIES}
