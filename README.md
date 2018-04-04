@@ -1,5 +1,7 @@
-**This version of ulatencyd is considered abondend.**
-A new version is under development based on [rust](https://www.rust-lang.org/en-US/) and lua.
+**I'm bitrotten but otherwise ok, my design is sound and if I'm running and not getting into a fistfight with systemd, the system runs as smooth as never before. None the less, my author abondend me because he thinks he has more important things to do.
+Please adopt me.**
+
+**Sincerely ulatencyd**
 
 
 What is ulatency
